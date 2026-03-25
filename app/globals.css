@@ -1,0 +1,148 @@
+*,
+*::before,
+*::after {
+	margin: 0;
+	padding: 0;
+	box-sizing: border-box;
+}
+
+img,
+picture,
+video,
+canvas,
+svg {
+	display: block;
+	max-width: 100%;
+}
+
+input,
+button,
+textarea,
+select {
+	font: inherit;
+}
+
+p,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+	overflow-wrap: break-word;
+}
+
+p {
+	text-wrap: pretty;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+	text-wrap: balance;
+}
+
+:root {
+	font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+	font-synthesis: none;
+	text-rendering: optimizeLegibility;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+	line-height: 1.5;
+}
+
+html,
+body {
+	height: 100%;
+	overscroll-behavior: none;
+}
+
+.c-shotstack-studio {
+	width: 100%;
+	height: calc(100vh - 300px);
+	min-height: 400px;
+}
+
+.c-shotstack-timeline {
+	height: 300px;
+}
+ 
+/* プロジェクトパネル用 */
+
+.editor-shell {
+	display: flex;
+	flex-direction: column;
+	width: 100%;
+	height: 100vh;
+	overflow: hidden;
+}
+
+.editor-top {
+	display: flex;
+	flex: 1;
+	min-height: 0;
+	overflow: hidden;
+}
+
+.project-panel {
+	width: 280px;
+	min-width: 280px;
+	padding: 16px;
+	background: #ffffff;
+	border-right: 1px solid #e5e7eb;
+	overflow-y: auto;
+	flex-shrink: 0;
+}
+
+.project-panel__header {
+	font-size: 18px;
+	font-weight: 700;
+	margin-bottom: 16px;
+}
+
+.project-panel__section {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.project-panel__item {
+	padding: 10px 12px;
+	border: 1px solid #e5e7eb;
+	border-radius: 10px;
+	background: #f9fafb;
+	font-size: 14px;
+}
+
+.project-panel__upload {
+	margin-top: 16px;
+	width: 100%;
+	padding: 10px 12px;
+	border: 0;
+	border-radius: 10px;
+	background: #111827;
+	color: #ffffff;
+	cursor: pointer;
+}
+
+.studio-area {
+	flex: 1;
+	min-width: 0;
+	min-height: 0;
+	overflow: hidden;
+}
+
+.c-shotstack-studio {
+	width: 100%;
+	height: 100%;
+	min-height: 400px;
+}
+
+.c-shotstack-timeline {
+	height: 300px;
+	flex-shrink: 0;
+}
+
