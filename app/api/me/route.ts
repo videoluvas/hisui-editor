@@ -1,3 +1,5 @@
+export const runtime = "nodejs";  // または "edge"
+export const dynamic = "force-dynamic";  // ← これが必須
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
