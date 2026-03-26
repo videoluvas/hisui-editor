@@ -7,7 +7,7 @@ import {
   generateSessionToken,
   hashSessionToken,
   getSessionExpiresAt,
-} from "@/lib/auth.backend";
+} from "@/lib/session.utils";
 
 export async function POST(request: NextRequest) {
   try {
