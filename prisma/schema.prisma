@@ -1,0 +1,81 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String    @id @default(uuid())
+  bubbleUserId String    @unique @map("bubble_user_id")
+  name         String?
+  plan         String?
+  iconUrl      String?   @map("icon_url")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  sessions     Session[]
+  projects     Project[]
+  files        File[]
+
+  @@map("users")
+}
+
+model Session {
+  id               String    @id @default(uuid())
+  userId           String    @map("user_id")
+  sessionTokenHash String    @unique @map("session_token_hash")
+  expiresAt        DateTime  @map("expires_at")
+  lastAccessedAt   DateTime? @map("last_accessed_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model Project {
+  id           String    @id @default(uuid())
+  userId       String    @map("user_id")
+  title        String    @default("Untitled Project")
+  status       String    @default("draft")
+  thumbnailUrl String?   @map("thumbnail_url")
+  aspectRatio  String?   @map("aspect_ratio")
+  durationSec  Int?      @map("duration_sec")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  files        File[]
+
+  @@index([userId])
+  @@map("projects")
+}
+
+model File {
+  id          String    @id @default(uuid())
+  userId      String    @map("user_id")
+  projectId   String?   @map("project_id")
+  storageKey  String    @unique @map("storage_key")
+  fileUrl     String?   @map("file_url")
+  fileName    String    @map("file_name")
+  fileType    String    @map("file_type")
+  mimeType    String?   @map("mime_type")
+  sizeBytes   BigInt?   @map("size_bytes")
+  width       Int?
+  height      Int?
+  durationSec Decimal?  @db.Decimal(10, 2) @map("duration_sec")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project     Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([projectId])
+  @@map("files")
+}
