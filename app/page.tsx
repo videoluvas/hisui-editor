@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import ProjectPanel from "@/components/ProjectPanel";
 import { handleEditorAuthFromUrl } from "@/lib/auth.front";
 
@@ -12,23 +12,18 @@ const MAX_WIDTH = 3840;
 
 function clampClipSize<T extends Record<string, unknown>>(clip: T): T {
   const result = clip as Record<string, unknown>;
-
-  if (typeof result.height === "number" && result.height > MAX_HEIGHT) {
-    result.height = MAX_HEIGHT;
-  }
-  if (typeof result.width === "number" && result.width > MAX_WIDTH) {
-    result.width = MAX_WIDTH;
-  }
-
+  if (typeof result.height === "number" && result.height > MAX_HEIGHT) result.height = MAX_HEIGHT;
+  if (typeof result.width === "number" && result.width > MAX_WIDTH) result.width = MAX_WIDTH;
   return result as T;
 }
 
 export default function Home() {
+  const [authReady, setAuthReady] = useState(false);
+
   useEffect(() => {
     const initPage = async () => {
       try {
         const authResult = await handleEditorAuthFromUrl();
-
         if (authResult && !authResult.ok) {
           alert(authResult.message || "認証に失敗しました");
         }
@@ -36,19 +31,18 @@ export default function Home() {
         console.error("Auth failed:", error);
       }
 
+      setAuthReady(true);
+
       const initShotstack = async () => {
         try {
           const { Edit, Canvas, Controls, Timeline, UIController } =
             await import("@shotstack/shotstack-studio");
 
           const response = await fetch(TEMPLATE_URL);
-          if (!response.ok) {
-            throw new Error(`Failed to load template: ${response.status}`);
-          }
+          if (!response.ok) throw new Error(`Failed to load template: ${response.status}`);
 
           const template = await response.json();
           const edit = new Edit(template);
-
           const canvas = new Canvas(edit);
           const ui = UIController.create(edit, canvas);
 
@@ -67,64 +61,20 @@ export default function Home() {
             tooltip: "Add Shape",
           });
 
-          (ui.on as (
-            event: string,
-            handler: (payload: { position: number }) => void
-          ) => void)("button:text", ({ position }) => {
-            edit.addTrack(0, {
-              clips: [
-                clampClipSize({
-                  asset: {
-                    type: "rich-text",
-                    text: "Title",
-                    font: {
-                      family: "Work Sans",
-                      size: 72,
-                      weight: 600,
-                      color: "#ffffff",
-                      opacity: 1,
-                    },
-                    align: {
-                      horizontal: "center",
-                      vertical: "middle",
-                    },
-                  },
-                  start: position,
-                  length: 5,
-                  width: 500,
-                  height: 200,
-                }),
-              ],
-            });
-          });
-
-          (ui.on as (
-            event: string,
-            handler: (payload: { position: number }) => void
-          ) => void)("button:shape", ({ position }) => {
-            edit.addTrack(0, {
-              clips: [
-                clampClipSize({
-                  asset: {
-                    type: "svg",
-                    src: '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><rect x="0" y="0" width="100" height="100" rx="10" ry="10" fill="#00FFFF"/></svg>',
-                    opacity: 1,
-                  },
-                  start: position,
-                  length: 10,
-                  width: 100,
-                  height: 100,
-                }),
-              ],
-            });
-          });
-
-          const timelineContainer = document.querySelector<HTMLElement>(
-            "[data-shotstack-timeline]"
+          (ui.on as (event: string, handler: (payload: { position: number }) => void) => void)(
+            "button:text", ({ position }) => {
+              edit.addTrack(0, { clips: [clampClipSize({ asset: { type: "rich-text", text: "Title", font: { family: "Work Sans", size: 72, weight: 600, color: "#ffffff", opacity: 1 }, align: { horizontal: "center", vertical: "middle" } }, start: position, length: 5, width: 500, height: 200 })] });
+            }
           );
-          if (!timelineContainer) {
-            throw new Error("Timeline container not found");
-          }
+
+          (ui.on as (event: string, handler: (payload: { position: number }) => void) => void)(
+            "button:shape", ({ position }) => {
+              edit.addTrack(0, { clips: [clampClipSize({ asset: { type: "svg", src: '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><rect x="0" y="0" width="100" height="100" rx="10" ry="10" fill="#00FFFF"/></svg>', opacity: 1 }, start: position, length: 10, width: 100, height: 100 })] });
+            }
+          );
+
+          const timelineContainer = document.querySelector<HTMLElement>("[data-shotstack-timeline]");
+          if (!timelineContainer) throw new Error("Timeline container not found");
 
           const timeline = new Timeline(edit, timelineContainer);
           await timeline.load();
@@ -132,14 +82,8 @@ export default function Home() {
           const controls = new Controls(edit);
           await controls.load();
 
-          edit.events.on("clip:selected", (data: unknown) => {
-            console.log("Clip selected:", data);
-          });
-
-          edit.events.on("clip:updated", (data: unknown) => {
-            console.log("Clip updated:", data);
-          });
-
+          edit.events.on("clip:selected", (data: unknown) => console.log("Clip selected:", data));
+          edit.events.on("clip:updated", (data: unknown) => console.log("Clip updated:", data));
           edit.play();
         } catch (error) {
           console.error("Failed to load demo:", error);
@@ -155,7 +99,7 @@ export default function Home() {
   return (
     <div className="editor-shell">
       <div className="editor-top">
-        <ProjectPanel />
+        {authReady && <ProjectPanel />}
 
         <main className="studio-area">
           <div data-shotstack-studio className="c-shotstack-studio" />

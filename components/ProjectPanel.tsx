@@ -7,7 +7,7 @@ import { IconSettings, TEAL } from "@/components/icons";
 
 export default function ProjectPanel() {
   const [activeTab, setActiveTab] = useState<"project" | "files" | "export">("project");
-  const { user, loading, isLoggedIn } = useAuthUser();
+  const { user, loading, isLoggedIn, logoutUser } = useAuthUser();
 
   return (
     <aside
@@ -41,15 +41,17 @@ export default function ProjectPanel() {
           }}
         />
       </div>
-
+      
+     {/*ログインステータス*/}
       <div
         style={{
           padding: "10px 10px 0px 10px",
           display: "flex",
           alignItems: "center",
-          justifyContent: "space-between",
+          gap: 8,
         }}
       >
+        {/* アイコン */}
         <div
           style={{
             width: 32,
@@ -70,12 +72,7 @@ export default function ProjectPanel() {
             <img
               src={user.iconUrl}
               alt={user.name ?? "User"}
-              style={{
-                width: "100%",
-                height: "100%",
-                objectFit: "cover",
-                display: "block",
-              }}
+              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
             />
           ) : (
             "✦"
@@ -83,57 +80,44 @@ export default function ProjectPanel() {
         </div>
 
         {loading ? (
-          <div
-            style={{
-              padding: "6px 12px",
-              fontSize: 13,
-              color: "#777",
-            }}
-          >
-            ...
-          </div>
+          <div style={{ fontSize: 13, color: "#777" }}>...</div>
         ) : isLoggedIn ? (
-          <button
-            style={{
-              padding: "6px 12px",
-              fontSize: 13,
-              border: "1px solid #e0e0e0",
-              borderRadius: 8,
-              background: "#fff",
-              color: "#333",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              maxWidth: 170,
-            }}
-          >
-            <IconSettings />
-            <span
-              style={{
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {user?.name ?? "プロフィール"}
+          <>
+            {/* ユーザー名 */}
+            <span style={{ fontSize: 13, color: "#333", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {user?.name ?? "ユーザー"}
             </span>
-          </button>
+            {/* ログアウトアイコン */}
+            <button
+              onClick={() => logoutUser()}
+              style={{ background: "none", border: "none", cursor: "pointer", padding: 4, color: "#aaa", display: "flex", alignItems: "center", flexShrink: 0 }}
+              title="ログアウト"
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M6 2H3a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>
+                <path d="M11 11l3-3-3-3"/>
+                <path d="M14 8H6"/>
+              </svg>
+            </button>
+            {/* プランバッジ */}
+            <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 99, background: "#e6f4ea", color: "#2e7d32", fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0 }}>
+              {user?.plan ?? "プラン"}
+            </span>
+          </>
         ) : (
-          <button
-            onClick={goToHisuiLogin}
-            style={{
-              padding: "6px 12px",
-              fontSize: 13,
-              border: "1px solid #e0e0e0",
-              borderRadius: 8,
-              background: "#fff",
-              color: "#333",
-              cursor: "pointer",
-            }}
-          >
-            ログイン
-          </button>
+          <>
+            {/* ログインしてください */}
+            <span style={{ fontSize: 11, color: "#999", flex: 1 }}>
+              ログインしてください
+            </span>
+            {/* ログインボタン */}
+            <button
+              onClick={goToHisuiLogin}
+              style={{ padding: "6px 10px", fontSize: 13, border: "1px solid #e0e0e0", borderRadius: 8, background: "#fff", color: "#333", cursor: "pointer", flexShrink: 0 }}
+            >
+              ログイン
+            </button>
+          </>
         )}
       </div>
 

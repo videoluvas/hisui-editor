@@ -75,16 +75,15 @@ export async function handleEditorAuthFromUrl(): Promise<BubbleAuthResponse | nu
     return null;
   }
 
-  const result = await verifyEditorAuth(authCode, userId);
+  const res = await fetch("/api/auth/bubble", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ auth_code: authCode, user_id: userId }),
+  });
+
+  const result: BubbleAuthResponse = await res.json();
 
   if (result.ok) {
-    saveEditorUser({
-      user_id: result.user_id ?? "",
-      name: result.name ?? "",
-      P_image: result.P_image ?? "",
-      plan: result.plan ?? "",
-    });
-
     clearAuthParamsFromUrl();
   }
 
