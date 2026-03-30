@@ -89,10 +89,13 @@ export default function ProjectPanel() {
             </span>
             {/* ログアウトアイコン */}
             <button
-              onClick={() => logoutUser()}
-              style={{ background: "none", border: "none", cursor: "pointer", padding: 4, color: "#aaa", display: "flex", alignItems: "center", flexShrink: 0 }}
-              title="ログアウト"
-            >
+  onClick={async () => {
+    await logoutUser();
+    goToHisuiLogin();
+  }}
+  style={{ background: "none", border: "none", cursor: "pointer", padding: 4, color: "#aaa", display: "flex", alignItems: "center", flexShrink: 0 }}
+  title="ログアウト"
+>
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M6 2H3a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>
                 <path d="M11 11l3-3-3-3"/>
@@ -101,7 +104,7 @@ export default function ProjectPanel() {
             </button>
             {/* プランバッジ */}
             <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 99, background: "#e6f4ea", color: "#2e7d32", fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0 }}>
-              {user?.plan ?? "プラン"}
+              {user?.plan?.replace("プラン", "").trim() ?? "プラン"}
             </span>
           </>
         ) : (
