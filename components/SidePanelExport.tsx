@@ -33,7 +33,7 @@ type Props = {
 
 const PHASE_INFO: Record<ExportProgressPhase, { main: string; sub: string }> = {
   saving:        { main: "プロジェクトを保存中...",        sub: "最新の編集内容を保存しています" },
-  submitting:    { main: "書き出しをリクエスト中...",      sub: "Shotstackサーバーにジョブを送信しています" },
+  submitting:    { main: "書き出しをリクエスト中...",      sub: "クラウドサーバーにジョブを送信しています" },
   queued:        { main: "レンダリングキューで待機中...",  sub: "サーバーが空き次第、自動で開始されます" },
   fetching:      { main: "アセットを取得中...",            sub: "動画・音声・画像ファイルをダウンロードしています" },
   rendering:     { main: "レンダリング中...",              sub: "サーバーで映像を合成・エンコードしています（数分かかる場合があります）" },

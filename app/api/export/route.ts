@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
     });
 
     const data = await res.json();
-    if (!res.ok) return NextResponse.json({ ok: false, message: data?.response?.message ?? "Shotstack APIエラー" }, { status: 500 });
+    if (!res.ok) return NextResponse.json({ ok: false, message: data?.response?.message ?? "書き出しAPIエラー" }, { status: 500 });
 
     return NextResponse.json({ ok: true, renderId: data.response.id });
   } catch (error) {

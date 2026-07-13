@@ -1,9 +1,28 @@
 import "./globals.css";
 import type { Metadata } from "next";
 
+const FAVICON_BASE = "https://assets.hisui-ai.com/system/img/favicons";
+
 export const metadata: Metadata = {
   title: "ヒスイAI",
   description: "AIを活用した動画・画像・ナレーション編集ツール",
+  icons: {
+    icon: [
+      { url: `${FAVICON_BASE}/favicon.ico`,       sizes: "any" },
+      { url: `${FAVICON_BASE}/favicon-16x16.png`, sizes: "16x16", type: "image/png" },
+      { url: `${FAVICON_BASE}/favicon-32x32.png`, sizes: "32x32", type: "image/png" },
+      { url: `${FAVICON_BASE}/favicon-48x48.png`, sizes: "48x48", type: "image/png" },
+      { url: `${FAVICON_BASE}/favicon-64x64.png`, sizes: "64x64", type: "image/png" },
+    ],
+    apple: { url: `${FAVICON_BASE}/apple-touch-icon.png`, sizes: "180x180", type: "image/png" },
+    other: [
+      { rel: "icon", url: `${FAVICON_BASE}/favicon-128x128.png`, sizes: "128x128", type: "image/png" },
+      { rel: "icon", url: `${FAVICON_BASE}/favicon-256x256.png`, sizes: "256x256", type: "image/png" },
+      { rel: "icon", url: `${FAVICON_BASE}/android-chrome-192x192.png`, sizes: "192x192", type: "image/png" },
+      { rel: "icon", url: `${FAVICON_BASE}/android-chrome-512x512.png`, sizes: "512x512", type: "image/png" },
+      { rel: "msapplication-TileImage", url: `${FAVICON_BASE}/mstile-144x144.png` },
+    ],
+  },
 };
 
 // 装飾テロップ Canvas 向け Google Fonts ── 2リンクに分割（URL長対策）

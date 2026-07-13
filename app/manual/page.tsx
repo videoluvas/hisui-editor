@@ -9,22 +9,34 @@ const FONT  = "'Noto Sans JP', sans-serif";
 
 // ─── TOC ─────────────────────────────────────────────────────────────────────
 
-const SECTIONS = [
-  { id: "overview",   label: "ヒスイAIとは" },
-  { id: "start",      label: "はじめかた" },
-  { id: "workspace",  label: "ワークスペース" },
-  { id: "project",    label: "プロジェクト" },
-  { id: "editor",     label: "動画編集エディタ" },
-  { id: "files",      label: "ファイルパネル" },
-  { id: "ai-image",   label: "AI 画像生成" },
-  { id: "ai-video",   label: "AI 動画生成" },
-  { id: "narration",  label: "AI ナレーション" },
-  { id: "bgm",        label: "BGM 生成" },
-  { id: "deco",       label: "装飾テロップ" },
-  { id: "bulk",       label: "一括編集（AI）" },
-  { id: "export",     label: "書き出し" },
-  { id: "settings",   label: "ワークスペース設定" },
-  { id: "conte",      label: "コンテ作成" },
+type NavItem =
+  | { type: "link";  id: string; label: string; indent?: boolean }
+  | { type: "group"; label: string };
+
+const NAV: NavItem[] = [
+  { type: "link",  id: "overview",     label: "ヒスイAIとは" },
+  { type: "group", label: "ご利用を検討の方へ" },
+  { type: "link",  id: "free",         label: "無料アカウント",    indent: true },
+  { type: "link",  id: "service",      label: "サービス・料金",    indent: true },
+  { type: "link",  id: "start",        label: "はじめかた" },
+  { type: "link",  id: "workspace",    label: "ワークスペース" },
+  { type: "link",  id: "settings",     label: "ワークスペース設定" },
+  { type: "link",  id: "ai-models",    label: "AIモデルリスト" },
+  { type: "group", label: "コンテパネル" },
+  { type: "link",  id: "conte-panel",  label: "コンテパネルとは",  indent: true },
+  { type: "link",  id: "conte",        label: "コンテ作成",        indent: true },
+  { type: "link",  id: "ai-image",     label: "AI画像生成",        indent: true },
+  { type: "link",  id: "ai-video",     label: "AI動画生成",        indent: true },
+  { type: "link",  id: "narration",    label: "AIナレーション",    indent: true },
+  { type: "group", label: "動画編集パネル" },
+  { type: "link",  id: "editor-panel", label: "動画編集パネルとは", indent: true },
+  { type: "link",  id: "project",      label: "プロジェクト",      indent: true },
+  { type: "link",  id: "editor",       label: "動画編集エディタ",  indent: true },
+  { type: "link",  id: "files",        label: "ファイルパネル",    indent: true },
+  { type: "link",  id: "bgm",          label: "BGM生成",           indent: true },
+  { type: "link",  id: "deco",         label: "装飾テロップ",      indent: true },
+  { type: "link",  id: "bulk",         label: "一括編集（AI）",    indent: true },
+  { type: "link",  id: "export",       label: "書き出し",          indent: true },
 ];
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -63,7 +75,7 @@ function Card({ children, style }: { children: React.ReactNode; style?: React.CS
 }
 
 function Callout({ color = BLUE, icon, children }: { color?: string; icon: string; children: React.ReactNode }) {
-  const bg = color === TEAL ? "#f0fdf9" : "#eff6ff";
+  const bg     = color === TEAL ? "#f0fdf9" : "#eff6ff";
   const border = color === TEAL ? "#a7f3d0" : "#bfdbfe";
   return (
     <div style={{ background: bg, border: `1px solid ${border}`, borderRadius: 10, padding: "12px 16px",
@@ -125,6 +137,51 @@ function StepList({ steps }: { steps: { n: string | number; title: string; desc:
   );
 }
 
+function ModelTable({ rows }: { rows: [string, string, "free" | "paid"][] }) {
+  return (
+    <div style={{ border: "1px solid #e2e8f0", borderRadius: 10, overflow: "hidden", marginBottom: 14 }}>
+      {rows.map(([name, desc, plan], i) => (
+        <div key={i} style={{ display: "flex", alignItems: "center", gap: 0,
+          borderBottom: i < rows.length - 1 ? "1px solid #f1f5f9" : "none",
+          background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
+          <div style={{ width: 200, flexShrink: 0, padding: "11px 14px",
+            borderRight: "1px solid #f1f5f9", display: "flex", alignItems: "center" }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#1e293b", fontFamily: FONT }}>{name}</span>
+          </div>
+          <div style={{ flex: 1, padding: "11px 14px", fontSize: 12, color: "#475569",
+            lineHeight: 1.65, fontFamily: FONT }}>{desc}</div>
+          <div style={{ flexShrink: 0, padding: "11px 14px", borderLeft: "1px solid #f1f5f9" }}>
+            {plan === "free"
+              ? <span style={{ background: "#f0fdf9", color: TEAL, border: `1px solid #a7f3d0`,
+                  borderRadius: 20, padding: "2px 10px", fontSize: 11, fontWeight: 700, fontFamily: FONT, whiteSpace: "nowrap" }}>無料</span>
+              : <span style={{ background: "#fffbeb", color: "#b45309", border: "1px solid #fcd34d",
+                  borderRadius: 20, padding: "2px 10px", fontSize: 11, fontWeight: 700, fontFamily: FONT, whiteSpace: "nowrap" }}>有料</span>
+            }
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function FeatureList({ items }: { items: [string, string][] }) {
+  return (
+    <div style={{ border: "1px solid #e2e8f0", borderRadius: 10, overflow: "hidden", marginBottom: 16 }}>
+      {items.map(([label, desc], i) => (
+        <div key={i} style={{ display: "flex",
+          borderBottom: i < items.length - 1 ? "1px solid #f1f5f9" : "none" }}>
+          <div style={{ width: 130, flexShrink: 0, background: "#f8fafc", padding: "11px 14px",
+            borderRight: "1px solid #e2e8f0", display: "flex", alignItems: "center" }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#334155", fontFamily: FONT }}>{label}</span>
+          </div>
+          <div style={{ flex: 1, padding: "11px 14px", fontSize: 13, color: "#475569",
+            lineHeight: 1.65, fontFamily: FONT }}>{desc}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function GridCards({ items }: { items: { icon: string; title: string; desc: string }[] }) {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12, marginBottom: 16 }}>
@@ -173,16 +230,30 @@ export default function ManualPage() {
           <p style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", letterSpacing: "0.1em",
             margin: "0 0 10px", textTransform: "uppercase" }}>目次</p>
           <nav style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            {SECTIONS.map(s => (
-              <button key={s.id} onClick={() => scrollTo(s.id)}
-                style={{ textAlign: "left", background: activeSection === s.id ? BLUE + "14" : "none",
-                  border: "none", borderRadius: 6, padding: "6px 10px", fontSize: 13,
-                  color: activeSection === s.id ? BLUE : "#475569",
-                  fontWeight: activeSection === s.id ? 700 : 400,
-                  cursor: "pointer", fontFamily: FONT, transition: "all 0.15s" }}>
-                {s.label}
-              </button>
-            ))}
+            {NAV.map((item, i) => {
+              if (item.type === "group") {
+                return (
+                  <div key={i} style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8",
+                    letterSpacing: "0.08em", padding: "12px 10px 4px", textTransform: "uppercase", fontFamily: FONT }}>
+                    {item.label}
+                  </div>
+                );
+              }
+              const active = activeSection === item.id;
+              return (
+                <button key={item.id} onClick={() => scrollTo(item.id)}
+                  style={{ textAlign: "left",
+                    background: active ? BLUE + "14" : "none",
+                    border: "none", borderRadius: 6,
+                    padding: item.indent ? "5px 10px 5px 18px" : "6px 10px",
+                    fontSize: item.indent ? 12 : 13,
+                    color: active ? BLUE : item.indent ? "#64748b" : "#475569",
+                    fontWeight: active ? 700 : 400,
+                    cursor: "pointer", fontFamily: FONT, transition: "all 0.15s" }}>
+                  {item.indent ? "· " : ""}{item.label}
+                </button>
+              );
+            })}
           </nav>
         </aside>
 
@@ -193,45 +264,226 @@ export default function ManualPage() {
           <div style={{ background: GRAD, borderRadius: 16, padding: "36px 40px", marginBottom: 48, color: "#fff" }}>
             <h1 style={{ margin: "0 0 10px", fontSize: 28, fontWeight: 900, fontFamily: FONT }}>ヒスイAI マニュアル</h1>
             <p style={{ margin: 0, fontSize: 15, opacity: 0.9, lineHeight: 1.7 }}>
-              AI を活用した動画・画像・ナレーション編集ツールの完全ガイドです。<br />
-              各機能の使いかた・設定方法・よくある操作を説明します。
+              動画制作のプロが本気で設計した、AI動画制作自動化ツールの完全ガイドです。
             </p>
           </div>
 
-          {/* ─── 1. ヒスイAIとは ─── */}
+          {/* ═══════════════════════════════════════════════════════
+              ヒスイAIとは
+          ════════════════════════════════════════════════════════ */}
           <Section id="overview" title="ヒスイAIとは">
             <P>
-              ヒスイAIは、AIを使って動画・画像・ナレーション・BGMを生成し、
-              Shotstack Studio の高度なタイムライン編集と組み合わせることができる
-              ブラウザベースの動画制作ツールです。
+              ヒスイAIは、動画制作会社・株式会社LUVASが自社の制作現場で使うために開発してきたツールをサービス化したものです。
+              台本作成からナレーション・画像・動画生成、タイムライン編集・書き出しまで、
+              動画制作の全工程をブラウザ上で完結できます。
             </P>
-            <GridCards items={[
-              { icon: "🎬", title: "AI動画生成", desc: "テキストプロンプトからAIが動画クリップを自動生成。3モデル対応。" },
-              { icon: "🖼", title: "AI画像生成", desc: "高精度な画像をプロンプト1行から生成。4モデル対応。" },
-              { icon: "🎤", title: "AIナレーション", desc: "30種類の音声、9トーン、5話速でリアルなTTSナレーションを生成。" },
-              { icon: "🎵", title: "BGM生成", desc: "ジャンル・ムードを指定してオリジナルBGMをAIが作曲。" },
-              { icon: "✨", title: "装飾テロップ", desc: "グラデーション・縁取り・グロー等を設定できる高品質テロップ。" },
-              { icon: "✎", title: "AI一括編集", desc: "自然言語で「字幕を明朝体に」などプロジェクト全体を一括変更。" },
-            ]} />
+
+            {/* 2パネルフロー */}
+            <div style={{ marginBottom: 28 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b", fontFamily: FONT,
+                marginBottom: 14, textAlign: "center", letterSpacing: "0.05em" }}>
+                ── ヒスイAIは「2つのパネル」で動画制作を完結する ──
+              </div>
+
+              <div style={{ display: "flex", gap: 12, alignItems: "stretch", flexWrap: "wrap" }}>
+
+                {/* コンテパネル */}
+                <div style={{ flex: "1 1 260px", background: "#eff6ff", border: "2px solid #bfdbfe",
+                  borderRadius: 16, padding: "20px 22px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+                    <div style={{ background: BLUE, color: "#fff", borderRadius: 8, padding: "4px 12px",
+                      fontSize: 12, fontWeight: 800, fontFamily: FONT }}>コンテパネル</div>
+                    <span style={{ fontSize: 12, color: "#64748b", fontFamily: FONT }}>素材を作る</span>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {[
+                      { icon: "📝", label: "整理されていないテキスト・情報を入力" },
+                      { icon: "↓", label: "", arrow: true },
+                      { icon: "📄", label: "AI台本作成　シーン分割" },
+                      { icon: "↓", label: "", arrow: true },
+                      { icon: "🖼", label: "各シーンに画像を生成" },
+                      { icon: "🎬", label: "各シーンに動画を生成" },
+                      { icon: "🎤", label: "各シーンにナレーションを生成" },
+                      { icon: "💬", label: "各シーンに字幕を設定" },
+                    ].map((row, i) =>
+                      row.arrow ? (
+                        <div key={i} style={{ textAlign: "center", color: "#93c5fd", fontSize: 18, lineHeight: 1 }}>↓</div>
+                      ) : (
+                        <div key={i} style={{ display: "flex", alignItems: "center", gap: 8,
+                          background: "#fff", borderRadius: 8, padding: "7px 12px",
+                          fontSize: 12, color: "#334155", fontFamily: FONT, fontWeight: 500 }}>
+                          <span>{row.icon}</span>{row.label}
+                        </div>
+                      )
+                    )}
+                  </div>
+                </div>
+
+                {/* 矢印 */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center",
+                  flexShrink: 0, padding: "0 4px" }}>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: TEAL, fontFamily: FONT,
+                      textAlign: "center", lineHeight: 1.4 }}>動画プロジェクト<br />に変換</div>
+                    <div style={{ fontSize: 24, color: TEAL }}>→</div>
+                  </div>
+                </div>
+
+                {/* 動画編集パネル */}
+                <div style={{ flex: "1 1 260px", background: "#f0fdf9", border: "2px solid #a7f3d0",
+                  borderRadius: 16, padding: "20px 22px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+                    <div style={{ background: TEAL, color: "#fff", borderRadius: 8, padding: "4px 12px",
+                      fontSize: 12, fontWeight: 800, fontFamily: FONT }}>動画編集パネル</div>
+                    <span style={{ fontSize: 12, color: "#64748b", fontFamily: FONT }}>一本に仕上げる</span>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {[
+                      { icon: "🗂", label: "素材がタイムラインに並ぶ" },
+                      { icon: "✂️", label: "クリップ配置・トリム・順番調整" },
+                      { icon: "✨", label: "装飾テロップ・BGMを追加" },
+                      { icon: "↓", label: "", arrow: true },
+                      { icon: "🤖", label: "AI一括編集でまとめて整える" },
+                      { icon: "↓", label: "", arrow: true },
+                      { icon: "🎥", label: "書き出し → 完成動画" },
+                    ].map((row, i) =>
+                      row.arrow ? (
+                        <div key={i} style={{ textAlign: "center", color: "#6ee7b7", fontSize: 18, lineHeight: 1 }}>↓</div>
+                      ) : (
+                        <div key={i} style={{ display: "flex", alignItems: "center", gap: 8,
+                          background: "#fff", borderRadius: 8, padding: "7px 12px",
+                          fontSize: 12, color: "#334155", fontFamily: FONT, fontWeight: 500 }}>
+                          <span>{row.icon}</span>{row.label}
+                        </div>
+                      )
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <Callout icon="💡">
-              ヒスイAIはワークスペース→プロジェクトの階層構造で管理されます。
-              最初にワークスペースを作成し、その中にプロジェクトを作って編集を始めましょう。
+              コンテパネルで素材をまとめて作り、動画編集パネルで一本に仕上げる——この2ステップが基本的な使い方です。
+              動画編集パネルから直接スタートして自分でファイルをアップロードすることも可能です。
+            </Callout>
+            <Callout icon="🔁" color={TEAL}>
+              <b>採用AIモデルについて</b><br />
+              画像・動画・ナレーション生成に使用するAIモデルは、ユーザー様の利用用途に合わせて選定・差し替えを行っています。
+              AIモデルの優位性は日々入れ替わっており、ヒスイAIではその時点で最適なモデルを随時導入しています。
+              マニュアルに記載のモデルはあくまで現時点の構成です。担当者にご相談いただければ用途に最適なモデルをご提案します。
             </Callout>
           </Section>
 
-          {/* ─── 2. はじめかた ─── */}
+          {/* ═══════════════════════════════════════════════════════
+              無料アカウント
+          ════════════════════════════════════════════════════════ */}
+          <Section id="free" title="無料アカウント">
+            <P>
+              ヒスイAIは現在、導入を検討しているユーザー様に対して、
+              担当者との打ち合わせを経た上で無料アカウントを配布しています。
+              まずはお気軽にお問い合わせください。
+            </P>
+            <SubSection title="無料アカウントの取得方法">
+              <StepList steps={[
+                { n: 1, title: "お問い合わせ・申し込み", desc: "サービスサイトのお問い合わせフォームよりご連絡ください。" },
+                { n: 2, title: "担当者との打ち合わせ", desc: "用途・利用規模・希望機能などを担当者がヒアリングします（オンライン30分程度）。" },
+                { n: 3, title: "無料アカウント発行", desc: "打ち合わせ後、アカウントを発行します。発行後すぐにすべての機能をお試しいただけます。" },
+              ]} />
+            </SubSection>
+            <SubSection title="無料プランの利用制限">
+              <P>無料アカウントでは以下の機能に回数制限があります。それ以外の機能は制限なく利用できます。</P>
+              <Table
+                headers={["機能", "無料プラン", "備考"]}
+                rows={[
+                  ["AI画像生成", "15回まで", "コンテ内の画像生成・エディタからの生成を含む"],
+                  ["AI台本作成（スクリプト自動生成）", "5回まで", "コンテ作成モードでのシーン別スクリプト生成"],
+                  ["AI動画生成", "制限なし", "生成に要するAPIコストは利用状況に応じて相談"],
+                  ["AIナレーション", "制限なし", ""],
+                  ["BGM生成", "制限なし", ""],
+                  ["装飾テロップ", "制限なし", ""],
+                  ["動画編集エディタ", "制限なし", "タイムライン編集・書き出しを含む"],
+                  ["一括編集（AI）", "制限なし", ""],
+                  ["ワークスペース・プロジェクト数", "制限なし", ""],
+                ]}
+              />
+              <Callout icon="💡">
+                画像生成・台本作成の残クレジット数はサイドパネルのユーザーアイコンから確認できます。
+                クレジットが不足した場合はプランのアップグレードまたは追加付与が可能です。担当者にご相談ください。
+              </Callout>
+            </SubSection>
+          </Section>
+
+          {/* ═══════════════════════════════════════════════════════
+              サービス・料金
+          ════════════════════════════════════════════════════════ */}
+          <Section id="service" title="サービス・料金">
+            <SubSection title="サービスの提供経緯">
+              <Card>
+                <div style={{ fontSize: 13, color: "#334155", lineHeight: 1.9, fontFamily: FONT }}>
+                  ヒスイAIは、動画制作会社・株式会社LUVASが自社の制作業務効率化のために構築してきたAIコンテツールをサービス化したものです。<br /><br />
+                  当初はお取引のある企業様のみへの限定提供でしたが、ご利用いただいた方々から大きな反響をいただき、
+                  現在は順次ウェブからの募集も開始しています。<br /><br />
+                  プロの制作現場で実際に使われてきたツールであるため、実務に即した設計と使いやすさが特徴です。
+                </div>
+              </Card>
+            </SubSection>
+            <SubSection title="日次アップデート方針">
+              <Callout icon="🔄" color={TEAL}>
+                ヒスイAIは現在、<b>1日単位で機能の拡充・アップデート</b>を継続して行っています。
+                打ち合わせ時にヒアリングしたご要望を反映した機能追加を前提にしたお見積り提案も行っており、
+                ユーザー様のニーズに合わせてサービスを育てていく運営スタイルです。
+              </Callout>
+              <P>ご利用開始後も継続的に新機能が追加・改善されていきます。アップデート情報は担当者よりご連絡します。</P>
+            </SubSection>
+            <SubSection title="料金・見積もりについて">
+              <P>
+                現在の提供方針では、<b>ユーザー様ごとに個別のお見積もり</b>を行っています。
+                利用用途・想定する生成量・必要な機能・サポート体制などをお伺いした上で最適なプランをご提案します。
+              </P>
+              <Table
+                headers={["確認事項", "内容"]}
+                rows={[
+                  ["利用用途", "どんな動画を・どの工程で使いたいか"],
+                  ["想定出力量", "月間の画像・動画・ナレーション生成の目安"],
+                  ["必要機能", "コンテ作成 / 動画編集 / テロップ / AIナレーション など"],
+                  ["サポート体制", "専任担当 / チャットサポート の要否"],
+                ]}
+              />
+              <Callout icon="📝">
+                まずは無料アカウントでお試しいただいた上で、利用状況をもとにプランをご提案することも可能です。
+              </Callout>
+            </SubSection>
+            <SubSection title="サポートについて">
+              <P>
+                ご希望のプランに応じて、<b>専任のサポート担当者が付くプラン</b>も用意しています。
+                Slack・Chatwork・LINEなど希望されるチャットツールで御社専用のグループを作成し、
+                スムーズに連絡・対応させていただきます。
+              </P>
+              <GridCards items={[
+                { icon: "💬", title: "専用チャットグループ", desc: "Slack / Chatwork / LINE など希望ツールで御社専用グループを作成" },
+                { icon: "👤", title: "専任担当者", desc: "操作方法・機能追加要望・トラブル対応を一括でサポート" },
+                { icon: "🔧", title: "カスタム機能開発", desc: "打ち合わせでヒアリングした機能要件を実装してご提案" },
+              ]} />
+            </SubSection>
+          </Section>
+
+          {/* ═══════════════════════════════════════════════════════
+              はじめかた
+          ════════════════════════════════════════════════════════ */}
           <Section id="start" title="はじめかた">
             <StepList steps={[
               { n: 1, title: "ログイン / アカウント作成", desc: "ページ左上の「ログイン / 新規登録」をクリックしてアカウントを作成またはログインします。" },
               { n: 2, title: "ワークスペースを作成", desc: "サイドパネル上部のワークスペース選択エリアから「新規作成」を選び、名前を入力して作成します。" },
-              { n: 3, title: "プロジェクト（SEQ）を作成", desc: "プロジェクトタブの「新規プロジェクト作成」をクリック。タイトル・解像度・FPS・背景色を設定します。" },
-              { n: 4, title: "ファイルをアップロード", desc: "ファイルパネルの「アップロード」ボタンから動画・画像・音声ファイルを追加します。" },
-              { n: 5, title: "タイムラインに配置", desc: "ファイルをタイムラインにドラッグ＆ドロップするか、Shotstackエディタ上部の「ファイルを挿入」ボタンを使って配置します。" },
+              { n: 3, title: "コンテを作成（推奨）またはプロジェクトを作成", desc: "コンテパネルでコンテを作り素材を一括生成するか、動画編集パネルで直接プロジェクト（SEQ）を作成して編集します。" },
+              { n: 4, title: "動画プロジェクトに変換 / ファイルをアップロード", desc: "コンテから変換するか、ファイルパネルの「アップロード」ボタンで動画・画像・音声ファイルを追加します。" },
+              { n: 5, title: "タイムラインで編集", desc: "ファイルをタイムラインに配置し、テロップ・BGM・トランジションを追加して仕上げます。" },
               { n: 6, title: "書き出し", desc: "左パネルの「書き出し」タブから書き出し方式を選んで動画を出力します。" },
             ]} />
           </Section>
 
-          {/* ─── 3. ワークスペース ─── */}
+          {/* ═══════════════════════════════════════════════════════
+              ワークスペース
+          ════════════════════════════════════════════════════════ */}
           <Section id="workspace" title="ワークスペース">
             <P>
               ワークスペースはプロジェクト・ファイル・コンテをまとめるグループです。
@@ -248,23 +500,284 @@ export default function ManualPage() {
                 ]}
               />
             </SubSection>
-            <SubSection title="ワークスペース設定">
-              <P>
-                各ワークスペースには画像・動画・ナレーション生成の共通ルールを設定できます。
-                AIパネルやモーダル内の「設定」ボタンからアクセスします。
-              </P>
+          </Section>
+
+          {/* ═══════════════════════════════════════════════════════
+              ワークスペース設定
+          ════════════════════════════════════════════════════════ */}
+          <Section id="settings" title="ワークスペース設定">
+            <P>
+              各モーダル内の「設定」ボタン、またはワークスペースバーの歯車アイコンから開きます。
+              設定はワークスペース単位でクラウドに保存されます。
+            </P>
+            <SubSection title="画像生成設定">
               <Table
-                headers={["タブ", "設定項目"]}
+                headers={["設定", "内容"]}
                 rows={[
-                  ["画像", "使用モデル / アスペクト比 / 共通ルール / NGプロンプト"],
-                  ["動画", "使用モデル / 解像度 / 尺 / 共通ルール / NGプロンプト"],
-                  ["ナレーション", "音声 / 話速 / トーン / 共通ルール / NGワード"],
+                  ["デフォルトモデル", "担当者にご確認ください（ユーザーの用途に合わせて設定）"],
+                  ["デフォルトアスペクト比", "16:9 / 9:16 / 1:1 / 4:3 / 3:4"],
+                  ["共通ルール", "全プロンプトに自動付加されるルール（例：テキスト排除、日本人描写）"],
+                  ["NGプロンプト", "生成に含めないキーワード（ネガティブプロンプト）"],
+                ]}
+              />
+            </SubSection>
+            <SubSection title="動画生成設定">
+              <Table
+                headers={["設定", "内容"]}
+                rows={[
+                  ["デフォルトモデル", "担当者にご確認ください（ユーザーの用途に合わせて設定）"],
+                  ["デフォルト解像度", "720p / 1080p"],
+                  ["デフォルト尺", "モデルに応じた秒数（4〜12秒）"],
+                  ["共通ルール", "全プロンプトに自動付加されるルール"],
+                  ["NGプロンプト", "生成に含めないキーワード"],
+                ]}
+              />
+            </SubSection>
+            <SubSection title="ナレーション設定">
+              <Table
+                headers={["設定", "内容"]}
+                rows={[
+                  ["デフォルト音声", "30種の音声から選択（男性/女性）"],
+                  ["デフォルト話速", "とてもゆっくり〜速い（5段階）"],
+                  ["デフォルトトーン", "標準・明るい・落ち着いたなど（9種）"],
+                  ["共通ルール", "全ナレーションに適用されるルール"],
+                  ["NGワード", "生成で使わない表現"],
                 ]}
               />
             </SubSection>
           </Section>
 
-          {/* ─── 4. プロジェクト ─── */}
+          {/* ═══════════════════════════════════════════════════════
+              AIモデルリスト
+          ════════════════════════════════════════════════════════ */}
+          <Section id="ai-models" title="AIモデルリスト">
+            <P>
+              ヒスイAIで利用できるAIモデルの一覧です。
+              モデルはユーザーの利用用途に合わせて選定・差し替えを行っており、
+              AIモデルの優位性は日々入れ替わるため随時最適なモデルを導入しています。
+            </P>
+            <Callout icon="💡">
+              <b>無料プラン</b>で利用できるモデルには <Badge label="無料" color={TEAL} /> を表示しています。
+              <Badge label="有料プラン" color="#f59e0b" /> のモデルは担当者にご相談ください。
+            </Callout>
+
+            <SubSection title="画像生成モデル">
+              <ModelTable rows={[
+                ["Google Nano Banana 2 Lite","高速生成に特化。大量のシーン画像を短時間で生成したい場合に最適",         "free"],
+                ["OpenAI GPT Image 2 (high)", "最高品質。プロンプト理解力が高く、テキスト合成・細部描写に優れる", "paid"],
+                ["Reve 2.0",                 "高品質でコスパ良好。幅広い用途に対応するバランス型モデル",               "paid"],
+                ["Nano Banana 2",            "Liteの上位版。品質とスピードのバランスが良く、バリエーション生成に向く",   "paid"],
+                ["MAI-Image-2.5",            "写実的な人物・プロダクト表現に強み。企業広告・商品撮影風の画像に最適",    "paid"],
+                ["Recraft V4.1 Utility",     "デザイン・ベクター寄りの出力が得意。インフォグラフィックや図解系に向く",  "paid"],
+              ]} />
+              <p style={{ margin: "16px 0 8px", fontSize: 12, fontWeight: 700, color: "#64748b",
+                fontFamily: FONT, letterSpacing: "0.05em", textTransform: "uppercase" }}>
+                著作権クリーンなデータで学習したモデル
+              </p>
+              <ModelTable rows={[
+                ["Bria",          "学習データが完全クリーン。著作権リスクを避けたい制作に。企業・官公庁・金融向け",                 "paid"],
+                ["Adobe Firefly", "Adobe公式モデル。広告・デザイン・商用制作向けのクリーンなデータで学習。完全商用利用可",         "paid"],
+              ]} />
+            </SubSection>
+
+            <SubSection title="動画生成モデル">
+              <ModelTable rows={[
+                ["Google Veo 3.1 Lite",   "カメラワーク・物理表現が最高水準。企業PV・CM・広告に最適",          "free"],
+                ["Dreamina Seedance 2.0", "安定した動き・B-rollに強い。企業動画の素材生成に最適",              "paid"],
+                ["HappyHorse 1.1",        "製品紹介・人物動画に強み。滑らかな動きが特徴",                      "paid"],
+                ["Wan 2.7",               "企業動画全般に対応できる汎用性の高いモデル",                         "paid"],
+                ["Kling 3.0 Pro",         "人物の動きの再現性が高い。SNS広告動画向け",                          "paid"],
+                ["SkyReels V4",           "人物・インタビュー系動画に特化した高品質モデル",                     "paid"],
+              ]} />
+            </SubSection>
+
+            <SubSection title="ナレーションモデル">
+              <ModelTable rows={[
+                ["Google Gemini 3.1 Flash TTS","豊富な音声バリエーション（30種以上）・9トーン・5話速に対応した汎用モデル",      "free"],
+                ["SpeechifyAI Simba 3.2",      "自然な息づかいと感情表現が得意。プロナレーターに近い音声質",                    "paid"],
+                ["Cartesia Sonic 3.5",         "超低遅延でクリアな音質。鮮明で聞き取りやすい声質",                              "paid"],
+              ]} />
+            </SubSection>
+
+            <SubSection title="BGM・音楽生成モデル">
+              <ModelTable rows={[
+                ["Google Lyria 3 Pro","映画音楽・シネマティックBGMに特化した高品質モデル",                      "free"],
+                ["Suno V5.5",        "フルボーカル楽曲の生成に最適。歌詞・メロディの完成度が高い",              "paid"],
+                ["Mureka V8",        "インスト・BGM生成の標準モデル。幅広いジャンルに安定した品質で対応",       "paid"],
+              ]} />
+            </SubSection>
+          </Section>
+
+          {/* ═══════════════════════════════════════════════════════
+              コンテパネルとは
+          ════════════════════════════════════════════════════════ */}
+          <Section id="conte-panel" title="コンテパネルとは">
+            <P>
+              コンテパネルは、動画の素材を一括で作り込むための工程です。
+              バラバラな情報やテキストを入力するだけで、AIが台本を整理しシーンに分割。
+              各シーンに画像・動画・ナレーションを生成し、絵コンテとして整理できます。
+            </P>
+
+            <FeatureList items={[
+              ["AI台本作成",   "箇条書きや文章を入力するとAIがナレーション原稿を整理し、希望尺に合わせてシーン分割します"],
+              ["AI画像生成",   "各シーンのプロンプトから画像をワンクリック生成。参照画像機能で複数シーンの一貫性も保てます"],
+              ["AI動画生成",   "画像とプロンプトからワンクリックで動画を生成。静止画コンテをそのまま動画コンテへ進化させます"],
+              ["AIナレーション","スクリプトをAIナレーターが読み上げ。30種の音声・9トーン・5話速から選択可能"],
+            ]} />
+
+            <Callout icon="→" color={TEAL}>
+              コンテが完成したら「動画プロジェクトに変換」で動画編集パネルへ。
+              シーンの画像・動画・ナレーションがタイムラインに自動配置されます。
+            </Callout>
+          </Section>
+
+          {/* ═══════════════════════════════════════════════════════
+              コンテ作成
+          ════════════════════════════════════════════════════════ */}
+          <Section id="conte" title="コンテ作成">
+            <P>
+              左パネル上部の「コンテ作成」ボタンでモードを切り替えます。
+              シーン単位でスクリプト・画像・動画・ナレーションを管理するテーブル形式の機能です。
+            </P>
+            <SubSection title="コンテの作成手順">
+              <StepList steps={[
+                { n: 1, title: "新規コンテを作成", desc: "プロジェクトタブから「新しいコンテを作成」をクリック。タイトルを設定します。" },
+                { n: 2, title: "シーンを追加", desc: "「シーンを追加」ボタンでシーンを追加。各シーンにスクリプト・画像・動画・ナレーションを設定できます。" },
+                { n: 3, title: "スクリプトを入力または生成", desc: "テキストを手入力するか、AIによるスクリプト自動生成を利用します。" },
+                { n: 4, title: "画像・動画を生成", desc: "各シーンのプロンプトを設定してAI生成。参照画像・参照テンプレートも利用可能です。" },
+                { n: 5, title: "ナレーションを生成", desc: "スクリプトをもとにAIがナレーションを音声合成します。" },
+                { n: 6, title: "動画プロジェクトに変換", desc: "コンテ全体を動画プロジェクト（SEQ）に変換してタイムライン編集に移ります。" },
+              ]} />
+            </SubSection>
+            <SubSection title="画像生成モード">
+              <Table
+                headers={["モード", "内容"]}
+                rows={[
+                  ["テキスト", "プロンプトを直接入力して生成"],
+                  ["別シーン参照", "他のシーンの画像を参照して一貫性を保ちながら生成"],
+                  ["テンプレート参照", "登録済みテンプレート画像を参照して生成"],
+                  ["ファイル参照", "ワークスペースのファイルを参照画像として使用"],
+                  ["アップロード参照", "任意の画像をアップロードして参照"],
+                ]}
+              />
+            </SubSection>
+          </Section>
+
+          {/* ═══════════════════════════════════════════════════════
+              AI画像生成
+          ════════════════════════════════════════════════════════ */}
+          <Section id="ai-image" title="AI 画像生成">
+            <P>
+              コンテパネルの各シーン、またはAIパネルの「AI画像を生成」ボタンから起動します。
+              テキストプロンプトを入力するだけで高品質な画像を生成できます。
+            </P>
+            <Callout icon="📋" color={TEAL}>
+              利用可能なモデルの一覧・無料/有料の区分は <b>AIモデルリスト</b> をご確認ください。
+            </Callout>
+            <SubSection title="設定項目">
+              <Table
+                headers={["項目", "選択肢"]}
+                rows={[
+                  ["アスペクト比", "16:9（横型・推奨）/ 9:16（縦型）/ 1:1（正方形）/ 4:3 / 3:4"],
+                  ["プロンプト", "日本語・英語どちらでも入力可。シーンの内容・雰囲気・画風を具体的に記述"],
+                  ["参照画像", "元画像を参照しながら生成（再生成モーダル時）。「参照して生成」のトグルでON/OFF"],
+                ]}
+              />
+            </SubSection>
+            <Callout icon="💡">
+              ワークスペース設定の「共通ルール」に「テキスト排除、日本人描写デフォルト」などを設定しておくと、
+              プロンプトに書かなくても毎回適用されます。
+            </Callout>
+          </Section>
+
+          {/* ═══════════════════════════════════════════════════════
+              AI動画生成
+          ════════════════════════════════════════════════════════ */}
+          <Section id="ai-video" title="AI 動画生成">
+            <P>
+              コンテパネルの各シーン、またはAIパネルの「AI動画を生成」ボタンから起動します。
+              動画生成はタスクの非同期処理のため、生成完了まで1〜5分かかります。
+            </P>
+            <Callout icon="📋" color={TEAL}>
+              利用可能なモデルの一覧・無料/有料の区分は <b>AIモデルリスト</b> をご確認ください。
+            </Callout>
+            <SubSection title="設定項目">
+              <Table
+                headers={["項目", "内容"]}
+                rows={[
+                  ["アスペクト比", "16:9（横型）/ 9:16（縦型）"],
+                  ["尺（秒）", "モデルに応じた選択肢から選択（モデル変更時に自動調整）"],
+                  ["プロンプト", "動画の動き・シーン・カメラワークを詳しく記述すると精度が上がります"],
+                ]}
+              />
+            </SubSection>
+            <Callout icon="⏳">
+              動画生成は1〜5分かかることがあります。生成中はモーダルを閉じないでください。
+              「キャンセル」ボタンで生成を中断することができます。
+            </Callout>
+          </Section>
+
+          {/* ═══════════════════════════════════════════════════════
+              AIナレーション
+          ════════════════════════════════════════════════════════ */}
+          <Section id="narration" title="AI ナレーション（TTS）">
+            <P>
+              コンテパネルの各シーン、またはAIパネルの「AIナレーションを生成」ボタンから起動します。
+              高品質なAI音声合成でナレーションを生成します。
+            </P>
+            <Callout icon="📋" color={TEAL}>
+              利用可能なモデルの一覧・無料/有料の区分は <b>AIモデルリスト</b> をご確認ください。
+            </Callout>
+            <P>各音声には「明るい」「説明的」「温かみのある」などの特性ラベルが表示されます。</P>
+            <SubSection title="話速（Pacing）">
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+                {["とてもゆっくり", "ゆっくり", "標準", "やや速い", "速い"].map(l => (
+                  <span key={l} style={{ background: "#f1f5f9", border: "1px solid #e2e8f0", borderRadius: 20,
+                    padding: "4px 12px", fontSize: 12, color: "#475569", fontFamily: FONT }}>{l}</span>
+                ))}
+              </div>
+            </SubSection>
+            <SubSection title="トーン（Tone）">
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+                {["標準", "明るい", "落ち着いた", "真面目", "力強い", "優しい", "元気", "悲しい", "緊張感"].map(l => (
+                  <span key={l} style={{ background: "#f1f5f9", border: "1px solid #e2e8f0", borderRadius: 20,
+                    padding: "4px 12px", fontSize: 12, color: "#475569", fontFamily: FONT }}>{l}</span>
+                ))}
+              </div>
+            </SubSection>
+            <Callout icon="💡">
+              ナレーションの長さはテキスト量と話速によって変わります。
+              生成後に音声プレイヤーで確認してからタイムラインに追加してください。
+            </Callout>
+          </Section>
+
+          {/* ═══════════════════════════════════════════════════════
+              動画編集パネルとは
+          ════════════════════════════════════════════════════════ */}
+          <Section id="editor-panel" title="動画編集パネルとは">
+            <P>
+              動画編集パネルは、素材を一本の動画に仕上げるための工程です。
+              コンテから変換した素材や自分でアップロードしたファイルをタイムラインに配置し、
+              テロップ・BGM・装飾を加えて完成動画を書き出します。
+            </P>
+
+            <FeatureList items={[
+              ["タイムライン編集", "クリップの配置・トリム・順番変更・差し替えをビジュアルに操作"],
+              ["装飾テロップ",     "グラデーション・縁取り・グロー等の高品質テロップを作成してタイムラインに合成"],
+              ["BGM生成",         "ジャンル・ムードを指定してAIがオリジナルBGMを作曲し自動配置"],
+              ["AI一括編集",      "「字幕を明朝体に」など自然言語でプロジェクト全体を一括変更"],
+              ["書き出し",        "ブラウザ書き出し（即時）またはクラウドサーバー書き出し（動画・音声対応）"],
+            ]} />
+
+            <Callout icon="🤖" color={TEAL}>
+              AI一括編集を使えば、「全シーンを5秒に統一」「フェードトランジションを追加」など、
+              自然言語の指示だけでプロジェクト全体をまとめて整えることができます。
+            </Callout>
+          </Section>
+
+          {/* ═══════════════════════════════════════════════════════
+              プロジェクト
+          ════════════════════════════════════════════════════════ */}
           <Section id="project" title="プロジェクト（SEQ）">
             <P>
               プロジェクト（SEQ）は動画編集の作業単位です。
@@ -291,11 +804,13 @@ export default function ManualPage() {
             </SubSection>
           </Section>
 
-          {/* ─── 5. 動画編集エディタ ─── */}
+          {/* ═══════════════════════════════════════════════════════
+              動画編集エディタ
+          ════════════════════════════════════════════════════════ */}
           <Section id="editor" title="動画編集エディタ">
             <P>
-              中央エリアに Shotstack Studio が表示されます。
-              キャンバスプレビューとタイムラインを使ってクリップを配置・編集できます。
+              中央エリアにキャンバスプレビューとタイムラインが表示されます。
+              クリップを配置・編集して動画を組み立てていきます。
             </P>
             <SubSection title="ツールバーボタン">
               <Table
@@ -315,7 +830,7 @@ export default function ManualPage() {
                   ["クリップ選択", "タイムライン上のクリップをクリック"],
                   ["クリップ移動", "クリップをドラッグして位置を変更"],
                   ["クリップのリサイズ", "クリップ端をドラッグして長さを変更"],
-                  ["クリップ削除", "クリップを選択してDeleteキー（Shotstack標準操作）"],
+                  ["クリップ削除", "クリップを選択してDeleteキー"],
                   ["ファイルをDnD", "ファイルパネルからタイムライン領域にドラッグ&ドロップ"],
                 ]}
               />
@@ -332,7 +847,9 @@ export default function ManualPage() {
             </SubSection>
           </Section>
 
-          {/* ─── 6. ファイルパネル ─── */}
+          {/* ═══════════════════════════════════════════════════════
+              ファイルパネル
+          ════════════════════════════════════════════════════════ */}
           <Section id="files" title="ファイルパネル">
             <P>
               左サイドパネルの「ファイル」タブでワークスペース内の全メディアを管理します。
@@ -373,136 +890,19 @@ export default function ManualPage() {
                 ))}
               </div>
             </SubSection>
-            <Callout icon="📁">
-              フォルダの折りたたみ状態はブラウザのローカルストレージに保存されるため、ページを再読み込みしても状態が維持されます。
-            </Callout>
           </Section>
 
-          {/* ─── 7. AI画像生成 ─── */}
-          <Section id="ai-image" title="AI 画像生成">
-            <P>
-              AIパネルの「AI画像を生成」ボタンから起動します。
-              テキストプロンプトを入力するだけで高品質な画像を生成できます。
-            </P>
-            <SubSection title="対応モデル">
-              <Table
-                headers={["モデル", "特徴", "推奨用途"]}
-                rows={[
-                  [<Badge label="Google Image Lite" />, "高速・バランス型", "通常の画像生成（推奨）"],
-                  [<Badge label="Google Image Pro" />, "高品質・詳細表現", "こだわりのある画像"],
-                  [<Badge label="Seedream 5.0 Pro" />, "超高品質・高コスト", "重要シーンのキービジュアル"],
-                  [<Badge label="Reve AI" />, "独特のスタイル", "アート系・個性的な表現"],
-                ]}
-              />
-            </SubSection>
-            <SubSection title="設定項目">
-              <Table
-                headers={["項目", "選択肢"]}
-                rows={[
-                  ["アスペクト比", "16:9（横型・推奨）/ 9:16（縦型）/ 1:1（正方形）/ 4:3 / 3:4"],
-                  ["プロンプト", "日本語・英語どちらでも入力可。シーンの内容・雰囲気・画風を具体的に記述"],
-                  ["参照画像", "元画像を参照しながら生成（再生成モーダル時）。「参照して生成」のトグルでON/OFF"],
-                ]}
-              />
-            </SubSection>
-            <Callout icon="💡">
-              ワークスペース設定の「共通ルール」に「テキスト排除、日本人描写デフォルト」などを設定しておくと、
-              プロンプトに書かなくても毎回適用されます。
-            </Callout>
-            <SubSection title="生成フロー">
-              <StepList steps={[
-                { n: 1, title: "プロンプト入力", desc: "生成したい画像の内容を日本語または英語で入力します。" },
-                { n: 2, title: "モデル・アスペクト比を選択", desc: "目的に合ったモデルとアスペクト比を選択します。" },
-                { n: 3, title: "「AI画像を生成」をクリック", desc: "生成中は30秒〜数分かかる場合があります。" },
-                { n: 4, title: "タイムラインに追加", desc: "プレビュー確認後、「タイムラインに追加」で現在の再生位置に挿入します。" },
-              ]} />
-            </SubSection>
-          </Section>
-
-          {/* ─── 8. AI動画生成 ─── */}
-          <Section id="ai-video" title="AI 動画生成">
-            <P>
-              AIパネルの「AI動画を生成」ボタンから起動します。
-              動画生成はタスクの非同期処理のため、生成完了まで1〜5分かかります。
-            </P>
-            <SubSection title="対応モデル">
-              <Table
-                headers={["モデル", "対応尺", "特徴"]}
-                rows={[
-                  [<Badge label="Seedance 1.5 Pro" />, "4 / 5 / 6 / 8 / 10 / 12秒", "汎用性の高い動画生成モデル"],
-                  [<Badge label="Google Veo 3 Lite" />, "4 / 6 / 8秒", "Google製・高品質・軽量版"],
-                  [<Badge label="Google Veo 3" />, "4 / 6 / 8秒", "Google製・最高品質"],
-                ]}
-              />
-            </SubSection>
-            <SubSection title="設定項目">
-              <Table
-                headers={["項目", "内容"]}
-                rows={[
-                  ["アスペクト比", "16:9（横型）/ 9:16（縦型）"],
-                  ["尺（秒）", "モデルに応じた選択肢から選択（モデル変更時に自動調整）"],
-                  ["プロンプト", "動画の動き・シーン・カメラワークを詳しく記述すると精度が上がります"],
-                ]}
-              />
-            </SubSection>
-            <Callout icon="⏳">
-              動画生成は1〜5分かかることがあります。生成中はモーダルを閉じないでください。
-              「キャンセル」ボタンで生成を中断することができます。
-            </Callout>
-            <SubSection title="生成フロー">
-              <StepList steps={[
-                { n: 1, title: "モデル・アスペクト比・尺を設定", desc: "目的に合った設定を選択します。" },
-                { n: 2, title: "プロンプトを入力", desc: "動画の内容・動き・雰囲気を具体的に記述します。" },
-                { n: 3, title: "「再生成する」をクリック", desc: "タスクが送信され、ポーリングによる進捗確認が始まります。" },
-                { n: 4, title: "完了後にタイムラインへ追加", desc: "動画プレビューを確認して「タイムラインに追加」で配置します。" },
-              ]} />
-            </SubSection>
-          </Section>
-
-          {/* ─── 9. AIナレーション ─── */}
-          <Section id="narration" title="AI ナレーション（TTS）">
-            <P>
-              AIパネルの「AIナレーションを生成」ボタンから起動します。
-              Google Gemini TTS を使用した高品質な音声合成です。
-            </P>
-            <SubSection title="音声の選択">
-              <Table
-                headers={["種別", "音声名（抜粋）"]}
-                rows={[
-                  ["女性音声（15種）", "Zephyr / Kore / Leda / Aoede / Callirrhoe / Autonoe / Despina / Erinome ほか"],
-                  ["男性音声（15種）", "Puck / Charon / Fenrir / Orus / Enceladus / Iapetus / Umbriel / Algieba ほか"],
-                ]}
-              />
-              <P>各音声には「明るい」「説明的」「温かみのある」などの特性ラベルが表示されます。</P>
-            </SubSection>
-            <SubSection title="話速（Pacing）">
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
-                {[["とてもゆっくり"], ["ゆっくり"], ["標準"], ["やや速い"], ["速い"]].map(([l]) => (
-                  <span key={l} style={{ background: "#f1f5f9", border: "1px solid #e2e8f0", borderRadius: 20,
-                    padding: "4px 12px", fontSize: 12, color: "#475569", fontFamily: FONT }}>{l}</span>
-                ))}
-              </div>
-            </SubSection>
-            <SubSection title="トーン（Tone）">
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
-                {["標準", "明るい", "落ち着いた", "真面目", "力強い", "優しい", "元気", "悲しい", "緊張感"].map(l => (
-                  <span key={l} style={{ background: "#f1f5f9", border: "1px solid #e2e8f0", borderRadius: 20,
-                    padding: "4px 12px", fontSize: 12, color: "#475569", fontFamily: FONT }}>{l}</span>
-                ))}
-              </div>
-            </SubSection>
-            <Callout icon="💡">
-              ナレーションの長さはテキスト量と話速によって変わります。
-              生成後に音声プレイヤーで確認してからタイムラインに追加してください。
-            </Callout>
-          </Section>
-
-          {/* ─── 10. BGM生成 ─── */}
+          {/* ═══════════════════════════════════════════════════════
+              BGM生成
+          ════════════════════════════════════════════════════════ */}
           <Section id="bgm" title="BGM 生成">
             <P>
               AIパネルの「BGMを生成」ボタンから起動します。
-              Google Lyria モデルを使って AI がオリジナル BGM を作曲します。
+              AIがオリジナルBGMを作曲します。
             </P>
+            <Callout icon="📋" color={TEAL}>
+              利用可能なモデルの一覧・無料/有料の区分は <b>AIモデルリスト</b> をご確認ください。
+            </Callout>
             <SubSection title="設定項目">
               <Table
                 headers={["項目", "選択肢"]}
@@ -521,7 +921,9 @@ export default function ManualPage() {
             </Callout>
           </Section>
 
-          {/* ─── 11. 装飾テロップ ─── */}
+          {/* ═══════════════════════════════════════════════════════
+              装飾テロップ
+          ════════════════════════════════════════════════════════ */}
           <Section id="deco" title="装飾テロップエディタ">
             <P>
               AIパネルの「装飾テロップを追加」から起動します。
@@ -589,7 +991,9 @@ export default function ManualPage() {
             </SubSection>
           </Section>
 
-          {/* ─── 12. 一括編集 ─── */}
+          {/* ═══════════════════════════════════════════════════════
+              一括編集
+          ════════════════════════════════════════════════════════ */}
           <Section id="bulk" title="一括編集（AI プロンプト編集）">
             <P>
               AIパネルの「プロンプトで全体編集」から起動します。
@@ -618,11 +1022,11 @@ export default function ManualPage() {
             </Callout>
           </Section>
 
-          {/* ─── 13. 書き出し ─── */}
+          {/* ═══════════════════════════════════════════════════════
+              書き出し
+          ════════════════════════════════════════════════════════ */}
           <Section id="export" title="書き出し">
-            <P>
-              左パネルの「書き出し」タブから書き出せます。2つの方式があります。
-            </P>
+            <P>左パネルの「書き出し」タブから書き出せます。2つの方式があります。</P>
             <SubSection title="方式1：ブラウザ書き出し">
               <Card>
                 <div style={{ fontSize: 13, color: "#334155", lineHeight: 1.8, fontFamily: FONT }}>
@@ -640,7 +1044,7 @@ export default function ManualPage() {
               <Card>
                 <div style={{ fontSize: 13, color: "#334155", lineHeight: 1.8, fontFamily: FONT }}>
                   <b>対象：</b>動画・音声クリップを含む全てのプロジェクト<br />
-                  <b>処理場所：</b>クラウドサーバー（Shotstack API）<br />
+                  <b>処理場所：</b>クラウドサーバー<br />
                   <b>所要時間：</b>最大5分（レンダリング完了まで5秒間隔でポーリング）<br />
                   <b>出力：</b>クラウドURLとしてダウンロードリンクを提供
                 </div>
@@ -659,79 +1063,6 @@ export default function ManualPage() {
                   ]}
                 />
               </SubSection>
-            </SubSection>
-          </Section>
-
-          {/* ─── 14. ワークスペース設定 ─── */}
-          <Section id="settings" title="ワークスペース設定">
-            <P>
-              各モーダル内の「設定」ボタン、またはワークスペースバーの歯車アイコンから開きます。
-              設定はワークスペース単位でクラウドに保存されます。
-            </P>
-            <SubSection title="画像生成設定">
-              <Table
-                headers={["設定", "内容"]}
-                rows={[
-                  ["デフォルトモデル", "Google Image Lite / Pro / Seedream / Reve AI から選択"],
-                  ["デフォルトアスペクト比", "16:9 / 9:16 / 1:1 / 4:3 / 3:4"],
-                  ["共通ルール", "全プロンプトに自動付加されるルール（例：テキスト排除、日本人描写）"],
-                  ["NGプロンプト", "生成に含めないキーワード（ネガティブプロンプト）"],
-                ]}
-              />
-            </SubSection>
-            <SubSection title="動画生成設定">
-              <Table
-                headers={["設定", "内容"]}
-                rows={[
-                  ["デフォルトモデル", "Seedance 1.5 Pro / Google Veo 3 Lite / Veo 3 から選択"],
-                  ["デフォルト解像度", "720p / 1080p"],
-                  ["デフォルト尺", "モデルに応じた秒数（4〜12秒）"],
-                  ["共通ルール", "全プロンプトに自動付加されるルール"],
-                  ["NGプロンプト", "生成に含めないキーワード"],
-                ]}
-              />
-            </SubSection>
-            <SubSection title="ナレーション設定">
-              <Table
-                headers={["設定", "内容"]}
-                rows={[
-                  ["デフォルト音声", "30種の音声から選択（男性/女性）"],
-                  ["デフォルト話速", "とてもゆっくり〜速い（5段階）"],
-                  ["デフォルトトーン", "標準・明るい・落ち着いたなど（9種）"],
-                  ["共通ルール", "全ナレーションに適用されるルール"],
-                  ["NGワード", "生成で使わない表現"],
-                ]}
-              />
-            </SubSection>
-          </Section>
-
-          {/* ─── 15. コンテ作成 ─── */}
-          <Section id="conte" title="コンテ作成モード">
-            <P>
-              左パネル上部の「コンテ作成」ボタンでモードを切り替えます。
-              コンテ（絵コンテ）はシーン単位でスクリプト・画像・動画・ナレーションを管理する機能です。
-            </P>
-            <SubSection title="コンテの作成">
-              <StepList steps={[
-                { n: 1, title: "新規コンテを作成", desc: "プロジェクトタブから「新しいコンテを作成」をクリック。タイトルを設定します。" },
-                { n: 2, title: "シーンを追加", desc: "「シーンを追加」ボタンでシーンを追加。各シーンにスクリプト・画像・動画・ナレーションを設定できます。" },
-                { n: 3, title: "スクリプトを入力または生成", desc: "テキストを手入力するか、AIによるスクリプト自動生成を利用します。" },
-                { n: 4, title: "画像・動画を生成", desc: "各シーンのプロンプトを設定してAI生成。参照画像・参照テンプレートも利用可能です。" },
-                { n: 5, title: "ナレーションを生成", desc: "スクリプトをもとにAIがナレーションを音声合成します。" },
-                { n: 6, title: "動画プロジェクトに変換", desc: "コンテ全体を動画プロジェクト（SEQ）に変換してタイムライン編集に移ります。" },
-              ]} />
-            </SubSection>
-            <SubSection title="画像生成モード">
-              <Table
-                headers={["モード", "内容"]}
-                rows={[
-                  ["テキスト", "プロンプトを直接入力して生成"],
-                  ["別シーン参照", "他のシーンの画像を参照して一貫性を保ちながら生成"],
-                  ["テンプレート参照", "登録済みテンプレート画像を参照して生成"],
-                  ["ファイル参照", "ワークスペースのファイルを参照画像として使用"],
-                  ["アップロード参照", "任意の画像をアップロードして参照"],
-                ]}
-              />
             </SubSection>
           </Section>
 

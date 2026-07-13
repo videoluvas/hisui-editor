@@ -108,11 +108,11 @@ export default function SidePanel({
       {/* Logo + User bar（折りたたみ可） */}
       <div style={{ borderBottom: "1px solid #f0f0f0", overflow: "hidden", transition: "max-height 0.25s ease", maxHeight: headerCollapsed ? 0 : 200 }}>
         {/* Logo */}
-        <div style={{ padding: "20px 20px 0", display: "flex", alignItems: "center" }}>
+        <div style={{ padding: "14px 14px 0", display: "flex", alignItems: "center", justifyContent: "flex-start" }}>
           <img
-            src="https://pub-87b7ceb69f934edca6a352e5586daa82.r2.dev/hisui_video_ロゴ_03.png"
+            src="https://assets.hisui-ai.com/system/img/hisui_video_%E3%83%AD%E3%82%B4_01.png"
             alt="Hisui AI Logo"
-            style={{ height: 36, width: "auto", objectFit: "contain", display: "block" }}
+            style={{ height: 24, width: "auto", objectFit: "contain", display: "block" }}
           />
         </div>
 
@@ -210,6 +210,7 @@ export default function SidePanel({
         selectedWorkspaceId={selectedWorkspaceId}
         onSelectWorkspace={onSelectWorkspace ?? (() => {})}
         onCreated={() => onAppModeChange?.("conte")}
+        isLoggedIn={loading ? undefined : isLoggedIn}
       />
 
       {/* Tabs */}

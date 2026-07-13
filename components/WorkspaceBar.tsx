@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { TEAL } from "@/components/icons";
 import { listWorkspaces, createWorkspace, updateWorkspace, deleteWorkspace } from "@/lib/workspace.api";
 import type { WorkspaceItem } from "@/lib/workspace.api";
@@ -71,9 +72,11 @@ type Props = {
   selectedWorkspaceId: string | null;
   onSelectWorkspace: (id: string, name: string) => void;
   onCreated?: () => void;
+  isLoggedIn?: boolean;
 };
 
-export default function WorkspaceBar({ selectedWorkspaceId, onSelectWorkspace, onCreated }: Props) {
+export default function WorkspaceBar({ selectedWorkspaceId, onSelectWorkspace, onCreated, isLoggedIn }: Props) {
+  const router = useRouter();
   const [workspaces, setWorkspaces]     = useState<WorkspaceItem[]>([]);
   const [loaded, setLoaded]             = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -152,8 +155,12 @@ export default function WorkspaceBar({ selectedWorkspaceId, onSelectWorkspace, o
     }
   };
 
-  // ─── ワークスペース未作成：強制作成モーダル ───────────────────────────────────
+  // ─── ワークスペース未作成：未ログインはログインページへ、ログイン済みは作成モーダル ───
   if (loaded && workspaces.length === 0) {
+    if (isLoggedIn === false) {
+      router.replace("/auth");
+      return null;
+    }
     return (
       <>
         <div style={{ padding: "6px 10px 0", fontFamily: FONT }}>

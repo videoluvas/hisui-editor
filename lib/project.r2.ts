@@ -18,7 +18,7 @@ export function buildEmptyEditJson(
       tracks: [
         {
           clips: [{
-            asset: { type: "text", text: "WELCOME TO SHOTSTACK", font: { family: "Movie Letters", color: "#ffffff", size: 80 }, alignment: { horizontal: "center" }, width: 720, height: 212 },
+            asset: { type: "text", text: "WELCOME TO HISUI", font: { family: "Movie Letters", color: "#ffffff", size: 80 }, alignment: { horizontal: "center" }, width: 720, height: 212 },
             start: 0, length: 10,
             transition: { in: "fade", out: "fade" },
             fit: "none", scale: 1,

@@ -67,7 +67,7 @@ export default function AuthPage() {
     >
       {/* Logo */}
       <img
-        src="https://pub-87b7ceb69f934edca6a352e5586daa82.r2.dev/hisui_video_ロゴ_03.png"
+        src="https://assets.hisui-ai.com/system/img/hisui_video_%E3%83%AD%E3%82%B4_01.png"
         alt="Hisui AI"
         style={{ height: 40, marginBottom: 32, objectFit: "contain" }}
       />
