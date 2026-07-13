@@ -145,7 +145,7 @@ export async function GET(request: NextRequest) {
           return NextResponse.json({ ok: true, status: "succeeded", videoUrl: externalUrl });
         }
       }
-      await logError("editor-generate-video-status", `Seedance succeeded but no video_url found`, { userId, detail: { taskId, content: contentRaw } });
+      await logError("editor-generate-video-status", `Seedance succeeded but no video_url found`, { userId, detail: { taskId } });
       return NextResponse.json({ ok: false, status: "failed", message: "動画URLが取得できませんでした（APIレスポンスにvideo_urlが含まれていません）" });
     }
 
