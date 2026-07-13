@@ -275,7 +275,7 @@ export async function GET(
       const errMsg = "動画URLが取得できませんでした（APIレスポンスにvideo_urlが含まれていません）";
       await logError("generate-video", `Seedance succeeded but no video_url found`, {
         userId: session.userId,
-        detail: { taskId: scene.videoId, sceneId: params.sceneId, content: contentRaw },
+        detail: { taskId: scene.videoId, sceneId: params.sceneId },
       });
       await prisma.storyboardScene.update({
         where: { id: params.sceneId },
