@@ -1,0 +1,45 @@
+export type VideoSettings = {
+  videoModel: string;
+  resolution: "720p" | "1080p";
+  ratio: "16:9" | "4:3" | "1:1" | "3:4" | "9:16" | "21:9" | "adaptive";
+  duration: number;       // 4–12 の整数、または -1（AI自動）
+  generateAudio: boolean;
+  cameraFixed: boolean;
+  watermark: boolean;
+  vidCommonRules: string;
+  vidNegativePrompt: string;
+};
+
+export const DEFAULT_VIDEO_SETTINGS: VideoSettings = {
+  videoModel: "veo-3-lite",
+  resolution: "720p",
+  ratio: "16:9",
+  duration: 5,
+  generateAudio: false,
+  cameraFixed: false,
+  watermark: false,
+  vidCommonRules: "",
+  vidNegativePrompt: "",
+};
+
+const LS_KEY = "hisui_video_settings";
+
+export function loadVideoSettings(): VideoSettings {
+  if (typeof window === "undefined") return { ...DEFAULT_VIDEO_SETTINGS };
+  try {
+    const stored = localStorage.getItem(LS_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (parsed.resolution === "480p") parsed.resolution = "720p";
+      return { ...DEFAULT_VIDEO_SETTINGS, ...parsed };
+    }
+  } catch {}
+  return { ...DEFAULT_VIDEO_SETTINGS };
+}
+
+export function saveVideoSettings(s: VideoSettings): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify(s));
+  } catch {}
+}

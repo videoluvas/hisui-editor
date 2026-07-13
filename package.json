@@ -13,8 +13,10 @@
 		"postinstall": "prisma generate"
 	},
 	"dependencies": {
+		"@aws-sdk/client-s3": "^3.1019.0",
+		"@aws-sdk/s3-request-presigner": "^3.1019.0",
 		"@prisma/client": "^5.22.0",
-		"@shotstack/shotstack-studio": "2.0.0-rc.6",
+		"@shotstack/shotstack-studio": "^2.4.5",
 		"@types/node": "20.6.2",
 		"@types/react": "18.2.22",
 		"@types/react-dom": "18.2.7",
@@ -23,9 +25,11 @@
 		"next": "13.5.1",
 		"react": "18.2.0",
 		"react-dom": "18.2.0",
-		"typescript": "5.2.2"
+		"typescript": "5.2.2",
+		"uuid": "^13.0.0"
 	},
 	"devDependencies": {
+		"@types/uuid": "^10.0.0",
 		"dotenv": "^17.3.1",
 		"prisma": "^5.22.0"
 	}

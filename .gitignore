@@ -2,5 +2,18 @@ node_modules
 .next
 .env
 .env.local
+.env*.local
 
+# Claude Code
+.claude/
+
+# TypeScript build info
+tsconfig.tsbuildinfo
+*.tsbuildinfo
+
+# Prisma generated
 /lib/generated/prisma
+
+# OS
+.DS_Store
+Thumbs.db

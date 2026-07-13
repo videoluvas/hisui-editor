@@ -7,21 +7,85 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id           String    @id @default(uuid())
-  bubbleUserId String    @unique @map("bubble_user_id")
-  name         String?
-  plan         String?
-  iconUrl      String?   @map("icon_url")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
+// ─── Workspace ────────────────────────────────────────────────────────────────
 
-  sessions     Session[]
-  projects     Project[]
-  files        File[]
+model Workspace {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  name      String   @default("新しいワークスペース")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt      @map("updated_at")
+
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projects        Project[]
+  files           File[]
+  storyboardMains StoryboardMain[]
+
+  @@index([userId])
+  @@map("workspaces")
+}
+
+// ─── User ─────────────────────────────────────────────────────────────────────
+
+model User {
+  id           String  @id @default(uuid())
+  bubbleUserId String? @unique @map("bubble_user_id") // Bubble移行用（将来削除予定）
+
+  // Profile
+  email       String? @unique
+  name        String?
+  surname     String?
+  phone       String?
+  companyName String? @map("company_name")
+  iconUrl     String? @map("icon_url")
+  slug        String? @unique
+
+  // Plan & flags
+  plan           String? @default("Free")
+  customerId     String  @default("Demo") @map("customer_id")
+  isDemo         Boolean @default(false)  @map("is_demo")
+  inviteCode     String? @map("invite_code")
+  newSignupBonus Boolean @default(false)  @map("new_signup_bonus")
+
+  // Credits
+  creditImg       Int @default(15) @map("credit_img")
+  creditImgMax    Int @default(15) @map("credit_img_max")
+  creditScript    Int @default(5)  @map("credit_script")
+  creditScriptMax Int @default(5)  @map("credit_script_max")
+
+  // Stripe
+  stripeCustomerId         String?   @unique @map("stripe_customer_id")
+  stripePlanId             String?            @map("stripe_plan_id")
+  stripeSubscriptionId     String?   @unique @map("stripe_subscription_id")
+  stripeSubscriptionStatus String?            @map("stripe_subscription_status")
+  stripePeriodStart        DateTime?          @map("stripe_period_start")
+  stripePeriodEnd          DateTime?          @map("stripe_period_end")
+
+  // Auth
+  passwordHash String? @map("password_hash")
+
+  // Storyboard (最後に開いたコンテへのソフトリファレンス、FK制約なし)
+  storyboardLastOpenAt DateTime? @map("storyboard_last_open_at")
+  storyboardMainId     String?   @map("storyboard_main_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt      @map("updated_at")
+
+  sessions         Session[]
+  workspaces       Workspace[]
+  projects         Project[]
+  files            File[]
+  logsCheckout     LogCheckout[]
+  logsCredit       LogCredit[]
+  logsNotification LogNotification[]
+  logsOutput       LogOutput[]
+  storyboardMains  StoryboardMain[]
+  decoPresets      DecoPreset[]
 
   @@map("users")
 }
+
+// ─── Session ──────────────────────────────────────────────────────────────────
 
 model Session {
   id               String    @id @default(uuid())
@@ -30,52 +94,301 @@ model Session {
   expiresAt        DateTime  @map("expires_at")
   lastAccessedAt   DateTime? @map("last_accessed_at")
   createdAt        DateTime  @default(now()) @map("created_at")
-  updatedAt        DateTime  @updatedAt @map("updated_at")
+  updatedAt        DateTime  @updatedAt      @map("updated_at")
 
-  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@map("sessions")
 }
 
-model Project {
-  id           String    @id @default(uuid())
-  userId       String    @map("user_id")
-  title        String    @default("Untitled Project")
-  status       String    @default("draft")
-  thumbnailUrl String?   @map("thumbnail_url")
-  aspectRatio  String?   @map("aspect_ratio")
-  durationSec  Int?      @map("duration_sec")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
+// ─── Project ──────────────────────────────────────────────────────────────────
 
-  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  files        File[]
+model Project {
+  id              String   @id @default(uuid())
+  userId          String   @map("user_id")
+  workspaceId     String?  @map("workspace_id")
+  title           String   @default("Untitled Project")
+  status          String   @default("draft")
+  thumbnailUrl    String?  @map("thumbnail_url")
+  aspectRatio     String?  @map("aspect_ratio")
+  width           Int?
+  height          Int?
+  fps             Int?     @default(30)
+  backgroundColor String?  @default("#000000") @map("background_color")
+  editJsonKey     String?  @map("edit_json_key")
+  durationSec     Int?     @map("duration_sec")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt      @map("updated_at")
+
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace       Workspace?       @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  files           File[]
+  logsOutput      LogOutput[]
+  storyboardMains StoryboardMain[]
 
   @@index([userId])
+  @@index([workspaceId])
   @@map("projects")
 }
 
+// ─── File ─────────────────────────────────────────────────────────────────────
+
 model File {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  workspaceId String?  @map("workspace_id")
+  projectId   String?  @map("project_id")
+  storageKey  String   @unique @map("storage_key")
+  fileUrl     String?  @map("file_url")
+  fileName    String   @map("file_name")
+  fileType    String   @map("file_type")
+  mimeType    String?  @map("mime_type")
+  sizeBytes   BigInt?  @map("size_bytes")
+  width       Int?
+  height      Int?
+  durationSec Decimal? @db.Decimal(10, 2) @map("duration_sec")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt      @map("updated_at")
+
+  user      User       @relation(fields: [userId],      references: [id], onDelete: Cascade)
+  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  project   Project?   @relation(fields: [projectId],   references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([workspaceId])
+  @@index([projectId])
+  @@map("files")
+}
+
+// ─── Storyboard ───────────────────────────────────────────────────────────────
+
+model StoryboardMain {
+  id          String  @id @default(uuid())
+  userId      String  @map("user_id")
+  workspaceId String? @map("workspace_id")
+  projectId   String? @map("project_id") // 動画プロジェクトとの紐付け (00_project)
+  slug      String? @unique
+
+  // 基本情報
+  title          String?  @map("title")           // 01_title
+  originalScript String?  @map("original_script") // 02_original_script (元原稿全文)
+  duration       String?  @map("duration")        // 03_duration
+  prompt         String?  @map("prompt")          // 04_prompt (全体プロンプト)
+  speed          String?  @map("speed")           // 05_speed (storyboard_start_speed)
+  status         String   @default("draft") @map("status") // 10_status
+
+  // AI生成ログ
+  aiScriptLog   String? @map("ai_script_log")    // 11_AI_script_LOG
+  aiScriptLogEx String? @map("ai_script_log_ex") // 11_AI_script_LOG_EX
+
+  // デバッグ/テスト用
+  log      String?   @map("log")       // 99_LOG
+  testJson String?   @map("test_json") // 99_test json
+  testList String[]  @default([]) @map("test_list") // 99_test list (List of texts)
+  testNo   Int?      @map("test_no")   // 99_TESTno
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt      @map("updated_at")
+
+  user      User       @relation(fields: [userId],      references: [id], onDelete: Cascade)
+  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  project   Project?   @relation(fields: [projectId],   references: [id], onDelete: SetNull)
+  scenes    StoryboardScene[]
+
+  @@index([userId])
+  @@index([workspaceId])
+  @@index([projectId])
+  @@map("storyboard_main")
+}
+
+model StoryboardScene {
+  id     String @id @default(uuid())
+  mainId String @map("main_id") // 00_main
+  slug   String? @unique
+
+  // 基本情報
+  sceneNo Int?    @map("scene_no") // N_No（表示順）
+  title   String? @map("title")    // 01_title
+  duration String? @map("duration") // 01_duration
+
+  // テキスト
+  sourceTextChunk String? @map("source_text_chunk") // 02_source_text_chunk (元原稿チャンク)
+  naText          String? @map("na_text")            // 03_NA_text (ナレーションテキスト)
+  telopText       String? @map("telop_text")         // テロップテキスト
+
+  // ── 画像生成 ──────────────────────────────────────────────
+  imgError         String?  @map("img_error")          // 04_IMG_error
+  imgErrorYn       Boolean  @default(false) @map("img_error_yn")  // 04_IMG_error_YN
+  imgPrompt        String?  @map("img_prompt")          // 04_IMG_prompt (結合済みプロンプト)
+  imgPromptAngle   String?  @map("img_prompt_angle")    // 04_IMG_prompt_angle (構図)
+  imgPromptContent String?  @map("img_prompt_content")  // 04_IMG_prompt_content (シーン内容)
+  imgStatusYn      Boolean  @default(false) @map("img_status_yn") // 04_IMG_status_YN
+  imgStyle         String   @default("photo") @map("img_style")   // 04_IMG_Style (photo/anime/illustration...)
+  imgStyleIllust   String?  @map("img_style_illust")   // 04_IMG_Style_Illust
+  imgStyleUnifiedId String? @map("img_style_unified_id") // 04_IMG_Style_unified (スタイル統一参照シーン)
+  imgUrl           String?  @map("img_url")             // 04_IMG_URL
+  imgUrlDl         String?  @map("img_url_dl")          // 04_IMG_URL_DL
+
+  // ── 動画生成 ──────────────────────────────────────────────
+  videoError         String?  @map("video_error")           // 05_VIDEO_error
+  videoErrorYn       Boolean  @default(false) @map("video_error_yn")    // 05_VIDEO_error_Y/N
+  videoId            String?  @map("video_id")              // 05_VIDEO_ID (レンダリングID)
+  videoPrompt        String?  @map("video_prompt")          // 05_VIDEO_prompt
+  videoCameraFixed   Boolean  @default(false) @map("video_camera_fixed") // 05_VIDEO_prompt_camera_fixed
+  videoDuration      Decimal? @db.Decimal(6, 2) @map("video_duration")  // 05_VIDEO_prompt_duration
+  videoGenerateAudio Boolean  @default(false) @map("video_generate_audio") // 05_VIDEO_prompt_generate_audio
+  videoStartTime     DateTime? @map("video_start_time")    // 05_VIDEO_start_time
+  videoStatus        String   @default("ready") @map("video_status")    // 05_VIDEO_status
+  videoStatusYn      Boolean  @default(false) @map("video_status_yn")   // 05_VIDEO_status_Y/N
+  videoText          String?  @map("video_text")            // 05_VIDEO_TEXT
+  videoUrl           String?  @map("video_url")             // 05_VIDEO_URL
+
+  // ── 音声生成 ──────────────────────────────────────────────
+  audioText     String? @map("audio_text")     // 06_AUDIO_TEXT (TTS用テキスト)
+  audioUrl      String? @map("audio_url")      // 06_AUDIO_URL
+  audioSettings Json?   @map("audio_settings") // 話者・感情・速度などのTTS設定
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt      @map("updated_at")
+
+  main              StoryboardMain    @relation(fields: [mainId], references: [id], onDelete: Cascade)
+  // スタイル統一参照（1シーンのスタイルを他シーンが参照する自己参照）
+  imgStyleUnified   StoryboardScene?  @relation("ImgStyleUnified", fields: [imgStyleUnifiedId], references: [id], onDelete: SetNull)
+  imgStyleUnifiedBy StoryboardScene[] @relation("ImgStyleUnified")
+
+  @@index([mainId, sceneNo])
+  @@map("storyboard_scene")
+}
+
+// ─── Deco Presets ─────────────────────────────────────────────────────────────
+
+model DecoPreset {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  name      String
+  settings  Json
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt      @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("deco_presets")
+}
+
+// ─── Image Style Templates ────────────────────────────────────────────────────
+
+model ImageStyleTemplate {
+  id             String  @id @default(uuid())
+  templateKey    String  @unique @map("template_key") // e.g. "illust-anime-cel"
+  name           String
+  description    String
+  stylePrompt    String  @map("style_prompt")
+  sampleImageUrl String? @map("sample_image_url")
+  category       String  // "cinematic"|"corporate"|"lifestyle"|"artistic"|"illustration"
+  sortOrder      Int     @default(0) @map("sort_order")
+  isActive       Boolean @default(true) @map("is_active")
+
+  @@index([category])
+  @@map("image_style_templates")
+}
+
+// ─── Voice Samples ────────────────────────────────────────────────────────────
+
+model VoiceSample {
+  id        String @id @default(uuid())
+  provider  String                      // "google-gemini"
+  modelKey  String @map("model_key")    // "gemini-tts-high"
+  no        Int
+  name      String                      // voice name (e.g. "Zephyr")
+  gender    String                      // "男性" | "女性"
+  trait     String                      // e.g. "明るい"
+  sampleUrl String @map("sample_url")   // public WAV URL
+
+  @@unique([provider, modelKey, name])
+  @@index([provider, modelKey])
+  @@map("voice_samples")
+}
+
+// ─── Logs ─────────────────────────────────────────────────────────────────────
+
+model LogCheckout {
+  id              String   @id @default(uuid())
+  userId          String   @map("user_id")
+  stripeSessionId String?  @map("stripe_session_id")
+  stripePriceId   String?  @map("stripe_price_id")
+  amount          Int?
+  currency        String?  @default("jpy")
+  status          String   @default("pending")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("logs_checkout")
+}
+
+model LogCredit {
+  id           String   @id @default(uuid())
+  userId       String   @map("user_id")
+  creditType   String   @map("credit_type")  // "img" | "script"
+  delta        Int                            // 消費は負値、補填は正値
+  balanceAfter Int      @map("balance_after")
+  reason       String?                        // "generation_used" | "plan_upgrade" | "manual_grant" 等
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, creditType])
+  @@map("logs_credit")
+}
+
+model LogNotification {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  type      String?
+  title     String?
+  body      String?
+  readAt    DateTime? @map("read_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@map("logs_notification")
+}
+
+model LogOutput {
   id          String    @id @default(uuid())
   userId      String    @map("user_id")
   projectId   String?   @map("project_id")
-  storageKey  String    @unique @map("storage_key")
-  fileUrl     String?   @map("file_url")
-  fileName    String    @map("file_name")
-  fileType    String    @map("file_type")
-  mimeType    String?   @map("mime_type")
-  sizeBytes   BigInt?   @map("size_bytes")
-  width       Int?
-  height      Int?
-  durationSec Decimal?  @db.Decimal(10, 2) @map("duration_sec")
+  renderId    String?   @map("render_id")
+  status      String    @default("pending")
+  outputUrl   String?   @map("output_url")
+  durationSec Int?      @map("duration_sec")
   createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
 
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  project     Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  user    User     @relation(fields: [userId],   references: [id], onDelete: Cascade)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([projectId])
-  @@map("files")
+  @@map("logs_output")
+}
+
+model LogError {
+  id        String   @id @default(uuid())
+  level     String   @default("error")
+  source    String
+  userId    String?  @map("user_id")
+  message   String
+  detail    Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@index([level, createdAt])
+  @@index([source, createdAt])
+  @@map("logs_error")
 }

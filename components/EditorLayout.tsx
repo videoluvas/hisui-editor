@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import ProjectPanel from "./ProjectPanel";
+import SidePanel from "./SidePanel";
 
 type EditorLayoutProps = {
   children: ReactNode;
@@ -8,7 +8,7 @@ type EditorLayoutProps = {
 export default function EditorLayout({ children }: EditorLayoutProps) {
   return (
     <div className="editor-layout">
-      <ProjectPanel />
+      <SidePanel />
       <main className="editor-main">{children}</main>
     </div>
   );
