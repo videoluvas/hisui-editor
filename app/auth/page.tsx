@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useIsMobile } from "@/lib/useIsMobile";
 
 const TEAL = "#2aab8e";
 
@@ -9,6 +10,7 @@ type Tab = "login" | "register";
 
 export default function AuthPage() {
   const router = useRouter();
+  const isMobile = useIsMobile();
   const [tab, setTab] = useState<Tab>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -62,7 +64,7 @@ export default function AuthPage() {
         alignItems: "center",
         justifyContent: "center",
         fontFamily: "'Noto Sans JP', sans-serif",
-        padding: "20px",
+        padding: isMobile ? "20px 5vw" : "20px",
       }}
     >
       {/* Logo */}
@@ -109,7 +111,7 @@ export default function AuthPage() {
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} style={{ padding: "32px 28px 28px" }}>
+        <form onSubmit={handleSubmit} style={{ padding: isMobile ? "24px 16px 20px" : "32px 28px 28px" }}>
           {tab === "register" && (
             <Field label="お名前（任意）">
               <input

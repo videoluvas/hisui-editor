@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { goToHisuiLogin } from "@/lib/auth.front";
 import { useAuthUser } from "@/lib/auth.user";
 import { TEAL } from "@/components/icons";
+import { useIsMobile } from "@/lib/useIsMobile";
 import SidePanelFiles    from "@/components/SidePanelFiles";
 import SidePanelExport   from "@/components/SidePanelExport";
 import type { ExportProgressInfo } from "@/components/SidePanelExport";
@@ -48,6 +49,8 @@ type SidePanelProps = {
   selectedWorkspaceId?: string | null;
   onSelectWorkspace?: (id: string, name: string) => void;
   onFileDoubleClick?: (fileUrl: string, meta: GenMeta | null) => void;
+  isOpen?: boolean;
+  onClose?: () => void;
 };
 
 export default function SidePanel({
@@ -66,7 +69,10 @@ export default function SidePanel({
   selectedWorkspaceId  = null,
   onSelectWorkspace,
   onFileDoubleClick,
+  isOpen  = false,
+  onClose,
 }: SidePanelProps) {
+  const isMobile = useIsMobile();
   const [activeTab, setActiveTab] = useState<AnyTab>("project");
   const [dashboardOpen, setDashboardOpen] = useState(false);
   const [headerCollapsed, setHeaderCollapsed] = useState(() => {
@@ -91,20 +97,55 @@ export default function SidePanel({
   const tabs = appMode === "video" ? VIDEO_TABS : CONTE_TABS;
 
   return (
+    <>
+      {/* モバイル：オーバーレイ */}
+      {isMobile && isOpen && (
+        <div
+          onClick={onClose}
+          style={{
+            position: "fixed", inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            zIndex: 999,
+          }}
+        />
+      )}
     <aside
       style={{
-        width: 260,
-        alignSelf: "stretch",
+        width: isMobile ? "min(80vw, 300px)" : 260,
+        alignSelf: isMobile ? undefined : "stretch",
+        height: isMobile ? "100dvh" : undefined,
         background: "#ffffff",
         borderRight: "1px solid #e8e8e8",
         display: "flex",
         flexDirection: "column",
         fontFamily: "'Noto Sans JP', sans-serif",
         overflow: "hidden",
-        position: "relative",
-        zIndex: 10,
+        position: isMobile ? "fixed" : "relative",
+        top: isMobile ? 0 : undefined,
+        left: isMobile ? 0 : undefined,
+        zIndex: isMobile ? 1000 : 10,
+        transform: isMobile ? (isOpen ? "translateX(0)" : "translateX(-100%)") : undefined,
+        transition: isMobile ? "transform 0.25s ease" : undefined,
+        boxShadow: isMobile && isOpen ? "4px 0 24px rgba(0,0,0,0.18)" : undefined,
       }}
     >
+      {/* モバイル：閉じるボタン */}
+      {isMobile && (
+        <button
+          onClick={onClose}
+          style={{
+            position: "absolute", top: 10, right: 10, zIndex: 10,
+            width: 32, height: 32, border: "none", background: "#f1f5f9",
+            borderRadius: 8, cursor: "pointer", display: "flex",
+            alignItems: "center", justifyContent: "center", color: "#64748b",
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <path d="M1 1l12 12M13 1L1 13"/>
+          </svg>
+        </button>
+      )}
+
       {/* Logo + User bar（折りたたみ可） */}
       <div style={{ borderBottom: "1px solid #f0f0f0", overflow: "hidden", transition: "max-height 0.25s ease", maxHeight: headerCollapsed ? 0 : 200 }}>
         {/* Logo */}
@@ -300,5 +341,6 @@ export default function SidePanel({
         )}
       </div>
     </aside>
+    </>
   );
 }

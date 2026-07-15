@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useIsMobile } from "@/lib/useIsMobile";
 import SidePanel from "@/components/SidePanel";
 import { handleEditorAuthFromUrl } from "@/lib/auth.front";
 import { DEFAULT_FONT, getShotstackFontId } from "@/lib/fonts";
@@ -63,6 +64,8 @@ type EditorHandle = {
 type UiOn = (event: string, handler: (payload: { position: number }) => void) => void;
 
 export default function Home() {
+  const isMobile = useIsMobile();
+  const [sidePanelOpen, setSidePanelOpen] = useState(false);
   const [authReady, setAuthReady] = useState(false);
   const [editorReady, setEditorReady] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
@@ -567,8 +570,59 @@ export default function Home() {
     initPage();
   }, []);
 
+  if (isMobile) {
+    return (
+      <div style={{
+        minHeight: "100dvh", display: "flex", flexDirection: "column",
+        alignItems: "center", justifyContent: "center", gap: 20,
+        background: "#f8fafc", padding: "32px 24px", textAlign: "center",
+        fontFamily: "'Noto Sans JP', sans-serif",
+      }}>
+        <img
+          src="https://assets.hisui-ai.com/system/img/hisui_video_%E3%83%AD%E3%82%B4_01.png"
+          alt="ヒスイAI" style={{ height: 36, objectFit: "contain" }}
+        />
+        <div style={{ fontSize: 32 }}>💻</div>
+        <div>
+          <div style={{ fontSize: 17, fontWeight: 800, color: "#1e293b", marginBottom: 8 }}>
+            PCブラウザでご利用ください
+          </div>
+          <div style={{ fontSize: 13, color: "#64748b", lineHeight: 1.8 }}>
+            ヒスイAIの動画編集機能は<br />
+            PCブラウザ向けに最適化されています。
+          </div>
+        </div>
+        <a
+          href="/manual"
+          style={{
+            marginTop: 8, display: "inline-block",
+            fontSize: 13, color: "#169385", textDecoration: "underline",
+          }}
+        >
+          マニュアルを見る
+        </a>
+      </div>
+    );
+  }
+
   return (
     <>
+      {isMobile && (
+        <button
+          onClick={() => setSidePanelOpen(true)}
+          style={{
+            position: "fixed", top: 12, left: 12, zIndex: 200,
+            width: 40, height: 40, border: "none", borderRadius: 10,
+            background: "#fff", boxShadow: "0 2px 10px rgba(0,0,0,0.15)",
+            cursor: "pointer", display: "flex", flexDirection: "column",
+            alignItems: "center", justifyContent: "center", gap: 4,
+          }}
+        >
+          {[0,1,2].map((i) => (
+            <span key={i} style={{ display: "block", width: 16, height: 2, borderRadius: 1, background: "#334155" }} />
+          ))}
+        </button>
+      )}
       <div className="editor-shell">
         <div className="editor-top">
           {authReady && (
@@ -600,6 +654,8 @@ export default function Home() {
                   setRegenSource("files");
                 }
               }}
+              isOpen={sidePanelOpen}
+              onClose={() => setSidePanelOpen(false)}
             />
           )}
           <div style={{ display: appMode === "conte" ? "flex" : "none", flex: 1, minWidth: 0, overflow: "hidden" }}>

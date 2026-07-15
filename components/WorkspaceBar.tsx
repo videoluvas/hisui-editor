@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { TEAL } from "@/components/icons";
+import { useIsMobile } from "@/lib/useIsMobile";
 import { listWorkspaces, createWorkspace, updateWorkspace, deleteWorkspace } from "@/lib/workspace.api";
 import type { WorkspaceItem } from "@/lib/workspace.api";
 import WorkspaceSettingsModal from "@/components/WorkspaceSettingsModal";
@@ -77,6 +78,7 @@ type Props = {
 
 export default function WorkspaceBar({ selectedWorkspaceId, onSelectWorkspace, onCreated, isLoggedIn }: Props) {
   const router = useRouter();
+  const isMobile = useIsMobile();
   const [workspaces, setWorkspaces]     = useState<WorkspaceItem[]>([]);
   const [loaded, setLoaded]             = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -239,19 +241,30 @@ export default function WorkspaceBar({ selectedWorkspaceId, onSelectWorkspace, o
               onClick={() => { setDropdownOpen((o) => !o); setCreating(false); setRenamingId(null); }}
               style={{
                 flex: 1, display: "flex", alignItems: "center", gap: 6,
-                padding: "6px 9px", borderRadius: 8,
+                padding: isMobile ? "9px 10px" : "6px 9px", borderRadius: 8,
                 border: `1px solid ${selectedWs ? `${TEAL}44` : "#e2e8f0"}`,
                 background: `${TEAL}09`,
                 cursor: "pointer", fontFamily: FONT,
               }}
             >
               <FolderIcon active />
-              <span style={{
-                flex: 1, textAlign: "left", fontSize: 12, fontWeight: 600,
-                color: TEAL, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-              }}>
-                {selectedWs?.name ?? "ワークスペースを選択"}
-              </span>
+              {!isMobile && (
+                <span style={{
+                  flex: 1, textAlign: "left", fontSize: 12, fontWeight: 600,
+                  color: TEAL, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                }}>
+                  {selectedWs?.name ?? "ワークスペースを選択"}
+                </span>
+              )}
+              {isMobile && selectedWs && (
+                <span style={{
+                  flex: 1, textAlign: "left", fontSize: 11, fontWeight: 600,
+                  color: TEAL, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                  maxWidth: 80,
+                }}>
+                  {selectedWs.name}
+                </span>
+              )}
               <span style={{ color: "#94a3b8", display: "flex" }}><ChevronIcon open={dropdownOpen} /></span>
             </button>
 
@@ -262,7 +275,8 @@ export default function WorkspaceBar({ selectedWorkspaceId, onSelectWorkspace, o
                 onClick={() => setSettingsOpen(true)}
                 title="ワークスペースの設定"
                 style={{
-                  width: 30, height: 30, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
+                  width: isMobile ? 36 : 30, height: isMobile ? 36 : 30,
+                  flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
                   border: "1px solid #e2e8f0", borderRadius: 8, background: "#f8fafd",
                   color: "#94a3b8", cursor: "pointer",
                 }}
