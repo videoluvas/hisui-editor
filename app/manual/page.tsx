@@ -46,7 +46,7 @@ function Section({ id, title, children }: { id: string; title: string; children:
     <section id={id} style={{ marginBottom: 64, scrollMarginTop: 80 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
         <div style={{ width: 4, height: 28, borderRadius: 2, background: GRAD, flexShrink: 0 }} />
-        <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: "#1e293b", fontFamily: FONT }}>{title}</h2>
+        <h2 className="manual-section-title" style={{ margin: 0, fontSize: 22, fontWeight: 800, color: "#1e293b", fontFamily: FONT }}>{title}</h2>
       </div>
       {children}
     </section>
@@ -141,16 +141,17 @@ function ModelTable({ rows }: { rows: [string, string, "free" | "paid"][] }) {
   return (
     <div style={{ border: "1px solid #e2e8f0", borderRadius: 10, overflow: "hidden", marginBottom: 14 }}>
       {rows.map(([name, desc, plan], i) => (
-        <div key={i} style={{ display: "flex", alignItems: "center", gap: 0,
+        <div key={i} className="model-row" style={{ display: "flex", alignItems: "stretch",
           borderBottom: i < rows.length - 1 ? "1px solid #f1f5f9" : "none",
           background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
-          <div style={{ width: 200, flexShrink: 0, padding: "11px 14px",
+          <div className="model-name" style={{ width: 200, flexShrink: 0, padding: "11px 14px",
             borderRight: "1px solid #f1f5f9", display: "flex", alignItems: "center" }}>
             <span style={{ fontSize: 12, fontWeight: 700, color: "#1e293b", fontFamily: FONT }}>{name}</span>
           </div>
-          <div style={{ flex: 1, padding: "11px 14px", fontSize: 12, color: "#475569",
+          <div className="model-desc" style={{ flex: 1, padding: "11px 14px", fontSize: 12, color: "#475569",
             lineHeight: 1.65, fontFamily: FONT }}>{desc}</div>
-          <div style={{ flexShrink: 0, padding: "11px 14px", borderLeft: "1px solid #f1f5f9" }}>
+          <div className="model-badge" style={{ flexShrink: 0, padding: "11px 14px", borderLeft: "1px solid #f1f5f9",
+            display: "flex", alignItems: "center" }}>
             {plan === "free"
               ? <span style={{ background: "#f0fdf9", color: TEAL, border: `1px solid #a7f3d0`,
                   borderRadius: 20, padding: "2px 10px", fontSize: 11, fontWeight: 700, fontFamily: FONT, whiteSpace: "nowrap" }}>無料</span>
@@ -168,9 +169,9 @@ function FeatureList({ items }: { items: [string, string][] }) {
   return (
     <div style={{ border: "1px solid #e2e8f0", borderRadius: 10, overflow: "hidden", marginBottom: 16 }}>
       {items.map(([label, desc], i) => (
-        <div key={i} style={{ display: "flex",
+        <div key={i} className="feature-row" style={{ display: "flex",
           borderBottom: i < items.length - 1 ? "1px solid #f1f5f9" : "none" }}>
-          <div style={{ width: 130, flexShrink: 0, background: "#f8fafc", padding: "11px 14px",
+          <div className="feature-label" style={{ width: 130, flexShrink: 0, background: "#f8fafc", padding: "11px 14px",
             borderRight: "1px solid #e2e8f0", display: "flex", alignItems: "center" }}>
             <span style={{ fontSize: 12, fontWeight: 700, color: "#334155", fontFamily: FONT }}>{label}</span>
           </div>
@@ -184,7 +185,7 @@ function FeatureList({ items }: { items: [string, string][] }) {
 
 function GridCards({ items }: { items: { icon: string; title: string; desc: string }[] }) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12, marginBottom: 16 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12, marginBottom: 16 }}>
       {items.map((it, i) => (
         <div key={i} style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, padding: "14px 16px" }}>
           <div style={{ fontSize: 22, marginBottom: 8 }}>{it.icon}</div>
@@ -200,33 +201,85 @@ function GridCards({ items }: { items: { icon: string; title: string; desc: stri
 
 export default function ManualPage() {
   const [activeSection, setActiveSection] = useState("overview");
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const scrollTo = (id: string) => {
     setActiveSection(id);
+    setMenuOpen(false);
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
   };
 
   return (
     <div style={{ minHeight: "100vh", background: "#f8fafc", fontFamily: FONT }}>
+      <style>{`
+        /* ── Mobile breakpoint ── */
+        @media (max-width: 768px) {
+          .manual-sidebar    { display: none !important; }
+          .manual-hamburger  { display: flex !important; }
+          .manual-back-link  { display: none !important; }
+          .manual-content    { padding-left: 0 !important; }
+          .manual-header     { padding: 0 14px !important; }
+          .manual-container  { padding: 0 14px !important; }
+          .manual-section-title { font-size: 18px !important; }
+
+          /* Hero */
+          .manual-hero       { padding: 22px 18px !important; border-radius: 12px !important; margin-bottom: 32px !important; }
+          .manual-hero-title { font-size: 20px !important; }
+          .manual-hero-desc  { font-size: 13px !important; }
+
+          /* Panel flow: stack vertically */
+          .manual-panel-flow  { flex-direction: column !important; }
+          .manual-panel-arrow { display: none !important; }
+
+          /* ModelTable: stack name + desc on top, badge stays on right */
+          .model-row   { flex-wrap: wrap !important; align-items: flex-start !important; }
+          .model-name  { width: 100% !important; border-right: none !important; border-bottom: 1px solid #f1f5f9 !important; padding-bottom: 8px !important; }
+          .model-desc  { flex: 1 1 auto !important; border-bottom: 1px solid #f1f5f9 !important; min-width: 0 !important; }
+          .model-badge { border-left: none !important; padding-top: 8px !important; align-self: flex-end !important; }
+
+          /* FeatureList: stack label + desc */
+          .feature-row   { flex-direction: column !important; }
+          .feature-label { width: 100% !important; border-right: none !important; border-bottom: 1px solid #e2e8f0 !important; padding: 9px 14px !important; }
+        }
+
+        /* ── Desktop: hide mobile-only elements ── */
+        @media (min-width: 769px) {
+          .manual-hamburger { display: none !important; }
+          .manual-drawer-overlay, .manual-drawer { display: none !important; }
+        }
+      `}</style>
 
       {/* ── Header ── */}
-      <header style={{ background: "#fff", borderBottom: "1px solid #e2e8f0", position: "sticky", top: 0, zIndex: 100,
-        padding: "0 32px", height: 60, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ width: 28, height: 28, borderRadius: 8, background: GRAD, display: "flex", alignItems: "center",
-            justifyContent: "center", fontSize: 14 }}>✦</div>
-          <span style={{ fontSize: 16, fontWeight: 800, backgroundImage: GRAD,
-            WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>ヒスイAI</span>
-          <span style={{ fontSize: 13, color: "#94a3b8", marginLeft: 4 }}>マニュアル</span>
+      <header className="manual-header" style={{ background: "#fff", borderBottom: "1px solid #e2e8f0", position: "sticky", top: 0, zIndex: 100,
+        padding: "0 32px", height: 56, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+          <div style={{ width: 26, height: 26, borderRadius: 7, background: GRAD, display: "flex", alignItems: "center",
+            justifyContent: "center", fontSize: 13, flexShrink: 0 }}>✦</div>
+          <span style={{ fontSize: 15, fontWeight: 800, backgroundImage: GRAD,
+            WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", whiteSpace: "nowrap" }}>ヒスイAI</span>
+          <span style={{ fontSize: 12, color: "#94a3b8", marginLeft: 2, whiteSpace: "nowrap" }}>マニュアル</span>
         </div>
-        <a href="/" style={{ fontSize: 13, color: BLUE, textDecoration: "none", fontWeight: 600 }}>← エディタに戻る</a>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+          <a className="manual-back-link" href="/" style={{ fontSize: 13, color: BLUE, textDecoration: "none", fontWeight: 600, whiteSpace: "nowrap" }}>← エディタに戻る</a>
+          <button
+            className="manual-hamburger"
+            onClick={() => setMenuOpen(true)}
+            aria-label="メニューを開く"
+            style={{ display: "none", flexDirection: "column", justifyContent: "center", gap: 5,
+              background: "none", border: "none", cursor: "pointer", padding: "6px 4px" }}
+          >
+            <span style={{ width: 22, height: 2, background: "#334155", borderRadius: 2, display: "block" }} />
+            <span style={{ width: 22, height: 2, background: "#334155", borderRadius: 2, display: "block" }} />
+            <span style={{ width: 22, height: 2, background: "#334155", borderRadius: 2, display: "block" }} />
+          </button>
+        </div>
       </header>
 
-      <div style={{ display: "flex", maxWidth: 1200, margin: "0 auto", padding: "0 24px" }}>
+      <div className="manual-container" style={{ display: "flex", maxWidth: 1200, margin: "0 auto", padding: "0 24px" }}>
 
         {/* ── Sidebar TOC ── */}
-        <aside style={{ width: 220, flexShrink: 0, paddingTop: 32, paddingRight: 24, position: "sticky",
-          top: 76, height: "calc(100vh - 76px)", overflowY: "auto" }}>
+        <aside className="manual-sidebar" style={{ width: 220, flexShrink: 0, paddingTop: 32, paddingRight: 24, position: "sticky",
+          top: 72, height: "calc(100vh - 72px)", overflowY: "auto" }}>
           <p style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", letterSpacing: "0.1em",
             margin: "0 0 10px", textTransform: "uppercase" }}>目次</p>
           <nav style={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -258,12 +311,12 @@ export default function ManualPage() {
         </aside>
 
         {/* ── Content ── */}
-        <main style={{ flex: 1, minWidth: 0, paddingTop: 32, paddingBottom: 80, paddingLeft: 8 }}>
+        <main className="manual-content" style={{ flex: 1, minWidth: 0, paddingTop: 32, paddingBottom: 80, paddingLeft: 8 }}>
 
           {/* Hero */}
-          <div style={{ background: GRAD, borderRadius: 16, padding: "36px 40px", marginBottom: 48, color: "#fff" }}>
-            <h1 style={{ margin: "0 0 10px", fontSize: 28, fontWeight: 900, fontFamily: FONT }}>ヒスイAI マニュアル</h1>
-            <p style={{ margin: 0, fontSize: 15, opacity: 0.9, lineHeight: 1.7 }}>
+          <div className="manual-hero" style={{ background: GRAD, borderRadius: 16, padding: "36px 40px", marginBottom: 48, color: "#fff" }}>
+            <h1 className="manual-hero-title" style={{ margin: "0 0 10px", fontSize: 28, fontWeight: 900, fontFamily: FONT }}>ヒスイAI マニュアル</h1>
+            <p className="manual-hero-desc" style={{ margin: 0, fontSize: 15, opacity: 0.9, lineHeight: 1.7 }}>
               動画制作のプロが本気で設計した、AI動画制作自動化ツールの完全ガイドです。
             </p>
           </div>
@@ -285,7 +338,7 @@ export default function ManualPage() {
                 ── ヒスイAIは「2つのパネル」で動画制作を完結する ──
               </div>
 
-              <div style={{ display: "flex", gap: 12, alignItems: "stretch", flexWrap: "wrap" }}>
+              <div className="manual-panel-flow" style={{ display: "flex", gap: 12, alignItems: "stretch", flexWrap: "wrap" }}>
 
                 {/* コンテパネル */}
                 <div style={{ flex: "1 1 260px", background: "#eff6ff", border: "2px solid #bfdbfe",
@@ -319,8 +372,8 @@ export default function ManualPage() {
                   </div>
                 </div>
 
-                {/* 矢印 */}
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "center",
+                {/* 矢印（モバイルでは非表示） */}
+                <div className="manual-panel-arrow" style={{ display: "flex", alignItems: "center", justifyContent: "center",
                   flexShrink: 0, padding: "0 4px" }}>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: TEAL, fontFamily: FONT,
@@ -968,7 +1021,7 @@ export default function ManualPage() {
               />
             </SubSection>
             <SubSection title="プリセット（16種）">
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 8 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: 8 }}>
                 {["白・縁取り", "黄・縁取り", "白・影", "黒・白縁", "赤・縁取り", "ゴールド", "ゴールド光沢",
                   "ネオン青", "白・ドロップ", "白・背景", "白・細縁", "白・太縁", "オレンジ", "シアン・縁", "エレガント", "二重縁取り"
                 ].map(p => (
@@ -1080,6 +1133,80 @@ export default function ManualPage() {
           </div>
 
         </main>
+      </div>
+
+      {/* ── Mobile drawer overlay ── */}
+      <div
+        className="manual-drawer-overlay"
+        onClick={() => setMenuOpen(false)}
+        style={{
+          position: "fixed", inset: 0, background: "rgba(15,23,42,0.45)", zIndex: 300,
+          opacity: menuOpen ? 1 : 0, pointerEvents: menuOpen ? "auto" : "none",
+          transition: "opacity 0.2s",
+        }}
+      />
+
+      {/* ── Mobile drawer ── */}
+      <div
+        className="manual-drawer"
+        style={{
+          position: "fixed", top: 0, left: 0, bottom: 0, width: 280,
+          background: "#fff", zIndex: 301, overflowY: "auto",
+          transform: menuOpen ? "translateX(0)" : "translateX(-100%)",
+          transition: "transform 0.25s cubic-bezier(0.4,0,0.2,1)",
+          boxShadow: "4px 0 24px rgba(0,0,0,0.12)",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "16px 16px 12px", borderBottom: "1px solid #f0f0f0" }}>
+          <span style={{ fontSize: 14, fontWeight: 800, backgroundImage: GRAD,
+            WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", fontFamily: FONT }}>
+            目次
+          </span>
+          <button
+            onClick={() => setMenuOpen(false)}
+            aria-label="メニューを閉じる"
+            style={{ background: "none", border: "none", cursor: "pointer", padding: 4,
+              color: "#94a3b8", fontSize: 20, lineHeight: 1 }}
+          >
+            ✕
+          </button>
+        </div>
+
+        <nav style={{ display: "flex", flexDirection: "column", gap: 2, padding: "10px 10px" }}>
+          {NAV.map((item, i) => {
+            if (item.type === "group") {
+              return (
+                <div key={i} style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8",
+                  letterSpacing: "0.08em", padding: "12px 10px 4px", textTransform: "uppercase", fontFamily: FONT }}>
+                  {item.label}
+                </div>
+              );
+            }
+            const active = activeSection === item.id;
+            return (
+              <button key={item.id} onClick={() => scrollTo(item.id)}
+                style={{ textAlign: "left",
+                  background: active ? BLUE + "14" : "none",
+                  border: "none", borderRadius: 6,
+                  padding: item.indent ? "7px 10px 7px 20px" : "8px 10px",
+                  fontSize: item.indent ? 13 : 14,
+                  color: active ? BLUE : item.indent ? "#64748b" : "#475569",
+                  fontWeight: active ? 700 : 400,
+                  cursor: "pointer", fontFamily: FONT }}>
+                {item.indent ? "· " : ""}{item.label}
+              </button>
+            );
+          })}
+
+          {/* ドロワー内のエディタに戻るリンク */}
+          <div style={{ borderTop: "1px solid #f0f0f0", marginTop: 12, paddingTop: 12 }}>
+            <a href="/" style={{ display: "block", padding: "8px 10px", fontSize: 13, color: BLUE,
+              textDecoration: "none", fontWeight: 600, fontFamily: FONT }}>
+              ← エディタに戻る
+            </a>
+          </div>
+        </nav>
       </div>
     </div>
   );
