@@ -26,9 +26,17 @@ export async function logGeneration(userId: string, type: GenLogType): Promise<v
           data: { userId, creditType: "script", delta: -1, balanceAfter: user.creditScript, reason: "generation_used" },
         });
       });
-    } else {
+    } else if (type === "video") {
+      await prisma.$executeRaw`UPDATE users SET credit_video = credit_video - 1 WHERE id = ${userId}::uuid`;
+      const [row] = await prisma.$queryRaw<[{ credit_video: number }]>`SELECT credit_video FROM users WHERE id = ${userId}::uuid`;
       await prisma.logCredit.create({
-        data: { userId, creditType: type, delta: -1, balanceAfter: 0, reason: "generation_used" },
+        data: { userId, creditType: "video", delta: -1, balanceAfter: row?.credit_video ?? 0, reason: "generation_used" },
+      });
+    } else if (type === "audio") {
+      await prisma.$executeRaw`UPDATE users SET credit_audio = credit_audio - 1 WHERE id = ${userId}::uuid`;
+      const [row] = await prisma.$queryRaw<[{ credit_audio: number }]>`SELECT credit_audio FROM users WHERE id = ${userId}::uuid`;
+      await prisma.logCredit.create({
+        data: { userId, creditType: "audio", delta: -1, balanceAfter: row?.credit_audio ?? 0, reason: "generation_used" },
       });
     }
   } catch {
@@ -60,9 +68,17 @@ export async function refundGeneration(userId: string, type: GenLogType): Promis
           data: { userId, creditType: "script", delta: 1, balanceAfter: user.creditScript, reason: "refund_error" },
         });
       });
-    } else {
+    } else if (type === "video") {
+      await prisma.$executeRaw`UPDATE users SET credit_video = credit_video + 1 WHERE id = ${userId}::uuid`;
+      const [row] = await prisma.$queryRaw<[{ credit_video: number }]>`SELECT credit_video FROM users WHERE id = ${userId}::uuid`;
       await prisma.logCredit.create({
-        data: { userId, creditType: type, delta: 1, balanceAfter: 0, reason: "refund_error" },
+        data: { userId, creditType: "video", delta: 1, balanceAfter: row?.credit_video ?? 0, reason: "refund_error" },
+      });
+    } else if (type === "audio") {
+      await prisma.$executeRaw`UPDATE users SET credit_audio = credit_audio + 1 WHERE id = ${userId}::uuid`;
+      const [row] = await prisma.$queryRaw<[{ credit_audio: number }]>`SELECT credit_audio FROM users WHERE id = ${userId}::uuid`;
+      await prisma.logCredit.create({
+        data: { userId, creditType: "audio", delta: 1, balanceAfter: row?.credit_audio ?? 0, reason: "refund_error" },
       });
     }
   } catch {

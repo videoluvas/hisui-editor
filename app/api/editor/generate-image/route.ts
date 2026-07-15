@@ -10,6 +10,7 @@ import { logError } from "@/lib/log.error";
 import { logGeneration } from "@/lib/log.generation";
 import { r2Client, R2_BUCKET_NAME, R2_PUBLIC_URL } from "@/lib/fileupload.r2";
 import { resolveSeedreamSize } from "@/lib/imageSettings";
+import { checkFreeAccess } from "@/lib/free-limit";
 
 const REVE_API_URL   = "https://api.reve.com/v1/image/edit";
 const ARK_API_URL    = "https://ark.ap-southeast.bytepluses.com/api/v3/images/generations";
@@ -84,7 +85,8 @@ export async function POST(request: NextRequest) {
   const neg   = body.imgNegativePrompt?.trim();
   const prompt = [basePrompt, rules, neg ? `以下の要素は含めないでください: ${neg}` : ""].filter(Boolean).join(" ");
 
-  const { imageModel = "google-image-lite" } = body;
+  const { ok: accessOk, message: accessMsg, effectiveModel: imageModel } = await checkFreeAccess(session.userId, "img", body.imageModel ?? "google-image-lite");
+  if (!accessOk) return NextResponse.json({ ok: false, message: accessMsg }, { status: 402 });
   const userId = session.userId;
   const workspaceId = body.workspaceId ?? null;
 

@@ -17,6 +17,10 @@ type DashUser = {
   creditImgMax: number;
   creditScript: number;
   creditScriptMax: number;
+  creditVideo: number;
+  creditVideoMax: number;
+  creditAudio: number;
+  creditAudioMax: number;
 };
 
 type CreditLog = {
@@ -131,6 +135,10 @@ const CHECKOUT_STATUS_LABEL: Record<string, { label: string; color: string }> = 
   canceled:  { label: "キャンセル", color: "#94a3b8" },
 };
 
+function isFree(user: DashUser): boolean {
+  return !user.plan || user.plan === "Free";
+}
+
 function planLabel(plan: string | null): string {
   if (!plan || plan === "Free") return "無料プラン";
   return plan;
@@ -143,13 +151,16 @@ function planColors(plan: string | null): { bg: string; color: string } {
 
 // ─── Sub-components ────────────────────────────────────────────────────────────
 
-function CreditBar({ label, used, max }: { label: string; used: number; max: number }) {
+function CreditBar({ label, used, max, note }: { label: string; used: number; max: number; note?: string }) {
   const usedCount = max - used;
   const ratio = max > 0 ? used / max : 0;
   return (
     <div style={{ marginBottom: 12 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5, fontFamily: FONT }}>
-        <span style={{ fontSize: 12, fontWeight: 600, color: "#475569" }}>{label}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: "#475569" }}>{label}</span>
+          {note && <span style={{ fontSize: 9, color: "#94a3b8", fontWeight: 500 }}>{note}</span>}
+        </div>
         <span style={{ fontSize: 11, color: "#94a3b8" }}>
           残り <strong style={{ color: used < 0 ? "#ef4444" : "#1e293b", fontWeight: 700 }}>{used}</strong> / {max}
         </span>
@@ -310,8 +321,15 @@ export default function UserDashboardModal({
               <Section title="生成クレジット">
                 {user ? (
                   <>
-                    <CreditBar label="画像生成" used={user.creditImg}    max={user.creditImgMax} />
-                    <CreditBar label="台本生成" used={user.creditScript} max={user.creditScriptMax} />
+                    <CreditBar label="AI台本生成" used={user.creditScript} max={user.creditScriptMax} />
+                    <CreditBar label="AI画像生成" used={user.creditImg}    max={user.creditImgMax}    note={isFree(user) ? "※モデル制限あり" : undefined} />
+                    <CreditBar label="AI動画生成" used={user.creditVideo}  max={user.creditVideoMax}  note={isFree(user) ? "※モデル制限あり" : undefined} />
+                    <CreditBar label="AIナレーション生成" used={user.creditAudio} max={user.creditAudioMax} note={isFree(user) ? "※モデル制限あり" : undefined} />
+                    {isFree(user) && (
+                      <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 4, fontFamily: FONT, lineHeight: 1.6 }}>
+                        書き出し：無制限（透かし・画質制限あり）
+                      </div>
+                    )}
                   </>
                 ) : <EmptyMsg />}
               </Section>
@@ -385,7 +403,23 @@ export default function UserDashboardModal({
         </div>
 
         {/* Footer */}
-        <div style={{ padding: "12px 18px", borderTop: "1px solid #f1f5f9", flexShrink: 0 }}>
+        <div style={{ padding: "12px 18px", borderTop: "1px solid #f1f5f9", flexShrink: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+          <a
+            href="/manual"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
+              width: "100%", padding: "9px 0", fontSize: 13, fontWeight: 600,
+              border: "1.5px solid #e2e8f0", borderRadius: 8, background: "#fff", color: "#475569",
+              cursor: "pointer", fontFamily: FONT, textDecoration: "none",
+              transition: "background 0.15s, color 0.15s, border-color 0.15s",
+            }}
+            onMouseEnter={(e) => { const a = e.currentTarget as HTMLAnchorElement; a.style.background=`${TEAL}10`; a.style.color=TEAL; a.style.borderColor=`${TEAL}66`; }}
+            onMouseLeave={(e) => { const a = e.currentTarget as HTMLAnchorElement; a.style.background="#fff"; a.style.color="#475569"; a.style.borderColor="#e2e8f0"; }}
+          >
+            <BookIcon /> マニュアルを開く
+          </a>
           <button onClick={onLogout}
             style={{ width: "100%", padding: "9px 0", fontSize: 13, fontWeight: 600,
               border: "1.5px solid #e2e8f0", borderRadius: 8, background: "#fff", color: "#64748b",
@@ -417,6 +451,15 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function EmptyMsg({ text = "データがありません" }: { text?: string }) {
   return (
     <div style={{ textAlign: "center", padding: "20px 0", color: "#cbd5e1", fontSize: 12, fontFamily: FONT }}>{text}</div>
+  );
+}
+
+function BookIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 3.5A1.5 1.5 0 0 1 3.5 2h9A1.5 1.5 0 0 1 14 3.5v9a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 12.5z"/>
+      <path d="M5 2v12M5 7h6"/>
+    </svg>
   );
 }
 

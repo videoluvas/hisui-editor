@@ -48,10 +48,14 @@ model User {
   newSignupBonus Boolean @default(false)  @map("new_signup_bonus")
 
   // Credits
-  creditImg       Int @default(15) @map("credit_img")
-  creditImgMax    Int @default(15) @map("credit_img_max")
+  creditImg       Int @default(20) @map("credit_img")
+  creditImgMax    Int @default(20) @map("credit_img_max")
   creditScript    Int @default(5)  @map("credit_script")
   creditScriptMax Int @default(5)  @map("credit_script_max")
+  creditVideo     Int @default(10) @map("credit_video")
+  creditVideoMax  Int @default(10) @map("credit_video_max")
+  creditAudio     Int @default(20) @map("credit_audio")
+  creditAudioMax  Int @default(20) @map("credit_audio_max")
 
   // Stripe
   stripeCustomerId         String?   @unique @map("stripe_customer_id")

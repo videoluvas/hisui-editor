@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { getEditorSessionFromCookie } from "@/lib/auth.backend";
 import { logError } from "@/lib/log.error";
 import { logGeneration } from "@/lib/log.generation";
+import { checkFreeAccess } from "@/lib/free-limit";
 
 const BASE_SYSTEM = `あなたはプロのナレーター兼映像ディレクターです。
 以下の元情報をもとに、この映像シーン1つ分のナレーション台本を作成してください。
@@ -33,6 +34,9 @@ export async function POST(
   const scene = await prisma.storyboardScene.findUnique({ where: { id: params.sceneId } });
   if (!scene || scene.mainId !== params.id)
     return NextResponse.json({ ok: false, message: "見つかりません" }, { status: 404 });
+
+  const { ok: accessOk, message: accessMsg } = await checkFreeAccess(session.userId, "script", "");
+  if (!accessOk) return NextResponse.json({ ok: false, message: accessMsg }, { status: 402 });
 
   const body = await request.json().catch(() => ({})) as { sourceText?: string; model?: string; commonRules?: string; negativePrompt?: string };
   const sourceText = (body.sourceText ?? "").trim();

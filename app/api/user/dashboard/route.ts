@@ -9,7 +9,7 @@ export async function GET() {
   const session = await getEditorSessionFromCookie();
   if (!session) return NextResponse.json({ ok: false, message: "未ログインです" }, { status: 401 });
 
-  const user = await prisma.user.findUnique({
+  const baseUser = await prisma.user.findUnique({
     where: { id: session.userId },
     select: {
       id: true,
@@ -23,7 +23,24 @@ export async function GET() {
       creditScriptMax: true,
     },
   });
-  if (!user) return NextResponse.json({ ok: false, message: "ユーザーが見つかりません" }, { status: 404 });
+  if (!baseUser) return NextResponse.json({ ok: false, message: "ユーザーが見つかりません" }, { status: 404 });
+
+  // Fetch new credit fields via raw SQL (not yet in Prisma generated types)
+  const [videoAudioRow] = await prisma.$queryRaw<[{
+    credit_video: number; credit_video_max: number;
+    credit_audio: number; credit_audio_max: number;
+  }]>`
+    SELECT credit_video, credit_video_max, credit_audio, credit_audio_max
+    FROM users WHERE id = ${session.userId}::uuid
+  `;
+
+  const user = {
+    ...baseUser,
+    creditVideo:    videoAudioRow?.credit_video     ?? 10,
+    creditVideoMax: videoAudioRow?.credit_video_max ?? 10,
+    creditAudio:    videoAudioRow?.credit_audio     ?? 20,
+    creditAudioMax: videoAudioRow?.credit_audio_max ?? 20,
+  };
 
   const [creditLogs, checkoutLogs, errorLogs] = await Promise.all([
     prisma.logCredit.findMany({

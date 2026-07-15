@@ -2,10 +2,28 @@ import "./globals.css";
 import type { Metadata } from "next";
 
 const FAVICON_BASE = "https://assets.hisui-ai.com/system/img/favicons";
+const SITE_URL     = "https://hisui-ai.com";
+const OGP_IMAGE    = "https://assets.hisui-ai.com/system/img/hisui_video_%E3%83%AD%E3%82%B4_01.png";
 
 export const metadata: Metadata = {
   title: "ヒスイAI",
   description: "AIを活用した動画・画像・ナレーション編集ツール",
+  metadataBase: new URL(SITE_URL),
+  openGraph: {
+    type:        "website",
+    url:         SITE_URL,
+    siteName:    "ヒスイAI",
+    title:       "ヒスイAI",
+    description: "AIを活用した動画・画像・ナレーション編集ツール",
+    images: [{ url: OGP_IMAGE, width: 1200, height: 630, alt: "ヒスイAI" }],
+    locale:      "ja_JP",
+  },
+  twitter: {
+    card:        "summary_large_image",
+    title:       "ヒスイAI",
+    description: "AIを活用した動画・画像・ナレーション編集ツール",
+    images:      [OGP_IMAGE],
+  },
   icons: {
     icon: [
       { url: `${FAVICON_BASE}/favicon.ico`,       sizes: "any" },

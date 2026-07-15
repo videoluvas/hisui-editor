@@ -9,6 +9,7 @@ import { logError } from "@/lib/log.error";
 import { logGeneration } from "@/lib/log.generation";
 import { r2Client, R2_BUCKET_NAME, R2_PUBLIC_URL } from "@/lib/fileupload.r2";
 import { v4 as uuidv4 } from "uuid";
+import { checkFreeAccess } from "@/lib/free-limit";
 import {
   GEMINI_TTS_MODELS,
   GEMINI_VOICES,
@@ -174,6 +175,9 @@ export async function POST(
   const scene = await prisma.storyboardScene.findUnique({ where: { id: params.sceneId } });
   if (!scene || scene.mainId !== params.id)
     return NextResponse.json({ ok: false, message: "見つかりません" }, { status: 404 });
+
+  const { ok: accessOk, message: accessMsg } = await checkFreeAccess(session.userId, "audio", "");
+  if (!accessOk) return NextResponse.json({ ok: false, message: accessMsg }, { status: 402 });
 
   const body = await request.json().catch(() => ({})) as {
     transcript?: string;

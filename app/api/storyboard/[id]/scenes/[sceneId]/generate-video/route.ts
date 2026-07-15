@@ -5,6 +5,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getEditorSessionFromCookie } from "@/lib/auth.backend";
 import { logError } from "@/lib/log.error";
+import { logGeneration } from "@/lib/log.generation";
+import { checkFreeAccess } from "@/lib/free-limit";
 
 
 const ARK_API_BASE   = "https://ark.ap-southeast.bytepluses.com/api/v3";
@@ -49,8 +51,10 @@ export async function POST(
     vidNegativePrompt?: string;
   };
 
+  const { ok: accessOk, message: accessMsg, effectiveModel: videoModel } = await checkFreeAccess(session.userId, "video", body.videoModel ?? "seedance-1-5-pro");
+  if (!accessOk) return NextResponse.json({ ok: false, message: accessMsg }, { status: 402 });
+
   const {
-    videoModel    = "seedance-1-5-pro",
     resolution    = "720p",
     ratio         = "16:9",
     duration      = 5,
@@ -138,6 +142,7 @@ export async function POST(
         },
       });
 
+      await logGeneration(session.userId, "video");
       return NextResponse.json({ ok: true, taskId: `veo:${data.name}` });
     } catch (e) {
       await logError("generate-video", `Veo create error: ${e}`, {
@@ -213,6 +218,7 @@ export async function POST(
       },
     });
 
+    await logGeneration(session.userId, "video");
     return NextResponse.json({ ok: true, taskId: data.id });
   } catch (e) {
     await logError("generate-video", `BytePlus create error: ${e}`, {
