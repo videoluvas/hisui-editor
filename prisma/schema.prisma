@@ -118,6 +118,7 @@ model Project {
   backgroundColor String?  @default("#000000") @map("background_color")
   editJsonKey     String?  @map("edit_json_key")
   durationSec     Int?     @map("duration_sec")
+  isDefaultSample Boolean  @default(false) @map("is_default_sample")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt      @map("updated_at")
 
@@ -188,6 +189,7 @@ model StoryboardMain {
   testList String[]  @default([]) @map("test_list") // 99_test list (List of texts)
   testNo   Int?      @map("test_no")   // 99_TESTno
 
+  isDefaultSample Boolean  @default(false) @map("is_default_sample")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt      @map("updated_at")
 

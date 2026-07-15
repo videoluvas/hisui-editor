@@ -27,7 +27,16 @@ type AdminUser = {
 };
 
 type PageState = "loading" | "unauthorized" | "forbidden" | "loaded";
-type Tab = "logs" | "users";
+type Tab = "logs" | "users" | "samples";
+
+type SampleStoryboard = {
+  id: string; title: string | null; isDefaultSample: boolean; createdAt: string;
+  _count: { scenes: number };
+};
+type SampleProject = {
+  id: string; title: string; isDefaultSample: boolean; createdAt: string;
+  thumbnailUrl: string | null;
+};
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -188,6 +197,46 @@ function UserRow({ user, onUpdate }: { user: AdminUser; onUpdate: (u: AdminUser)
   );
 }
 
+function SampleToggleRow({ label, sub, date, checked, onToggle }: {
+  label: string; sub?: string; date: string; checked: boolean;
+  onToggle: (v: boolean) => Promise<void>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [TEAL_LOCAL] = useState("#169385");
+
+  const handle = async () => {
+    setBusy(true);
+    await onToggle(!checked);
+    setBusy(false);
+  };
+
+  return (
+    <tr style={{ borderBottom: "1px solid #f1f5f9" }}>
+      <td style={{ padding: "10px 16px" }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "#1e293b" }}>{label}</div>
+        {sub && <div style={{ fontSize: 11, color: "#94a3b8" }}>{sub}</div>}
+      </td>
+      {sub !== undefined && <td style={{ padding: "10px 16px", fontSize: 12, color: "#64748b" }}>{sub}</td>}
+      <td style={{ padding: "10px 16px", fontSize: 12, color: "#64748b", whiteSpace: "nowrap" }}>{date}</td>
+      <td style={{ padding: "10px 16px" }}>
+        <button
+          onClick={handle}
+          disabled={busy}
+          style={{
+            padding: "4px 14px", fontSize: 12, fontWeight: 700, borderRadius: 6, border: "none",
+            cursor: busy ? "default" : "pointer",
+            background: checked ? `${TEAL_LOCAL}18` : "#f1f5f9",
+            color: checked ? TEAL_LOCAL : "#94a3b8",
+            opacity: busy ? 0.6 : 1,
+          }}
+        >
+          {checked ? "✓ デフォルト" : "デフォルトに設定"}
+        </button>
+      </td>
+    </tr>
+  );
+}
+
 function CreditCell({ cur, max, color }: { cur: number; max: number; color: string }) {
   const pct = max > 0 ? Math.max(0, Math.min(100, (cur / max) * 100)) : 0;
   return (
@@ -222,6 +271,10 @@ export default function AdminPage() {
   // users
   const [users, setUsers]           = useState<AdminUser[]>([]);
   const [userSearch, setUserSearch] = useState("");
+
+  // samples
+  const [sampleStoryboards, setSampleStoryboards] = useState<SampleStoryboard[]>([]);
+  const [sampleProjects, setSampleProjects]       = useState<SampleProject[]>([]);
 
   // login
   const [loginEmail, setLoginEmail]       = useState("");
@@ -273,8 +326,17 @@ export default function AdminPage() {
     } catch { /* ignore */ }
   }, []);
 
+  const fetchSamples = useCallback(async () => {
+    try {
+      const res  = await fetch("/api/admin/samples");
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.ok) { setSampleStoryboards(data.storyboards); setSampleProjects(data.projects); }
+    } catch { /* ignore */ }
+  }, []);
+
   useEffect(() => { fetchStats(); }, [fetchStats]);
-  useEffect(() => { if (pageState === "loaded") { fetchLogs(); fetchUsers(); } }, [pageState, fetchLogs, fetchUsers]);
+  useEffect(() => { if (pageState === "loaded") { fetchLogs(); fetchUsers(); fetchSamples(); } }, [pageState, fetchLogs, fetchUsers, fetchSamples]);
   useEffect(() => {
     if (pageState !== "loaded") return;
     const id = setInterval(() => { fetchStats(); fetchLogs(); }, 30_000);
@@ -390,8 +452,9 @@ export default function AdminPage() {
         {/* タブ切り替え */}
         <div style={{ display: "flex", gap: 2, background: "#e2e8f0", borderRadius: 10, padding: 3, width: "fit-content", marginBottom: 20 }}>
           {([
-            { id: "logs" as Tab,  label: "エラーログ" },
-            { id: "users" as Tab, label: `ユーザー管理（${users.length}）` },
+            { id: "logs" as Tab,    label: "エラーログ" },
+            { id: "users" as Tab,   label: `ユーザー管理（${users.length}）` },
+            { id: "samples" as Tab, label: "サンプル管理" },
           ] as const).map((t) => (
             <button key={t.id} onClick={() => setTab(t.id)}
               style={{ padding: "6px 20px", fontSize: 12, fontWeight: 600, borderRadius: 8, border: "none", cursor: "pointer", fontFamily: FONT,
@@ -514,6 +577,98 @@ export default function AdminPage() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {/* ── サンプル管理タブ ── */}
+        {tab === "samples" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+
+            <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, overflow: "hidden" }}>
+              <div style={{ padding: "14px 20px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", gap: 12 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#334155" }}>コンテ（ストーリーボード）</span>
+                <span style={{ fontSize: 12, color: "#94a3b8" }}>
+                  デフォルト: {sampleStoryboards.filter(s => s.isDefaultSample).length} 件
+                </span>
+              </div>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                <thead>
+                  <tr style={{ background: "#f8fafc" }}>
+                    {["タイトル", "シーン数", "作成日", "デフォルトサンプル"].map((h) => (
+                      <th key={h} style={{ padding: "10px 16px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "#94a3b8", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {sampleStoryboards.length === 0 ? (
+                    <tr><td colSpan={4} style={{ padding: "32px 16px", textAlign: "center", color: "#cbd5e1", fontSize: 13 }}>
+                      管理者アカウントでコンテを作成してください
+                    </td></tr>
+                  ) : sampleStoryboards.map((sb) => (
+                    <SampleToggleRow
+                      key={sb.id}
+                      label={sb.title ?? "無題"}
+                      sub={`${sb._count.scenes} シーン`}
+                      date={fmtDate(sb.createdAt)}
+                      checked={sb.isDefaultSample}
+                      onToggle={async (v) => {
+                        await fetch("/api/admin/samples", {
+                          method: "PATCH",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ type: "storyboard", id: sb.id, isDefaultSample: v }),
+                        });
+                        setSampleStoryboards((prev) => prev.map((x) => x.id === sb.id ? { ...x, isDefaultSample: v } : x));
+                      }}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, overflow: "hidden" }}>
+              <div style={{ padding: "14px 20px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", gap: 12 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#334155" }}>動画編集プロジェクト</span>
+                <span style={{ fontSize: 12, color: "#94a3b8" }}>
+                  デフォルト: {sampleProjects.filter(s => s.isDefaultSample).length} 件
+                </span>
+              </div>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                <thead>
+                  <tr style={{ background: "#f8fafc" }}>
+                    {["タイトル", "作成日", "デフォルトサンプル"].map((h) => (
+                      <th key={h} style={{ padding: "10px 16px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "#94a3b8", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {sampleProjects.length === 0 ? (
+                    <tr><td colSpan={3} style={{ padding: "32px 16px", textAlign: "center", color: "#cbd5e1", fontSize: 13 }}>
+                      管理者アカウントでプロジェクトを作成してください
+                    </td></tr>
+                  ) : sampleProjects.map((pj) => (
+                    <SampleToggleRow
+                      key={pj.id}
+                      label={pj.title}
+                      sub={undefined}
+                      date={fmtDate(pj.createdAt)}
+                      checked={pj.isDefaultSample}
+                      onToggle={async (v) => {
+                        await fetch("/api/admin/samples", {
+                          method: "PATCH",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ type: "project", id: pj.id, isDefaultSample: v }),
+                        });
+                        setSampleProjects((prev) => prev.map((x) => x.id === pj.id ? { ...x, isDefaultSample: v } : x));
+                      }}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div style={{ background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 10, padding: "12px 16px", fontSize: 13, color: "#92400e", lineHeight: 1.7 }}>
+              ⚠️ デフォルトサンプルは<strong>新規ユーザー登録時</strong>に自動コピーされます。既存ユーザーには適用されません。
             </div>
           </div>
         )}
