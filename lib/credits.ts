@@ -8,6 +8,7 @@ export type CreditAction =
   | "image_lite"              // AI画像生成（軽量）
   | "image_premium"           // AI画像生成（上位）
   | "image_gpt_high"          // AI画像生成・GPT Image 2 (high)
+  | "image_gpt_1_5"           // AI画像生成・GPT Image 1.5 (high)
   | "video_lite"              // AI動画生成・Lite
   | "video_premium_no_audio"  // AI動画生成・上位（音声なし）
   | "video_premium_audio"     // AI動画生成・上位（音声あり）
@@ -24,6 +25,7 @@ export const CREDIT_COST: Record<CreditAction, number> = {
   image_lite:            100,
   image_premium:         400,
   image_gpt_high:      2_000,
+  image_gpt_1_5:       1_500,
   video_lite:          1_000,
   video_premium_no_audio: 2_500,
   video_premium_audio:  5_000,
@@ -41,6 +43,7 @@ export const CREDIT_ACTION_LABEL: Record<CreditAction, string> = {
   image_lite:             "AI画像生成（軽量）",
   image_premium:          "AI画像生成（上位）",
   image_gpt_high:         "AI画像生成・GPT Image 2",
+  image_gpt_1_5:          "AI画像生成・GPT Image 1.5",
   video_lite:             "AI動画生成・Lite",
   video_premium_no_audio: "AI動画生成・上位",
   video_premium_audio:    "AI動画生成・上位（音声あり）",
@@ -56,10 +59,12 @@ export const CREDIT_ACTION_LABEL: Record<CreditAction, string> = {
 
 const IMAGE_LITE_MODELS     = new Set(["google-image-lite"]);
 const IMAGE_GPT_HIGH_MODELS = new Set(["gpt-image-2-high"]);
+const IMAGE_GPT_1_5_MODELS  = new Set(["gpt-image-1-5"]);
 
 export function imageModelToAction(model: string): CreditAction {
   if (IMAGE_LITE_MODELS.has(model))     return "image_lite";
   if (IMAGE_GPT_HIGH_MODELS.has(model)) return "image_gpt_high";
+  if (IMAGE_GPT_1_5_MODELS.has(model))  return "image_gpt_1_5";
   return "image_premium";
 }
 

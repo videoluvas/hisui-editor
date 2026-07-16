@@ -416,6 +416,18 @@ model LogError {
   @@map("logs_error")
 }
 
+// ─── Model Config ─────────────────────────────────────────────────────────────
+
+model ModelConfig {
+  modelId      String   @id @map("model_id")
+  modelType    String   @map("model_type")    // "image" | "video" | "tts" | "bgm" | "script"
+  modelLabel   String   @map("model_label")
+  availability String   @default("paid")      // "free" | "paid" | "suspended"
+  updatedAt    DateTime @updatedAt             @map("updated_at")
+
+  @@map("model_configs")
+}
+
 // ─── Ownership Transfer ───────────────────────────────────────────────────────
 
 model OwnershipTransferToken {

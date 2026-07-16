@@ -451,6 +451,8 @@ export default function ConteTool({
         googleAspectRatio: imgSettings.googleAspectRatio,
         googleOutputFormat: imgSettings.googleOutputFormat,
         googleQualityHint: imgSettings.googleQualityHint,
+        googleImageSize: imgSettings.googleImageSize,
+        googleThinkingLevel: imgSettings.googleThinkingLevel,
         gptSize: imgSettings.gptSize,
         gptQuality: imgSettings.gptQuality,
         gptBackground: imgSettings.gptBackground,
@@ -561,10 +563,14 @@ export default function ConteTool({
         ratio:            vidSettings.ratio,
         duration:         vidSettings.duration,
         generateAudio:    vidSettings.generateAudio,
-        cameraFixed:      vidSettings.cameraFixed,
-        watermark:        vidSettings.watermark,
-        vidCommonRules:   vidSettings.vidCommonRules,
-        vidNegativePrompt: vidSettings.vidNegativePrompt,
+        cameraFixed:        vidSettings.cameraFixed,
+        watermark:          vidSettings.watermark,
+        enhancePrompt:      vidSettings.enhancePrompt,
+        seed:               vidSettings.seed,
+        personGeneration:   vidSettings.personGeneration,
+        compressionQuality: vidSettings.compressionQuality,
+        vidCommonRules:     vidSettings.vidCommonRules,
+        vidNegativePrompt:  vidSettings.vidNegativePrompt,
       });
       if (!res.ok) {
         setGenError(sceneId, "video", res.message ?? "動画生成タスクの作成に失敗しました");

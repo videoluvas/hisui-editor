@@ -200,7 +200,10 @@ export async function generateSceneImage(
     googleAspectRatio?: string;
     googleOutputFormat?: string;
     googleQualityHint?: string;
-    // GPT Image 2 (high)
+    // Google AI - imageSize / thinking
+    googleImageSize?: string;
+    googleThinkingLevel?: string;
+    // GPT Image 2 (high) / GPT Image 1.5 (high)
     gptSize?: string;
     gptQuality?: string;
     gptBackground?: string;
@@ -230,6 +233,10 @@ export async function generateSceneVideo(
     generateAudio?: boolean;
     cameraFixed?: boolean;
     watermark?: boolean;
+    enhancePrompt?: boolean;
+    seed?: number;
+    personGeneration?: string;
+    compressionQuality?: string;
     vidCommonRules?: string;
     vidNegativePrompt?: string;
   },

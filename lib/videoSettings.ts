@@ -1,11 +1,16 @@
 export type VideoSettings = {
   videoModel: string;
-  resolution: "720p" | "1080p";
+  resolution: "720p" | "1080p" | "4k";
   ratio: "16:9" | "4:3" | "1:1" | "3:4" | "9:16" | "21:9" | "adaptive";
   duration: number;       // 4–12 の整数、または -1（AI自動）
   generateAudio: boolean;
   cameraFixed: boolean;
   watermark: boolean;
+  // Veo 専用
+  enhancePrompt: boolean;
+  seed: number;           // 0 = 未設定
+  personGeneration: "allow_adult" | "allow_all" | "dont_allow";
+  compressionQuality: "optimized" | "lossless";
   vidCommonRules: string;
   vidNegativePrompt: string;
 };
@@ -18,6 +23,10 @@ export const DEFAULT_VIDEO_SETTINGS: VideoSettings = {
   generateAudio: false,
   cameraFixed: false,
   watermark: false,
+  enhancePrompt: true,
+  seed: 0,
+  personGeneration: "allow_adult",
+  compressionQuality: "optimized",
   vidCommonRules: "",
   vidNegativePrompt: "",
 };

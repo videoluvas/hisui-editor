@@ -27,7 +27,14 @@ type AdminUser = {
 };
 
 type PageState = "loading" | "unauthorized" | "forbidden" | "loaded";
-type Tab = "logs" | "users" | "invite" | "samples" | "plans";
+type Tab = "logs" | "users" | "invite" | "samples" | "plans" | "models";
+
+type ModelConfigEntry = {
+  modelId: string;
+  modelType: string;
+  modelLabel: string;
+  availability: "free" | "paid" | "suspended";
+};
 
 type PlanConfig = {
   id: string; label: string; price_jpy: number; credits_default: number;
@@ -441,6 +448,111 @@ function CreditCell({ cur, max, color }: { cur: number; max: number; color: stri
   );
 }
 
+// ─── AI Model Config Tab ──────────────────────────────────────────────────────
+
+const MODEL_TYPE_LABELS: Record<string, string> = {
+  image:  "画像生成",
+  video:  "動画生成",
+  tts:    "音声（TTS）",
+  bgm:    "BGM",
+  script: "スクリプト",
+};
+
+const AVAIL_OPTIONS: { value: "free" | "paid" | "suspended"; label: string; bg: string; fg: string }[] = [
+  { value: "free",      label: "無料",    bg: "#dcfce7", fg: "#166534" },
+  { value: "paid",      label: "有料",    bg: "#dbeafe", fg: "#1d4ed8" },
+  { value: "suspended", label: "一時停止", bg: "#fee2e2", fg: "#991b1b" },
+];
+
+function ModelConfigTab({
+  configs, msg, onUpdate,
+}: {
+  configs: ModelConfigEntry[];
+  msg: string;
+  onUpdate: (modelId: string, availability: "free" | "paid" | "suspended") => Promise<void>;
+}) {
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const grouped = configs.reduce<Record<string, ModelConfigEntry[]>>((acc, c) => {
+    (acc[c.modelType] ??= []).push(c);
+    return acc;
+  }, {});
+  const typeOrder = ["image", "video", "tts", "bgm", "script"];
+
+  const handleChange = async (modelId: string, availability: "free" | "paid" | "suspended") => {
+    setBusyId(modelId);
+    await onUpdate(modelId, availability);
+    setBusyId(null);
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {msg && (
+        <div style={{ fontSize: 13, fontWeight: 700, color: msg.startsWith("✓") ? TEAL : "#dc2626" }}>{msg}</div>
+      )}
+      {typeOrder.map((type) => {
+        const items = grouped[type];
+        if (!items?.length) return null;
+        return (
+          <div key={type} style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, overflow: "hidden" }}>
+            <div style={{ padding: "12px 20px", borderBottom: "1px solid #f1f5f9", fontSize: 13, fontWeight: 700, color: "#334155" }}>
+              {MODEL_TYPE_LABELS[type] ?? type}
+            </div>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: "#f8fafc" }}>
+                  {["モデル", "公開範囲"].map((h) => (
+                    <th key={h} style={{ padding: "8px 20px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "#94a3b8", borderBottom: "1px solid #e2e8f0" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item) => (
+                  <tr key={item.modelId} style={{ borderBottom: "1px solid #f8fafc" }}>
+                    <td style={{ padding: "10px 20px" }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: "#1e293b" }}>{item.modelLabel}</span>
+                      <span style={{ marginLeft: 8, fontSize: 11, color: "#94a3b8", fontFamily: "monospace" }}>{item.modelId}</span>
+                    </td>
+                    <td style={{ padding: "10px 20px" }}>
+                      <div style={{ display: "flex", gap: 4 }}>
+                        {AVAIL_OPTIONS.map((opt) => {
+                          const isActive = item.availability === opt.value;
+                          const busy     = busyId === item.modelId;
+                          return (
+                            <button
+                              key={opt.value}
+                              onClick={() => !busy && !isActive && handleChange(item.modelId, opt.value)}
+                              disabled={busy}
+                              style={{
+                                fontSize: 12, fontWeight: 700, padding: "4px 14px", borderRadius: 6,
+                                border: isActive ? "none" : "1px solid #e2e8f0",
+                                background: isActive ? opt.bg : "#f8fafc",
+                                color: isActive ? opt.fg : "#94a3b8",
+                                cursor: busy || isActive ? "default" : "pointer",
+                                opacity: busy ? 0.6 : 1,
+                                transition: "background 0.15s",
+                              }}
+                            >
+                              {isActive ? `✓ ${opt.label}` : opt.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      })}
+      <div style={{ background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 10, padding: "12px 16px", fontSize: 13, color: "#92400e", lineHeight: 1.7 }}>
+        <strong>無料</strong>：Freeプランでも利用可能　／　<strong>有料</strong>：Business/Proプランのみ　／　<strong>一時停止</strong>：全プランで利用不可
+      </div>
+    </div>
+  );
+}
+
 // ─── Main ──────────────────────────────────────────────────────────────────────
 
 export default function AdminPage() {
@@ -478,6 +590,10 @@ export default function AdminPage() {
   const [planConfigMsg, setPlanConfigMsg] = useState("");
   const [resetAllBusy, setResetAllBusy]   = useState(false);
   const [resetAllMsg, setResetAllMsg]     = useState("");
+
+  // model configs
+  const [modelConfigs, setModelConfigs]   = useState<ModelConfigEntry[]>([]);
+  const [modelConfigMsg, setModelConfigMsg] = useState("");
 
   // samples
   const [sampleStoryboards, setSampleStoryboards] = useState<SampleStoryboard[]>([]);
@@ -536,6 +652,15 @@ export default function AdminPage() {
   }, []);
 
 
+  const fetchModelConfigs = useCallback(async () => {
+    try {
+      const res  = await fetch("/api/admin/model-config");
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.ok) setModelConfigs(data.configs);
+    } catch { /* ignore */ }
+  }, []);
+
   const fetchPlanConfigs = useCallback(async () => {
     try {
       const res  = await fetch("/api/admin/plan-config");
@@ -570,7 +695,7 @@ export default function AdminPage() {
   }, []);
 
   useEffect(() => { fetchStats(); }, [fetchStats]);
-  useEffect(() => { if (pageState === "loaded") { fetchLogs(); fetchUsers(); fetchSamples(); fetchPlanConfigs(); } }, [pageState, fetchLogs, fetchUsers, fetchSamples, fetchPlanConfigs]);
+  useEffect(() => { if (pageState === "loaded") { fetchLogs(); fetchUsers(); fetchSamples(); fetchPlanConfigs(); fetchModelConfigs(); } }, [pageState, fetchLogs, fetchUsers, fetchSamples, fetchPlanConfigs, fetchModelConfigs]);
   useEffect(() => {
     if (pageState !== "loaded") return;
     const id = setInterval(() => { fetchStats(); fetchLogs(); }, 30_000);
@@ -691,6 +816,7 @@ export default function AdminPage() {
             { id: "invite" as Tab,  label: "ユーザー招待" },
             { id: "samples" as Tab, label: "サンプル管理" },
             { id: "plans" as Tab,   label: "プラン設定" },
+            { id: "models" as Tab,  label: "AIモデル" },
           ] as const).map((t) => (
             <button key={t.id} onClick={() => setTab(t.id)}
               style={{ padding: "6px 20px", fontSize: 12, fontWeight: 600, borderRadius: 8, border: "none", cursor: "pointer", fontFamily: FONT,
@@ -1048,6 +1174,34 @@ export default function AdminPage() {
               ⚠️ デフォルトサンプルは<strong>新規ユーザー登録時</strong>に自動コピーされます。既存ユーザーには適用されません。
             </div>
           </div>
+        )}
+
+        {/* ── AIモデルタブ ── */}
+        {tab === "models" && (
+          <ModelConfigTab
+            configs={modelConfigs}
+            msg={modelConfigMsg}
+            onUpdate={async (modelId, availability) => {
+              setModelConfigMsg("");
+              try {
+                const res  = await fetch("/api/admin/model-config", {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ modelId, availability }),
+                });
+                const data = await res.json();
+                if (data.ok) {
+                  setModelConfigs(data.configs);
+                  setModelConfigMsg("✓ 保存しました");
+                  setTimeout(() => setModelConfigMsg(""), 3000);
+                } else {
+                  setModelConfigMsg(data.message ?? "エラー");
+                }
+              } catch {
+                setModelConfigMsg("通信エラー");
+              }
+            }}
+          />
         )}
 
         {/* ── プラン設定タブ ── */}

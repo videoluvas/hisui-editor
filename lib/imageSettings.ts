@@ -1,4 +1,4 @@
-export type ImageModel = "reve-1" | "seedream-5-0-pro" | "google-image-lite" | "google-image-pro" | "gpt-image-2-high";
+export type ImageModel = "reve-1" | "seedream-5-0-pro" | "google-image-lite" | "google-image-pro" | "gpt-image-2-high" | "gpt-image-1-5";
 
 export type RefStyle = "none" | "template" | "upload";
 
@@ -24,8 +24,10 @@ export type ImageSettings = {
   googleAspectRatio: string;
   googleOutputFormat: "jpeg" | "png";
   googleQualityHint: "" | "detail" | "cinematic" | "commercial";
+  googleImageSize: "0.5K" | "1K" | "2K" | "4K";
+  googleThinkingLevel: "minimal" | "high";
   // GPT Image 2 (high) 専用
-  gptSize: "auto" | "1536x1024" | "1024x1536" | "1024x1024";
+  gptSize: string;
   gptQuality: "auto" | "low" | "medium" | "high";
   gptBackground: "auto" | "opaque" | "transparent";
   gptCompression: number;
@@ -55,6 +57,8 @@ export const DEFAULT_IMAGE_SETTINGS: ImageSettings = {
   googleAspectRatio: "16:9",
   googleOutputFormat: "jpeg",
   googleQualityHint: "",
+  googleImageSize: "1K",
+  googleThinkingLevel: "minimal",
   gptSize: "1536x1024",
   gptQuality: "high",
   gptBackground: "auto",

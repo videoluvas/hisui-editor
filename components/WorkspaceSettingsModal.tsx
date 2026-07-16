@@ -254,11 +254,12 @@ const TABS: { id: WsSettingsTab; label: string; icon: React.ReactNode }[] = [
 // ─── Model definitions ────────────────────────────────────────────────────────
 
 const IMAGE_MODELS = [
-  { id: "google-image-lite", label: "Google AI",         sub: "Nano Banana 2 Lite", color: "#4285F4", provider: "google"   as const },
+  { id: "google-image-lite", label: "Google AI",         sub: "Nano Banana 2",      color: "#4285F4", provider: "google"   as const },
   { id: "google-image-pro",  label: "Google AI",         sub: "Nano Banana Pro",    color: "#1A73E8", provider: "google"   as const },
   { id: "reve-1",            label: "Reve AI",           sub: "Reve-1",             color: "#7F5AF0", provider: "reve"     as const },
   { id: "seedream-5-0-pro",  label: "BytePlus ModelArk", sub: "Seedream 5.0 Pro",   color: "#E67D30", provider: "byteplus" as const },
-  { id: "gpt-image-2-high",  label: "OpenAI",            sub: "GPT Image 2 (high)", color: "#10A37F", provider: "openai"   as const },
+  { id: "gpt-image-1-5",     label: "OpenAI",            sub: "GPT Image 1.5 (high)", color: "#10A37F", provider: "openai" as const },
+  { id: "gpt-image-2-high",  label: "OpenAI",            sub: "GPT Image 2 (high)", color: "#059669", provider: "openai"   as const },
 ] as const;
 
 const VIDEO_MODELS = [
@@ -600,7 +601,7 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                     models={IMAGE_MODELS}
                     value={img.imageModel}
                     onChange={(id) => setImg((s) => ({ ...s, imageModel: id as ImageSettings["imageModel"] }))}
-                    lockedIds={isFree ? ["google-image-pro", "reve-1", "seedream-5-0-pro", "gpt-image-2-high"] : []}
+                    lockedIds={isFree ? ["google-image-pro", "reve-1", "seedream-5-0-pro", "gpt-image-1-5", "gpt-image-2-high"] : []}
                   />
                 </div>
 
@@ -691,9 +692,29 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                     <div style={SEC}>生成設定</div>
 
                     <div style={FIELD}>
-                      <label style={LBL}>アスペクト比（プロンプトへのヒント）</label>
+                      <label style={LBL}>解像度</label>
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                        {(["16:9", "9:16", "1:1", "4:3", "3:4"] as const).map((ar) => (
+                        {(img.imageModel === "google-image-lite"
+                          ? [{ value: "0.5K", label: "0.5K (~512px)" }, { value: "1K", label: "1K (~1024px)" }, { value: "2K", label: "2K (~2048px)" }, { value: "4K", label: "4K (~3840px)" }]
+                          : [{ value: "1K", label: "1K (~1024px)" }, { value: "2K", label: "2K (~2048px)" }, { value: "4K", label: "4K (~3840px)" }]
+                        ).map((s) => (
+                          <button key={s.value} onClick={() => setImg((p) => ({ ...p, googleImageSize: s.value as "0.5K" | "1K" | "2K" | "4K" }))}
+                            style={{
+                              fontSize: 11, padding: "4px 9px", borderRadius: 6, cursor: "pointer", fontFamily: FONT,
+                              border: `1.5px solid ${img.googleImageSize === s.value ? currentModelDef.color : "#e2e8f0"}`,
+                              background: img.googleImageSize === s.value ? `${currentModelDef.color}12` : "#fff",
+                              color: img.googleImageSize === s.value ? currentModelDef.color : "#64748b",
+                              fontWeight: img.googleImageSize === s.value ? 700 : 400,
+                            }}
+                          >{s.label}</button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div style={FIELD}>
+                      <label style={LBL}>アスペクト比</label>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                        {(["16:9", "9:16", "1:1", "4:3", "3:4", "3:2", "2:3", "21:9", "4:5", "5:4"]).map((ar) => (
                           <button key={ar} onClick={() => setImg((s) => ({ ...s, googleAspectRatio: ar }))}
                             style={{
                               fontSize: 11, padding: "4px 9px", borderRadius: 6, cursor: "pointer", fontFamily: FONT,
@@ -705,13 +726,10 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                           >{ar}</button>
                         ))}
                       </div>
-                      <div style={{ marginTop: 5, fontSize: 10, color: "#94a3b8", fontFamily: FONT }}>
-                        指定したアスペクト比がプロンプトに追加されます
-                      </div>
                     </div>
 
                     <div style={FIELD}>
-                      <label style={LBL}>品質ヒント</label>
+                      <label style={LBL}>品質ヒント（プロンプト付加）</label>
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                         {([
                           { value: "",           label: "なし" },
@@ -732,6 +750,144 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                       </div>
                     </div>
 
+                    {img.imageModel === "google-image-lite" && (
+                      <div style={FIELD}>
+                        <label style={LBL}>思考モード（Thinking）</label>
+                        <div style={{ display: "flex", gap: 4 }}>
+                          {([
+                            { value: "minimal" as const, label: "標準" },
+                            { value: "high"    as const, label: "高精度（遅い）" },
+                          ]).map((t) => (
+                            <button key={t.value} onClick={() => setImg((p) => ({ ...p, googleThinkingLevel: t.value }))}
+                              style={{
+                                fontSize: 11, padding: "4px 9px", borderRadius: 6, cursor: "pointer", fontFamily: FONT,
+                                border: `1.5px solid ${img.googleThinkingLevel === t.value ? currentModelDef.color : "#e2e8f0"}`,
+                                background: img.googleThinkingLevel === t.value ? `${currentModelDef.color}12` : "#fff",
+                                color: img.googleThinkingLevel === t.value ? currentModelDef.color : "#64748b",
+                                fontWeight: img.googleThinkingLevel === t.value ? 700 : 400,
+                              }}
+                            >{t.label}</button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* ── GPT Image 1.5 (high) 設定 ── */}
+                {img.imageModel === "gpt-image-1-5" && (
+                  <>
+                    <div style={SEC}>生成設定</div>
+                    <div style={FIELD}>
+                      <label style={LBL}>サイズ</label>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                        {([
+                          { value: "1536x1024", label: "横長 (1536×1024)" },
+                          { value: "1024x1536", label: "縦長 (1024×1536)" },
+                          { value: "1024x1024", label: "正方形 (1024×1024)" },
+                        ]).map((s) => (
+                          <button key={s.value} onClick={() => setImg((p) => ({ ...p, gptSize: s.value }))}
+                            style={{
+                              fontSize: 11, padding: "4px 9px", borderRadius: 6, cursor: "pointer", fontFamily: FONT,
+                              border: `1.5px solid ${img.gptSize === s.value ? currentModelDef.color : "#e2e8f0"}`,
+                              background: img.gptSize === s.value ? `${currentModelDef.color}12` : "#fff",
+                              color: img.gptSize === s.value ? currentModelDef.color : "#64748b",
+                              fontWeight: img.gptSize === s.value ? 700 : 400,
+                            }}
+                          >{s.label}</button>
+                        ))}
+                      </div>
+                    </div>
+                    <div style={FIELD}>
+                      <label style={LBL}>クオリティ</label>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                        {([
+                          { value: "auto", label: "自動" }, { value: "low", label: "低" },
+                          { value: "medium", label: "中" }, { value: "high", label: "高" },
+                        ]).map((q) => (
+                          <button key={q.value} onClick={() => setImg((p) => ({ ...p, gptQuality: q.value as "auto" | "low" | "medium" | "high" }))}
+                            style={{
+                              fontSize: 11, padding: "4px 9px", borderRadius: 6, cursor: "pointer", fontFamily: FONT,
+                              border: `1.5px solid ${img.gptQuality === q.value ? currentModelDef.color : "#e2e8f0"}`,
+                              background: img.gptQuality === q.value ? `${currentModelDef.color}12` : "#fff",
+                              color: img.gptQuality === q.value ? currentModelDef.color : "#64748b",
+                              fontWeight: img.gptQuality === q.value ? 700 : 400,
+                            }}
+                          >{q.label}</button>
+                        ))}
+                      </div>
+                    </div>
+                    <div style={FIELD}>
+                      <label style={LBL}>背景</label>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                        {([
+                          { value: "auto", label: "自動" }, { value: "opaque", label: "不透明" },
+                          { value: "transparent", label: "透明（PNG/WebP）" },
+                        ]).map((b) => (
+                          <button key={b.value} onClick={() => setImg((p) => {
+                            const next = { ...p, gptBackground: b.value as "auto" | "opaque" | "transparent" };
+                            if (b.value === "transparent" && p.gptOutputFormat === "jpeg") next.gptOutputFormat = "png";
+                            return next;
+                          })}
+                            style={{
+                              fontSize: 11, padding: "4px 9px", borderRadius: 6, cursor: "pointer", fontFamily: FONT,
+                              border: `1.5px solid ${img.gptBackground === b.value ? currentModelDef.color : "#e2e8f0"}`,
+                              background: img.gptBackground === b.value ? `${currentModelDef.color}12` : "#fff",
+                              color: img.gptBackground === b.value ? currentModelDef.color : "#64748b",
+                              fontWeight: img.gptBackground === b.value ? 700 : 400,
+                            }}
+                          >{b.label}</button>
+                        ))}
+                      </div>
+                    </div>
+                    <div style={FIELD}>
+                      <label style={LBL}>出力フォーマット</label>
+                      <div style={{ display: "flex", gap: 4 }}>
+                        {(["png", "jpeg", "webp"] as const).map((f) => (
+                          <button key={f}
+                            disabled={f === "jpeg" && img.gptBackground === "transparent"}
+                            onClick={() => setImg((p) => ({ ...p, gptOutputFormat: f }))}
+                            style={{
+                              fontSize: 11, padding: "4px 9px", borderRadius: 6, fontFamily: FONT,
+                              cursor: f === "jpeg" && img.gptBackground === "transparent" ? "not-allowed" : "pointer",
+                              border: `1.5px solid ${img.gptOutputFormat === f ? currentModelDef.color : "#e2e8f0"}`,
+                              background: img.gptOutputFormat === f ? `${currentModelDef.color}12` : "#fff",
+                              color: img.gptOutputFormat === f ? currentModelDef.color : f === "jpeg" && img.gptBackground === "transparent" ? "#cbd5e1" : "#64748b",
+                              fontWeight: img.gptOutputFormat === f ? 700 : 400,
+                              opacity: f === "jpeg" && img.gptBackground === "transparent" ? 0.5 : 1,
+                            }}
+                          >{f}</button>
+                        ))}
+                      </div>
+                    </div>
+                    {(img.gptOutputFormat === "jpeg" || img.gptOutputFormat === "webp") && (
+                      <div style={FIELD}>
+                        <label style={LBL}>圧縮率（品質）: {img.gptCompression ?? 100}%</label>
+                        <input type="range" min={0} max={100} step={5} value={img.gptCompression ?? 100}
+                          onChange={(e) => setImg((p) => ({ ...p, gptCompression: Number(e.target.value) }))}
+                          style={{ width: "100%", accentColor: currentModelDef.color }}
+                        />
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#94a3b8", fontFamily: FONT }}>
+                          <span>最高圧縮（低画質）</span><span>無圧縮（高画質）</span>
+                        </div>
+                      </div>
+                    )}
+                    <div style={FIELD}>
+                      <label style={LBL}>モデレーション</label>
+                      <div style={{ display: "flex", gap: 4 }}>
+                        {([{ value: "auto" as const, label: "標準" }, { value: "low" as const, label: "緩和" }]).map((m) => (
+                          <button key={m.value} onClick={() => setImg((p) => ({ ...p, gptModeration: m.value }))}
+                            style={{
+                              fontSize: 11, padding: "4px 9px", borderRadius: 6, cursor: "pointer", fontFamily: FONT,
+                              border: `1.5px solid ${img.gptModeration === m.value ? currentModelDef.color : "#e2e8f0"}`,
+                              background: img.gptModeration === m.value ? `${currentModelDef.color}12` : "#fff",
+                              color: img.gptModeration === m.value ? currentModelDef.color : "#64748b",
+                              fontWeight: img.gptModeration === m.value ? 700 : 400,
+                            }}
+                          >{m.label}</button>
+                        ))}
+                      </div>
+                    </div>
                   </>
                 )}
 
@@ -743,10 +899,14 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                       <label style={LBL}>サイズ</label>
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                         {([
-                          { value: "auto"      as const, label: "自動" },
-                          { value: "1536x1024" as const, label: "横長 (1536×1024)" },
-                          { value: "1024x1536" as const, label: "縦長 (1024×1536)" },
-                          { value: "1024x1024" as const, label: "正方形 (1024×1024)" },
+                          { value: "auto",      label: "自動" },
+                          { value: "1536x1024", label: "横長 HD (1536×1024)" },
+                          { value: "1024x1536", label: "縦長 HD (1024×1536)" },
+                          { value: "1024x1024", label: "正方形 (1024×1024)" },
+                          { value: "2560x1440", label: "横長 QHD (2560×1440)" },
+                          { value: "1440x2560", label: "縦長 QHD (1440×2560)" },
+                          { value: "3840x2160", label: "横長 4K (3840×2160)🧪" },
+                          { value: "2160x3840", label: "縦長 4K (2160×3840)🧪" },
                         ]).map((s) => (
                           <button key={s.value} onClick={() => setImg((p) => ({ ...p, gptSize: s.value }))}
                             style={{
@@ -1050,9 +1210,10 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
               const isVeo     = currentVidModel.id === "veo-3" || currentVidModel.id === "veo-3-lite";
               const vidColor  = currentVidModel.color;
 
-              const availableResolutions = ["720p", "1080p"] as const;
+              const availableResolutions = isVeo ? (isVeoLite ? (["720p", "1080p"] as const) : (["720p", "1080p", "4k"] as const)) : (["720p", "1080p"] as const);
               const availableRatios      = isVeoLite ? (["16:9", "9:16"] as const) : (["16:9", "4:3", "1:1", "3:4", "9:16", "21:9", "adaptive"] as const);
               const maxDuration          = isVeoLite ? 8 : 12;
+              const highResSelected      = vid.resolution === "1080p" || vid.resolution === "4k";
 
               return (
               <>
@@ -1067,7 +1228,7 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                       if (m?.veoLite) {
                         if (!["16:9", "9:16"].includes(nextVid.ratio)) nextVid.ratio = "16:9";
                         if (nextVid.duration > 8 || nextVid.duration === -1) nextVid.duration = 8;
-                        // 1080p is valid for Veo Lite but requires exactly 8s
+                        if (nextVid.resolution === "4k") nextVid.resolution = "720p";
                         if (nextVid.resolution === "1080p") nextVid.duration = 8;
                       }
                       setVid(nextVid as VideoSettings);
@@ -1085,10 +1246,11 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
 
                 <div style={FIELD}>
                   <label style={LBL}>解像度</label>
-                  <div style={{ display: "flex", gap: 4 }}>
-                    {(["720p", "1080p"] as const).map((r) => {
-                      const isRes1080pLocked = isFree && r === "1080p";
-                      const disabled = !availableResolutions.includes(r as any) || isRes1080pLocked;
+                  <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                    {(["720p", "1080p", "4k"] as const).map((r) => {
+                      const isLocked = isFree && (r === "1080p" || r === "4k");
+                      const isUnavailable = !availableResolutions.includes(r as any);
+                      const disabled = isLocked || isUnavailable;
                       const active   = vid.resolution === r && !disabled;
                       return (
                         <button key={r}
@@ -1097,8 +1259,8 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                             setVid((s) => ({
                               ...s,
                               resolution: r,
-                              // Veo Lite + 1080p must use 8s
-                              ...(isVeoLite && r === "1080p" ? { duration: 8 } : {}),
+                              // 1080p/4k は8秒固定
+                              ...((r === "1080p" || r === "4k") ? { duration: 8 } : {}),
                             }));
                           }}
                           style={{ fontSize: 11, padding: "4px 10px", borderRadius: 6, fontFamily: FONT,
@@ -1107,17 +1269,20 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                             background: active ? `${vidColor}18` : disabled ? "#f1f5f9" : "#fff",
                             color: active ? vidColor : disabled ? "#cbd5e1" : "#64748b",
                             fontWeight: active ? 700 : 400,
-                            position: "relative",
                           }}
                         >
                           {r}
-                          {isRes1080pLocked && (
-                            <span style={{ marginLeft: 4, fontSize: 9, fontWeight: 700, color: "#e67d30", background: "#fff3e8", padding: "1px 4px", borderRadius: 3, border: "1px solid #e67d3040" }}>有料</span>
-                          )}
+                          {isUnavailable && !isLocked && <span style={{ marginLeft: 4, fontSize: 9, color: "#94a3b8" }}>Lite非対応</span>}
+                          {isLocked && <span style={{ marginLeft: 4, fontSize: 9, fontWeight: 700, color: "#e67d30", background: "#fff3e8", padding: "1px 4px", borderRadius: 3, border: "1px solid #e67d3040" }}>有料</span>}
                         </button>
                       );
                     })}
                   </div>
+                  {isVeo && highResSelected && (
+                    <div style={{ marginTop: 5, fontSize: 10, color: "#d97706", fontFamily: FONT }}>
+                      1080p / 4K は8秒固定です。4K は Veo 3.1 のみ対応。
+                    </div>
+                  )}
                 </div>
 
                 <div style={FIELD}>
@@ -1144,10 +1309,10 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                 </div>
 
                 <div style={FIELD}>
-                  <label style={LBL}>尺（秒）</label>
+                  <label style={LBL}>尺（秒）{isVeo && highResSelected && <span style={{ marginLeft: 6, fontSize: 10, color: "#d97706", fontWeight: 400 }}>1080p/4K は8秒固定</span>}</label>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                     {[4, 5, 6, 7, 8, 9, 10, 11, 12].map((d) => {
-                      const disabled = d > maxDuration;
+                      const disabled = d > maxDuration || (isVeo && highResSelected && d !== 8);
                       const active   = vid.duration === d && !disabled;
                       return (
                         <button key={d}
@@ -1202,6 +1367,79 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                     )}
                   </div>
                 </div>
+
+                {isVeo && (
+                  <>
+                    <div style={FIELD}>
+                      <label style={LBL}>プロンプト自動強化</label>
+                      <div style={{ display: "flex", gap: 4 }}>
+                        {([{ v: true, label: "オン（推奨）" }, { v: false, label: "オフ（プロンプトをそのまま使用）" }]).map(({ v, label }) => (
+                          <button key={String(v)} onClick={() => setVid((s) => ({ ...s, enhancePrompt: v }))}
+                            style={{
+                              fontSize: 11, padding: "4px 9px", borderRadius: 6, cursor: "pointer", fontFamily: FONT,
+                              border: `1.5px solid ${vid.enhancePrompt === v ? vidColor : "#e2e8f0"}`,
+                              background: vid.enhancePrompt === v ? `${vidColor}18` : "#fff",
+                              color: vid.enhancePrompt === v ? vidColor : "#64748b",
+                              fontWeight: vid.enhancePrompt === v ? 700 : 400,
+                            }}
+                          >{label}</button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div style={FIELD}>
+                      <label style={LBL}>人物生成</label>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                        {([
+                          { value: "allow_adult", label: "成人のみ（デフォルト）" },
+                          { value: "allow_all",   label: "全年齢（T2Vのみ）" },
+                          { value: "dont_allow",  label: "人物なし" },
+                        ]).map((p) => (
+                          <button key={p.value} onClick={() => setVid((s) => ({ ...s, personGeneration: p.value as "allow_adult" | "allow_all" | "dont_allow" }))}
+                            style={{
+                              fontSize: 11, padding: "4px 9px", borderRadius: 6, cursor: "pointer", fontFamily: FONT,
+                              border: `1.5px solid ${vid.personGeneration === p.value ? vidColor : "#e2e8f0"}`,
+                              background: vid.personGeneration === p.value ? `${vidColor}18` : "#fff",
+                              color: vid.personGeneration === p.value ? vidColor : "#64748b",
+                              fontWeight: vid.personGeneration === p.value ? 700 : 400,
+                            }}
+                          >{p.label}</button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div style={FIELD}>
+                      <label style={LBL}>圧縮品質</label>
+                      <div style={{ display: "flex", gap: 4 }}>
+                        {([
+                          { value: "optimized" as const, label: "最適化（デフォルト）" },
+                          { value: "lossless"  as const, label: "ロスレス" },
+                        ]).map((c) => (
+                          <button key={c.value} onClick={() => setVid((s) => ({ ...s, compressionQuality: c.value }))}
+                            style={{
+                              fontSize: 11, padding: "4px 9px", borderRadius: 6, cursor: "pointer", fontFamily: FONT,
+                              border: `1.5px solid ${vid.compressionQuality === c.value ? vidColor : "#e2e8f0"}`,
+                              background: vid.compressionQuality === c.value ? `${vidColor}18` : "#fff",
+                              color: vid.compressionQuality === c.value ? vidColor : "#64748b",
+                              fontWeight: vid.compressionQuality === c.value ? 700 : 400,
+                            }}
+                          >{c.label}</button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div style={FIELD}>
+                      <label style={LBL}>シード値（0 = 未設定）</label>
+                      <input
+                        type="number" min={0} max={4294967295} step={1}
+                        value={vid.seed ?? 0}
+                        onChange={(e) => setVid((s) => ({ ...s, seed: Math.max(0, Math.floor(Number(e.target.value))) }))}
+                        style={{ width: "100%", padding: "5px 8px", borderRadius: 6, border: "1.5px solid #e2e8f0", fontSize: 12, fontFamily: FONT, boxSizing: "border-box" }}
+                      />
+                      <div style={{ marginTop: 4, fontSize: 10, color: "#94a3b8", fontFamily: FONT }}>再現性向上のためのシード。プロンプト自動強化をオフにするとより効果的です。</div>
+                    </div>
+                  </>
+                )}
 
                 {/* ── ①と② の区切りライン ── */}
                 <div style={{ margin: "8px 0 4px", borderTop: "2px solid #e2e8f0", position: "relative" }}>
@@ -2153,7 +2391,7 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                 { label: "シーン再生成", cost: "10 cr" },
               ];
             } else if (activeTab === "image") {
-              const cost = img.imageModel === "google-image-lite" ? 100 : img.imageModel === "gpt-image-2-high" ? 2_000 : 400;
+              const cost = img.imageModel === "google-image-lite" ? 100 : img.imageModel === "gpt-image-2-high" ? 2_000 : img.imageModel === "gpt-image-1-5" ? 1_500 : 400;
               items = [{ label: "1枚あたり", cost: `${cost.toLocaleString()} cr` }];
             } else if (activeTab === "video") {
               const cost = vid.videoModel === "veo-3-lite" ? 1_000 : (vid.generateAudio ? 5_000 : 2_500);

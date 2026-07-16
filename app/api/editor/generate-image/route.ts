@@ -10,6 +10,7 @@ import { logError } from "@/lib/log.error";
 import { r2Client, R2_BUCKET_NAME, R2_PUBLIC_URL } from "@/lib/fileupload.r2";
 import { resolveSeedreamSize } from "@/lib/imageSettings";
 import { consumeCredits, refundCredits, imageModelToAction } from "@/lib/credits";
+import { checkModelAccess } from "@/lib/model-config";
 
 const REVE_API_URL   = "https://api.reve.com/v1/image/edit";
 const ARK_API_URL    = "https://ark.ap-southeast.bytepluses.com/api/v3/images/generations";
@@ -72,7 +73,9 @@ export async function POST(request: NextRequest) {
     // Google
     googleAspectRatio?: string;
     googleQualityHint?: string;
-    // GPT Image 2
+    googleImageSize?: string;
+    googleThinkingLevel?: string;
+    // GPT Image 2 / GPT Image 1.5
     gptSize?: string;
     gptQuality?: string;
     gptBackground?: string;
@@ -95,6 +98,10 @@ export async function POST(request: NextRequest) {
   const imageModel = body.imageModel ?? "google-image-lite";
   const userId = session.userId;
   const workspaceId = body.workspaceId ?? null;
+
+  const access = await checkModelAccess(imageModel, session.user.plan ?? null);
+  if (!access.ok) return NextResponse.json({ ok: false, message: access.message }, { status: access.status ?? 403 });
+
   const credit = await consumeCredits(userId, imageModelToAction(imageModel), workspaceId);
   if (!credit.ok) return NextResponse.json({ ok: false, message: credit.message }, { status: 402 });
 
@@ -142,17 +149,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, url });
   }
 
-  // ── GPT Image 2 (high) ───────────────────────────────────────────────────────
-  if (imageModel === "gpt-image-2-high") {
+  // ── GPT Image 2 (high) / GPT Image 1.5 (high) ──────────────────────────────
+  if (imageModel === "gpt-image-2-high" || imageModel === "gpt-image-1-5") {
     const openaiApiKey = process.env.OPENAI_API_KEY;
     if (!openaiApiKey) return NextResponse.json({ ok: false, message: "OPENAI_API_KEY が設定されていません" }, { status: 500 });
 
+    const openaiModel = imageModel === "gpt-image-2-high" ? "gpt-image-2" : "gpt-image-1.5";
     const { gptSize = "1536x1024", gptQuality = "high", gptBackground = "auto", gptCompression = 100, gptModeration = "auto", gptOutputFormat = "png" } = body;
     const ext = gptOutputFormat === "jpeg" ? "jpg" : gptOutputFormat;
     const contentType = gptOutputFormat === "jpeg" ? "image/jpeg" : gptOutputFormat === "webp" ? "image/webp" : "image/png";
 
     const gptBody: Record<string, unknown> = {
-      model: "gpt-image-1", prompt, size: gptSize, quality: gptQuality,
+      model: openaiModel, prompt, size: gptSize, quality: gptQuality,
       output_format: gptOutputFormat, response_format: "b64_json", n: 1,
       moderation: gptModeration,
     };
@@ -185,20 +193,28 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, url });
   }
 
-  // ── Google Gemini 画像生成 ────────────────────────────────────────────────────
+  // ── Google Gemini 画像生成（Nano Banana 2 / Pro）────────────────────────────
   if (imageModel === "google-image-lite" || imageModel === "google-image-pro") {
     const googleApiKey = process.env.GOOGLE_AI_API_KEY;
     if (!googleApiKey) return NextResponse.json({ ok: false, message: "GOOGLE_AI_API_KEY が設定されていません" }, { status: 500 });
 
-    const googleModelId = imageModel === "google-image-lite" ? "gemini-3.1-flash-lite-image" : "gemini-3-pro-image";
-    const { googleAspectRatio = "16:9" } = body;
+    const googleModelId = imageModel === "google-image-lite" ? "gemini-3.1-flash-image" : "gemini-3-pro-image";
+    const { googleAspectRatio = "16:9", googleImageSize = "1K", googleThinkingLevel = "minimal" } = body;
     const arHint = googleAspectRatio && googleAspectRatio !== "auto" ? ` 横縦比は${googleAspectRatio}で出力してください。` : "";
     const fullPrompt = prompt + arHint;
 
-    const googleBody = {
-      contents: [{ role: "user", parts: [{ text: fullPrompt }] }],
-      generationConfig: { responseModalities: ["IMAGE"] },
+    const generationConfig: Record<string, unknown> = {
+      responseModalities: ["IMAGE"],
+      responseFormat: {
+        image: {
+          ...(googleAspectRatio && googleAspectRatio !== "auto" ? { aspectRatio: googleAspectRatio } : {}),
+          imageSize: googleImageSize,
+        },
+      },
     };
+    if (imageModel === "google-image-lite" && googleThinkingLevel === "high") {
+      generationConfig.thinkingConfig = { thinkingLevel: "High" };
+    }
 
     let imageB64: string;
     let mimeType = "image/jpeg";
@@ -206,7 +222,7 @@ export async function POST(request: NextRequest) {
       const resp = await fetch(`${GOOGLE_AI_BASE}/models/${googleModelId}:generateContent`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-goog-api-key": googleApiKey },
-        body: JSON.stringify(googleBody),
+        body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: fullPrompt }] }], generationConfig }),
       });
       if (!resp.ok) throw new Error(`Google ${resp.status}: ${await resp.text()}`);
       const data = await resp.json() as {
