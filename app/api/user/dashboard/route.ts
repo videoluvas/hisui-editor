@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { getEditorSessionFromCookie } from "@/lib/auth.backend";
 import { prisma } from "@/lib/prisma";
+import { planDefaultCredits } from "@/lib/credits";
 
 export async function GET() {
   const session = await getEditorSessionFromCookie();
@@ -22,6 +23,16 @@ export async function GET() {
       },
     });
     if (!dbUser) return NextResponse.json({ ok: false, message: "ユーザーが見つかりません" }, { status: 404 });
+
+    // credits が 0 かつ履歴なし → 未初期化ユーザーとしてプランデフォルトを自動付与
+    if (dbUser.credits === 0) {
+      const hasLog = await prisma.logCredit.findFirst({ where: { userId: dbUser.id } }).catch(() => null);
+      if (!hasLog) {
+        const defaultAmt = planDefaultCredits(dbUser.plan);
+        await prisma.user.update({ where: { id: dbUser.id }, data: { credits: defaultAmt } }).catch(() => {});
+        dbUser.credits = defaultAmt;
+      }
+    }
 
     const [creditLogs, checkoutLogs, errorLogs, workspaceConsumption] = await Promise.all([
       prisma.logCredit.findMany({
