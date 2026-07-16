@@ -361,6 +361,8 @@ export default function AdminPage() {
   // users
   const [users, setUsers]           = useState<AdminUser[]>([]);
   const [userSearch, setUserSearch] = useState("");
+  const [initAllBusy, setInitAllBusy] = useState(false);
+  const [initAllMsg,  setInitAllMsg]  = useState("");
 
   // invite
   const [invEmail, setInvEmail]         = useState("");
@@ -665,14 +667,31 @@ export default function AdminPage() {
                 placeholder="メール・名前で検索..."
                 style={{ fontSize: 12, padding: "5px 10px", borderRadius: 6, border: "1px solid #e2e8f0", color: "#475569", background: "#f8fafc", outline: "none", width: 200 }}
               />
-              <span style={{ fontSize: 12, color: "#94a3b8", marginLeft: "auto" }}>
-                {filteredUsers.length} 件
-                {filteredUsers.filter(u => u.plan === "Pro").length > 0 && (
-                  <span style={{ marginLeft: 8, color: TEAL, fontWeight: 600 }}>
-                    Pro: {filteredUsers.filter(u => u.plan === "Pro").length}
-                  </span>
-                )}
-              </span>
+              <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 12, color: "#94a3b8" }}>
+                  {filteredUsers.length} 件
+                  {filteredUsers.filter(u => u.plan === "Pro").length > 0 && (
+                    <span style={{ marginLeft: 8, color: TEAL, fontWeight: 600 }}>
+                      Pro: {filteredUsers.filter(u => u.plan === "Pro").length}
+                    </span>
+                  )}
+                </span>
+                <button
+                  disabled={initAllBusy}
+                  onClick={async () => {
+                    if (!confirm("クレジットが0のユーザー全員をプランデフォルトに初期化しますか？")) return;
+                    setInitAllBusy(true); setInitAllMsg("");
+                    try {
+                      const res  = await fetch("/api/admin/users/init-credits", { method: "POST" });
+                      const data = await res.json();
+                      if (data.ok) { setInitAllMsg(`✓ ${data.count}件初期化`); fetchUsers(); }
+                      else setInitAllMsg("エラー");
+                    } finally { setInitAllBusy(false); setTimeout(() => setInitAllMsg(""), 4000); }
+                  }}
+                  style={{ fontSize: 11, fontWeight: 600, padding: "4px 10px", borderRadius: 6, border: "1px solid #e2e8f0", background: "#f8fafc", color: "#475569", cursor: "pointer", whiteSpace: "nowrap" }}
+                >全員初期化</button>
+                {initAllMsg && <span style={{ fontSize: 11, color: initAllMsg.startsWith("✓") ? TEAL : "#dc2626" }}>{initAllMsg}</span>}
+              </div>
             </div>
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
