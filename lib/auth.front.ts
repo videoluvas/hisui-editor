@@ -11,7 +11,7 @@ export type EditorUser = {
 };
 
 export function goToHisuiLogin() {
-  window.location.href = "https://hisui-ai.com/editor-login";
+  window.location.href = "/auth";
 }
 
 export function getEditorAuthParamsFromUrl() {
