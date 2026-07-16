@@ -119,6 +119,7 @@ export async function sendContactInquiryEmail(opts: {
 
 export type PlanConfigRow = {
   id: string; label: string; price_jpy: number;
+  credits_default: number;
   credit_img_max: number; credit_script_max: number; credit_video_max: number;
   credit_audio_max: number; credit_bgm_max: number;
   free_model_img: string; free_model_video: string; max_workspaces: number;

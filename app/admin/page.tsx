@@ -22,12 +22,18 @@ type Stats = {
 
 type AdminUser = {
   id: string; name: string | null; email: string | null; plan: string | null;
-  credits: number;
+  credits: number; creditsResetAt: string | null;
   createdAt: string;
 };
 
 type PageState = "loading" | "unauthorized" | "forbidden" | "loaded";
-type Tab = "logs" | "users" | "invite" | "samples";
+type Tab = "logs" | "users" | "invite" | "samples" | "plans";
+
+type PlanConfig = {
+  id: string; label: string; price_jpy: number; credits_default: number;
+  credit_img_max: number; credit_script_max: number; credit_video_max: number;
+  credit_audio_max: number; credit_bgm_max: number; max_workspaces: number;
+};
 
 type SampleStoryboard = {
   id: string; title: string | null; isDefaultSample: boolean; createdAt: string;
@@ -46,13 +52,25 @@ const LEVEL_STYLE: Record<string, { bg: string; color: string; label: string }> 
   info:  { bg: "#dbeafe", color: "#2563eb", label: "INFO"  },
 };
 
+const VIOLET = "#7C3AED";
+
 const PLAN_COLORS: Record<string, { bg: string; fg: string }> = {
-  Free: { bg: "#f1f5f9", fg: "#64748b" },
-  Pro:  { bg: `${TEAL}18`, fg: TEAL },
+  Free:     { bg: "#f1f5f9",       fg: "#64748b" },
+  Business: { bg: `${VIOLET}18`,   fg: VIOLET    },
+  Pro:      { bg: `${TEAL}18`,     fg: TEAL      },
 };
+
+const PLANS = ["Free", "Business", "Pro"] as const;
 
 function planColor(plan: string | null) {
   return PLAN_COLORS[plan ?? "Free"] ?? PLAN_COLORS.Free;
+}
+
+function nextResetDate(creditsResetAt: string | null): string | null {
+  if (!creditsResetAt) return null;
+  const d = new Date(creditsResetAt);
+  d.setDate(d.getDate() + 30);
+  return d.toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" });
 }
 
 function fmtTime(iso: string) {
@@ -88,6 +106,51 @@ function StatCard({ label, value, color, bg }: { label: string; value: number; c
   );
 }
 
+function PlanCreditInput({ value, onChange }: { value: number; onChange: (v: number) => Promise<void> }) {
+  const [editing, setEditing] = useState(false);
+  const [input, setInput]     = useState(String(value));
+  const [saving, setSaving]   = useState(false);
+
+  const save = async () => {
+    const v = parseInt(input);
+    if (isNaN(v) || v < 0) { setInput(String(value)); setEditing(false); return; }
+    setSaving(true);
+    await onChange(v);
+    setSaving(false);
+    setEditing(false);
+  };
+
+  if (!editing) return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <span style={{ fontSize: 14, fontWeight: 700, color: "#1e293b" }}>{value.toLocaleString()} cr</span>
+      <button onClick={() => { setInput(String(value)); setEditing(true); }}
+        style={{ fontSize: 11, padding: "2px 8px", borderRadius: 5, border: "1px solid #e2e8f0", background: "#f8fafc", color: "#64748b", cursor: "pointer" }}>
+        編集
+      </button>
+    </div>
+  );
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+      <input
+        type="number" value={input} onChange={(e) => setInput(e.target.value)}
+        autoFocus
+        style={{ width: 110, fontSize: 13, padding: "4px 8px", border: "1px solid #93c5fd", borderRadius: 6, outline: "none", color: "#1e293b" }}
+        onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") setEditing(false); }}
+      />
+      <span style={{ fontSize: 12, color: "#94a3b8" }}>cr</span>
+      <button onClick={save} disabled={saving}
+        style={{ fontSize: 11, fontWeight: 700, padding: "4px 10px", borderRadius: 6, border: "none", background: TEAL, color: "#fff", cursor: "pointer", opacity: saving ? 0.6 : 1 }}>
+        {saving ? "..." : "保存"}
+      </button>
+      <button onClick={() => setEditing(false)}
+        style={{ fontSize: 11, padding: "4px 8px", borderRadius: 6, border: "1px solid #e2e8f0", background: "#f8fafc", color: "#64748b", cursor: "pointer" }}>
+        ✕
+      </button>
+    </div>
+  );
+}
+
 // ─── User row with inline plan switcher ───────────────────────────────────────
 
 function UserRow({ user, onUpdate, onDelete }: {
@@ -101,6 +164,8 @@ function UserRow({ user, onUpdate, onDelete }: {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [entering, setEntering] = useState(false);
+  const [resetting, setResetting] = useState(false);
+
   const patch = async (payload: Record<string, unknown>) => {
     setBusy(true); setMsg("");
     try {
@@ -115,7 +180,19 @@ function UserRow({ user, onUpdate, onDelete }: {
     } finally { setBusy(false); }
   };
 
-  const togglePlan = () => patch({ plan: user.plan === "Pro" ? "Free" : "Pro" });
+  const handleResetCredits = async () => {
+    setResetting(true);
+    try {
+      const res = await fetch("/api/admin/users/reset-credits", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id }),
+      });
+      const data = await res.json();
+      if (data.ok) { onUpdate({ ...user, creditsResetAt: data.resetAt }); setMsg("リセット✓"); setTimeout(() => setMsg(""), 2000); }
+      else setMsg(data.message ?? "エラー");
+    } finally { setResetting(false); }
+  };
 
   const handleEnter = async () => {
     setEntering(true);
@@ -184,22 +261,33 @@ function UserRow({ user, onUpdate, onDelete }: {
 
       {/* プラン切り替え */}
       <td style={{ padding: "10px 14px", whiteSpace: "nowrap" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 99, background: pc.bg, color: pc.fg }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 99, background: pc.bg, color: pc.fg, width: "fit-content" }}>
             {user.plan ?? "Free"}
           </span>
-          <button
-            onClick={togglePlan}
-            disabled={busy}
-            style={{
-              fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 6, border: "none",
-              cursor: busy ? "default" : "pointer",
-              background: user.plan === "Pro" ? "#fee2e2" : `${TEAL}18`,
-              color:      user.plan === "Pro" ? "#dc2626" : TEAL,
-            }}
-          >
-            {user.plan === "Pro" ? "→ Free" : "→ Pro"}
-          </button>
+          <div style={{ display: "flex", gap: 3 }}>
+            {PLANS.filter((p) => p !== (user.plan ?? "Free")).map((p) => {
+              const c = planColor(p);
+              return (
+                <button
+                  key={p}
+                  onClick={() => patch({ plan: p })}
+                  disabled={busy}
+                  style={{
+                    fontSize: 10, fontWeight: 600, padding: "2px 7px", borderRadius: 5, border: "none",
+                    cursor: busy ? "default" : "pointer",
+                    background: c.bg, color: c.fg,
+                    opacity: busy ? 0.5 : 1,
+                  }}
+                >→{p}</button>
+              );
+            })}
+          </div>
+          {user.creditsResetAt && (
+            <div style={{ fontSize: 10, color: "#94a3b8" }}>
+              次回リセット: {nextResetDate(user.creditsResetAt)}
+            </div>
+          )}
         </div>
       </td>
 
@@ -238,7 +326,19 @@ function UserRow({ user, onUpdate, onDelete }: {
               background: "#f8fafc", color: "#64748b", cursor: "pointer", whiteSpace: "nowrap",
             }}
           >初期化</button>
-          {msg && <span style={{ fontSize: 11, color: msg.startsWith("✓") ? TEAL : "#dc2626" }}>{msg}</span>}
+          {(user.plan === "Pro" || user.plan === "Business") && (
+            <button
+              onClick={handleResetCredits}
+              disabled={resetting || busy}
+              title="月次クレジットリセット（プランデフォルトに戻して日時更新）"
+              style={{
+                fontSize: 11, fontWeight: 600, padding: "4px 8px", borderRadius: 6, border: "1px solid #e2e8f0",
+                background: `${VIOLET}10`, color: VIOLET, cursor: "pointer", whiteSpace: "nowrap",
+                opacity: resetting ? 0.5 : 1,
+              }}
+            >{resetting ? "..." : "月次リセット"}</button>
+          )}
+          {msg && <span style={{ fontSize: 11, color: msg.startsWith("✓") || msg.includes("リセット") ? TEAL : "#dc2626" }}>{msg}</span>}
         </div>
       </td>
 
@@ -373,6 +473,12 @@ export default function AdminPage() {
   const [invResult, setInvResult]       = useState<{ ok: boolean; email?: string; password?: string; message?: string } | null>(null);
   const [invHistory, setInvHistory]     = useState<{ email: string; name: string; password: string; sentAt: string }[]>([]);
 
+  // plan configs
+  const [planConfigs, setPlanConfigs]     = useState<PlanConfig[]>([]);
+  const [planConfigMsg, setPlanConfigMsg] = useState("");
+  const [resetAllBusy, setResetAllBusy]   = useState(false);
+  const [resetAllMsg, setResetAllMsg]     = useState("");
+
   // samples
   const [sampleStoryboards, setSampleStoryboards] = useState<SampleStoryboard[]>([]);
   const [sampleProjects, setSampleProjects]       = useState<SampleProject[]>([]);
@@ -430,6 +536,15 @@ export default function AdminPage() {
   }, []);
 
 
+  const fetchPlanConfigs = useCallback(async () => {
+    try {
+      const res  = await fetch("/api/admin/plan-config");
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.ok) setPlanConfigs(data.configs);
+    } catch { /* ignore */ }
+  }, []);
+
   const fetchSamples = useCallback(async () => {
     setSamplesLoading(true);
     setSamplesError(null);
@@ -455,7 +570,7 @@ export default function AdminPage() {
   }, []);
 
   useEffect(() => { fetchStats(); }, [fetchStats]);
-  useEffect(() => { if (pageState === "loaded") { fetchLogs(); fetchUsers(); fetchSamples(); } }, [pageState, fetchLogs, fetchUsers, fetchSamples]);
+  useEffect(() => { if (pageState === "loaded") { fetchLogs(); fetchUsers(); fetchSamples(); fetchPlanConfigs(); } }, [pageState, fetchLogs, fetchUsers, fetchSamples, fetchPlanConfigs]);
   useEffect(() => {
     if (pageState !== "loaded") return;
     const id = setInterval(() => { fetchStats(); fetchLogs(); }, 30_000);
@@ -575,6 +690,7 @@ export default function AdminPage() {
             { id: "users" as Tab,   label: `ユーザー管理（${users.length}）` },
             { id: "invite" as Tab,  label: "ユーザー招待" },
             { id: "samples" as Tab, label: "サンプル管理" },
+            { id: "plans" as Tab,   label: "プラン設定" },
           ] as const).map((t) => (
             <button key={t.id} onClick={() => setTab(t.id)}
               style={{ padding: "6px 20px", fontSize: 12, fontWeight: 600, borderRadius: 8, border: "none", cursor: "pointer", fontFamily: FONT,
@@ -930,6 +1046,96 @@ export default function AdminPage() {
 
             <div style={{ background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 10, padding: "12px 16px", fontSize: 13, color: "#92400e", lineHeight: 1.7 }}>
               ⚠️ デフォルトサンプルは<strong>新規ユーザー登録時</strong>に自動コピーされます。既存ユーザーには適用されません。
+            </div>
+          </div>
+        )}
+
+        {/* ── プラン設定タブ ── */}
+        {tab === "plans" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+
+            {/* 月次リセット一括実行 */}
+            <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, padding: "20px 24px" }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "#1e293b", marginBottom: 8 }}>月次クレジットリセット</div>
+              <p style={{ margin: "0 0 14px", fontSize: 13, color: "#64748b", lineHeight: 1.6 }}>
+                Business / Pro プランで最終リセットから30日以上経過したユーザーのクレジットをプランデフォルトに戻します。
+              </p>
+              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                <button
+                  disabled={resetAllBusy}
+                  onClick={async () => {
+                    if (!confirm("期限切れの有料プランユーザー全員のクレジットをリセットしますか？")) return;
+                    setResetAllBusy(true); setResetAllMsg("");
+                    try {
+                      const res  = await fetch("/api/admin/users/reset-credits", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
+                      const data = await res.json();
+                      if (data.ok) { setResetAllMsg(`✓ ${data.count}件リセット完了`); fetchUsers(); }
+                      else setResetAllMsg(data.message ?? "エラー");
+                    } finally { setResetAllBusy(false); setTimeout(() => setResetAllMsg(""), 5000); }
+                  }}
+                  style={{
+                    fontSize: 13, fontWeight: 700, padding: "8px 20px", borderRadius: 8, border: "none",
+                    background: resetAllBusy ? "#94a3b8" : VIOLET, color: "#fff",
+                    cursor: resetAllBusy ? "default" : "pointer",
+                  }}
+                >{resetAllBusy ? "実行中..." : "一括リセット実行"}</button>
+                {resetAllMsg && <span style={{ fontSize: 12, color: resetAllMsg.startsWith("✓") ? TEAL : "#dc2626", fontWeight: 600 }}>{resetAllMsg}</span>}
+              </div>
+            </div>
+
+            {/* プランデフォルトクレジット設定 */}
+            <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, overflow: "hidden" }}>
+              <div style={{ padding: "14px 20px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", gap: 12 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#334155" }}>デフォルトクレジット設定</span>
+                <span style={{ fontSize: 12, color: "#94a3b8" }}>プラン切り替え・月次リセット時に適用されます</span>
+                {planConfigMsg && <span style={{ fontSize: 12, color: planConfigMsg.startsWith("✓") ? TEAL : "#dc2626", fontWeight: 600, marginLeft: "auto" }}>{planConfigMsg}</span>}
+              </div>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                <thead>
+                  <tr style={{ background: "#f8fafc" }}>
+                    {["プラン", "デフォルトクレジット", "月額(円)"].map((h) => (
+                      <th key={h} style={{ padding: "10px 20px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "#94a3b8", borderBottom: "1px solid #e2e8f0" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {planConfigs.length === 0 ? (
+                    <tr><td colSpan={3} style={{ padding: "32px", textAlign: "center", color: "#cbd5e1", fontSize: 13 }}>読み込み中...</td></tr>
+                  ) : planConfigs.map((cfg) => {
+                    const pc = planColor(cfg.id);
+                    return (
+                      <tr key={cfg.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                        <td style={{ padding: "12px 20px" }}>
+                          <span style={{ fontSize: 12, fontWeight: 700, padding: "3px 12px", borderRadius: 99, background: pc.bg, color: pc.fg }}>{cfg.id}</span>
+                        </td>
+                        <td style={{ padding: "12px 20px" }}>
+                          <PlanCreditInput
+                            value={cfg.credits_default}
+                            onChange={async (v) => {
+                              const res  = await fetch("/api/admin/plan-config", {
+                                method: "PATCH",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ id: cfg.id, field: "credits_default", value: v }),
+                              });
+                              const data = await res.json();
+                              if (data.ok) {
+                                setPlanConfigs(data.configs);
+                                setPlanConfigMsg("✓ 保存しました");
+                                setTimeout(() => setPlanConfigMsg(""), 3000);
+                              } else {
+                                setPlanConfigMsg(data.message ?? "エラー");
+                              }
+                            }}
+                          />
+                        </td>
+                        <td style={{ padding: "12px 20px", fontSize: 13, color: "#475569" }}>
+                          {cfg.price_jpy === 0 ? "無料" : `¥${cfg.price_jpy.toLocaleString()}`}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           </div>
         )}

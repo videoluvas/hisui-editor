@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getEditorSessionFromCookie } from "@/lib/auth.backend";
+import { getPlanCreditsDefault } from "@/lib/plan-config";
 
 async function isAdmin(userId: string): Promise<boolean> {
   const adminEmails = (process.env.ADMIN_EMAIL ?? "")
@@ -13,13 +14,7 @@ async function isAdmin(userId: string): Promise<boolean> {
   return !!user?.email && adminEmails.includes(user.email.toLowerCase());
 }
 
-const PLAN_DEFAULT: Record<string, number> = {
-  Free:     1_000,
-  Pro:    500_000,
-  Business: 150_000,
-};
-
-// 全ユーザーのクレジットをプランデフォルトに上書き（credits=0 のみ対象）
+// credits=0 のユーザーをプランデフォルトに初期化
 export async function POST() {
   const session = await getEditorSessionFromCookie();
   if (!session) return NextResponse.json({ ok: false }, { status: 401 });
@@ -32,7 +27,7 @@ export async function POST() {
 
   let count = 0;
   for (const u of users) {
-    const amount = PLAN_DEFAULT[u.plan ?? "Free"] ?? 1_000;
+    const amount = await getPlanCreditsDefault(u.plan ?? "Free");
     await prisma.user.update({ where: { id: u.id }, data: { credits: amount } });
     count++;
   }

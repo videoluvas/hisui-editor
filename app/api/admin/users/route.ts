@@ -4,7 +4,8 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getEditorSessionFromCookie } from "@/lib/auth.backend";
-import { grantCredits, planDefaultCredits } from "@/lib/credits";
+import { grantCredits } from "@/lib/credits";
+import { getPlanCreditsDefault } from "@/lib/plan-config";
 
 async function isAdmin(userId: string): Promise<boolean> {
   const adminEmails = (process.env.ADMIN_EMAIL ?? "")
@@ -15,6 +16,8 @@ async function isAdmin(userId: string): Promise<boolean> {
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
   return !!user?.email && adminEmails.includes(user.email.toLowerCase());
 }
+
+const PAID_PLANS = new Set(["Pro", "Business"]);
 
 // ── GET: ユーザー一覧 ──────────────────────────────────────────────────────────
 export async function GET() {
@@ -30,17 +33,13 @@ export async function GET() {
       email: true,
       plan: true,
       credits: true,
+      creditsResetAt: true,
       createdAt: true,
     },
   });
 
   return NextResponse.json({ ok: true, users });
 }
-
-const PLAN_CREDIT_GRANT: Record<string, number> = {
-  Pro:      500_000,
-  Business: 150_000,
-};
 
 // ── PATCH: プラン・クレジット変更 ──────────────────────────────────────────────
 export async function PATCH(req: NextRequest) {
@@ -66,7 +65,15 @@ export async function PATCH(req: NextRequest) {
   const updateData: Record<string, unknown> = {};
 
   const planChanging = body.plan !== undefined && body.plan !== target.plan;
-  if (planChanging) updateData.plan = body.plan;
+  if (planChanging) {
+    updateData.plan = body.plan;
+    // 有料プランに切り替わる場合はリセット日時を設定
+    if (body.plan && PAID_PLANS.has(body.plan)) {
+      updateData.creditsResetAt = new Date();
+    } else {
+      updateData.creditsResetAt = null;
+    }
+  }
 
   if (Object.keys(updateData).length === 0 && !body.grantCredits && !body.initCredits) {
     return NextResponse.json({ ok: false, message: "変更内容がありません" }, { status: 400 });
@@ -76,13 +83,14 @@ export async function PATCH(req: NextRequest) {
     await prisma.user.update({ where: { id: body.userId }, data: updateData });
   }
 
-  if (planChanging && body.plan && PLAN_CREDIT_GRANT[body.plan]) {
-    await grantCredits(body.userId, PLAN_CREDIT_GRANT[body.plan], `plan_upgrade_${body.plan.toLowerCase()}`);
+  if (planChanging && body.plan && PAID_PLANS.has(body.plan)) {
+    const defaultAmt = await getPlanCreditsDefault(body.plan);
+    await prisma.user.update({ where: { id: body.userId }, data: { credits: defaultAmt } });
   }
 
   if (body.initCredits) {
     const planAfter = body.plan ?? target.plan;
-    const defaultAmt = planDefaultCredits(planAfter);
+    const defaultAmt = await getPlanCreditsDefault(planAfter ?? "Free");
     await prisma.user.update({ where: { id: body.userId }, data: { credits: defaultAmt } });
     prisma.logCredit.create({
       data: { userId: body.userId, creditType: "grant", delta: defaultAmt, balanceAfter: defaultAmt, reason: "admin_init" },
@@ -93,7 +101,7 @@ export async function PATCH(req: NextRequest) {
 
   const updated = await prisma.user.findUnique({
     where: { id: body.userId },
-    select: { id: true, plan: true, credits: true },
+    select: { id: true, plan: true, credits: true, creditsResetAt: true },
   });
 
   return NextResponse.json({ ok: true, user: updated });

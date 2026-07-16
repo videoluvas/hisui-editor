@@ -16,7 +16,7 @@ async function isAdmin(userId: string): Promise<boolean> {
 }
 
 const ALLOWED_FIELDS = new Set([
-  "label", "price_jpy",
+  "label", "price_jpy", "credits_default",
   "credit_img_max", "credit_script_max", "credit_video_max", "credit_audio_max", "credit_bgm_max",
   "free_model_img", "free_model_video", "max_workspaces",
 ]);

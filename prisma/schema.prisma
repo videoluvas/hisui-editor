@@ -48,7 +48,8 @@ model User {
   newSignupBonus Boolean @default(false)  @map("new_signup_bonus")
 
   // Credits
-  credits Int @default(1000) @map("credits")
+  credits        Int       @default(1000) @map("credits")
+  creditsResetAt DateTime? @map("credits_reset_at")
 
   // Stripe
   stripeCustomerId         String?   @unique @map("stripe_customer_id")
