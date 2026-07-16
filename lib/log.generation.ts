@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 
-export type GenLogType = "img" | "script" | "video" | "audio";
+export type GenLogType = "img" | "script" | "video" | "audio" | "bgm";
 
 export async function logGeneration(userId: string, type: GenLogType): Promise<void> {
   try {
@@ -37,6 +37,12 @@ export async function logGeneration(userId: string, type: GenLogType): Promise<v
       const [row] = await prisma.$queryRaw<[{ credit_audio: number }]>`SELECT credit_audio FROM users WHERE id = ${userId}::uuid`;
       await prisma.logCredit.create({
         data: { userId, creditType: "audio", delta: -1, balanceAfter: row?.credit_audio ?? 0, reason: "generation_used" },
+      });
+    } else if (type === "bgm") {
+      await prisma.$executeRaw`UPDATE users SET credit_bgm = credit_bgm - 1 WHERE id = ${userId}::uuid`;
+      const [row] = await prisma.$queryRaw<[{ credit_bgm: number }]>`SELECT credit_bgm FROM users WHERE id = ${userId}::uuid`;
+      await prisma.logCredit.create({
+        data: { userId, creditType: "bgm", delta: -1, balanceAfter: row?.credit_bgm ?? 0, reason: "generation_used" },
       });
     }
   } catch {
@@ -79,6 +85,12 @@ export async function refundGeneration(userId: string, type: GenLogType): Promis
       const [row] = await prisma.$queryRaw<[{ credit_audio: number }]>`SELECT credit_audio FROM users WHERE id = ${userId}::uuid`;
       await prisma.logCredit.create({
         data: { userId, creditType: "audio", delta: 1, balanceAfter: row?.credit_audio ?? 0, reason: "refund_error" },
+      });
+    } else if (type === "bgm") {
+      await prisma.$executeRaw`UPDATE users SET credit_bgm = credit_bgm + 1 WHERE id = ${userId}::uuid`;
+      const [row] = await prisma.$queryRaw<[{ credit_bgm: number }]>`SELECT credit_bgm FROM users WHERE id = ${userId}::uuid`;
+      await prisma.logCredit.create({
+        data: { userId, creditType: "bgm", delta: 1, balanceAfter: row?.credit_bgm ?? 0, reason: "refund_error" },
       });
     }
   } catch {

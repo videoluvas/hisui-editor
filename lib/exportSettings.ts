@@ -1,3 +1,80 @@
+// ─── コンテ変換設定 ───────────────────────────────────────────────────────────
+
+// ── PDF ──
+export type PdfPaperSize        = "A4" | "A3" | "letter";
+export type PdfOrientation      = "landscape" | "portrait";
+export type PdfScenesPerPage    = 1 | 2 | 4 | 6;
+
+export type PdfSettings = {
+  paperSize:     PdfPaperSize;
+  orientation:   PdfOrientation;
+  scenesPerPage: PdfScenesPerPage;
+  showScript:    boolean;
+  showNarration: boolean;
+};
+
+export const DEFAULT_PDF_SETTINGS: PdfSettings = {
+  paperSize:     "A4",
+  orientation:   "landscape",
+  scenesPerPage: 4,
+  showScript:    true,
+  showNarration: true,
+};
+
+const PDF_LS_KEY = "hisui_pdf_settings";
+
+export function loadPdfSettings(): PdfSettings {
+  if (typeof window === "undefined") return { ...DEFAULT_PDF_SETTINGS };
+  try {
+    const stored = localStorage.getItem(PDF_LS_KEY);
+    if (stored) return { ...DEFAULT_PDF_SETTINGS, ...JSON.parse(stored) };
+  } catch {}
+  return { ...DEFAULT_PDF_SETTINGS };
+}
+
+export function savePdfSettings(s: PdfSettings): void {
+  if (typeof window === "undefined") return;
+  try { localStorage.setItem(PDF_LS_KEY, JSON.stringify(s)); } catch {}
+}
+
+// ── Excel / CSV ──
+export type SpreadsheetFormat   = "xlsx" | "csv";
+export type CsvEncoding         = "utf-8" | "shift-jis";
+
+export type SpreadsheetSettings = {
+  format:        SpreadsheetFormat;
+  csvEncoding:   CsvEncoding;
+  includeScript:    boolean;
+  includeNarration: boolean;
+  includeImageUrl:  boolean;
+  includeVideoUrl:  boolean;
+};
+
+export const DEFAULT_SPREADSHEET_SETTINGS: SpreadsheetSettings = {
+  format:           "xlsx",
+  csvEncoding:      "utf-8",
+  includeScript:    true,
+  includeNarration: true,
+  includeImageUrl:  false,
+  includeVideoUrl:  false,
+};
+
+const SS_LS_KEY = "hisui_spreadsheet_settings";
+
+export function loadSpreadsheetSettings(): SpreadsheetSettings {
+  if (typeof window === "undefined") return { ...DEFAULT_SPREADSHEET_SETTINGS };
+  try {
+    const stored = localStorage.getItem(SS_LS_KEY);
+    if (stored) return { ...DEFAULT_SPREADSHEET_SETTINGS, ...JSON.parse(stored) };
+  } catch {}
+  return { ...DEFAULT_SPREADSHEET_SETTINGS };
+}
+
+export function saveSpreadsheetSettings(s: SpreadsheetSettings): void {
+  if (typeof window === "undefined") return;
+  try { localStorage.setItem(SS_LS_KEY, JSON.stringify(s)); } catch {}
+}
+
 // ─── コンテ → 動画プロジェクト変換設定 ──────────────────────────────────────
 
 export type ExportResolution = "720p" | "1080p" | "4k";

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { TEAL } from "@/components/icons";
+import ProfileSettingsModal from "@/components/ProfileSettingsModal";
 
 const FONT = "'Noto Sans JP', sans-serif";
 
@@ -21,6 +22,8 @@ type DashUser = {
   creditVideoMax: number;
   creditAudio: number;
   creditAudioMax: number;
+  creditBgm: number;
+  creditBgmMax: number;
 };
 
 type CreditLog = {
@@ -248,10 +251,11 @@ export default function UserDashboardModal({
   userIconUrl?: string | null;
   userName?: string | null;
 }) {
-  const [data, setData]     = useState<DashboardData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [tab, setTab]       = useState<Tab>("log");
-  const [filter, setFilter] = useState<"all" | "credit" | "error">("all");
+  const [data, setData]         = useState<DashboardData | null>(null);
+  const [loading, setLoading]   = useState(true);
+  const [tab, setTab]           = useState<Tab>("log");
+  const [filter, setFilter]     = useState<"all" | "credit" | "error">("all");
+  const [profileOpen, setProfileOpen] = useState(false);
 
   useEffect(() => {
     fetch("/api/user/dashboard", { credentials: "include", cache: "no-store" })
@@ -274,6 +278,19 @@ export default function UserDashboardModal({
 
   return (
     <>
+      {profileOpen && (
+        <ProfileSettingsModal
+          onClose={() => setProfileOpen(false)}
+          onUpdated={(name, iconUrl) => {
+            setData((prev) => prev ? {
+              ...prev,
+              user: { ...prev.user, name: name ?? prev.user.name, iconUrl: iconUrl ?? prev.user.iconUrl },
+            } : prev);
+            setProfileOpen(false);
+          }}
+        />
+      )}
+
       <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", zIndex: 300, backdropFilter: "blur(1px)" }} />
 
       <div style={{
@@ -317,6 +334,28 @@ export default function UserDashboardModal({
                 </div>
               </div>
 
+              {/* ── プロフィール設定ボタン ── */}
+              <button
+                onClick={() => setProfileOpen(true)}
+                style={{
+                  width: "100%", display: "flex", alignItems: "center", gap: 8,
+                  padding: "9px 14px", border: "1.5px solid #e2e8f0", borderRadius: 10,
+                  background: "#fff", cursor: "pointer", fontFamily: FONT,
+                  transition: "background 0.15s, border-color 0.15s",
+                }}
+                onMouseEnter={(e) => { const b = e.currentTarget as HTMLButtonElement; b.style.background="#f8fafc"; b.style.borderColor=`${TEAL}66`; }}
+                onMouseLeave={(e) => { const b = e.currentTarget as HTMLButtonElement; b.style.background="#fff"; b.style.borderColor="#e2e8f0"; }}
+              >
+                <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke={TEAL} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                  <circle cx="8" cy="5.5" r="2.5"/>
+                  <path d="M2.5 13.5c0-2.485 2.462-4.5 5.5-4.5s5.5 2.015 5.5 4.5"/>
+                </svg>
+                <span style={{ fontSize: 12, fontWeight: 600, color: "#334155" }}>プロフィール設定</span>
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#94a3b8" strokeWidth="1.6" style={{ marginLeft: "auto" }}>
+                  <path d="M4 2l4 4-4 4"/>
+                </svg>
+              </button>
+
               {/* ── 生成クレジット ── */}
               <Section title="生成クレジット">
                 {user ? (
@@ -325,6 +364,7 @@ export default function UserDashboardModal({
                     <CreditBar label="AI画像生成" used={user.creditImg}    max={user.creditImgMax}    note={isFree(user) ? "※モデル制限あり" : undefined} />
                     <CreditBar label="AI動画生成" used={user.creditVideo}  max={user.creditVideoMax}  note={isFree(user) ? "※モデル制限あり" : undefined} />
                     <CreditBar label="AIナレーション生成" used={user.creditAudio} max={user.creditAudioMax} note={isFree(user) ? "※モデル制限あり" : undefined} />
+                    <CreditBar label="AI BGM生成" used={user.creditBgm} max={user.creditBgmMax} />
                     {isFree(user) && (
                       <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 4, fontFamily: FONT, lineHeight: 1.6 }}>
                         書き出し：無制限（透かし・画質制限あり）

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { loadVideoExportSettings } from "@/lib/videoExportSettings";
 import { useIsMobile } from "@/lib/useIsMobile";
 import SidePanel from "@/components/SidePanel";
 import { handleEditorAuthFromUrl } from "@/lib/auth.front";
@@ -269,10 +270,11 @@ export default function Home() {
     await handleSave();
 
     onProgress({ phase: "submitting" });
+    const renderSettings = loadVideoExportSettings();
     const res = await fetch("/api/export", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ projectId: project.id }),
+      body: JSON.stringify({ projectId: project.id, renderSettings }),
     });
     const data = await res.json();
     if (!data.ok) throw new Error(data.message ?? "書き出し開始に失敗しました");

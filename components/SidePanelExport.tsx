@@ -274,30 +274,6 @@ export default function SidePanelExport({
       {isProjectLoading && <div style={{ fontSize: 12, color: "#94a3b8" }}>プロジェクト読み込み中...</div>}
       {exportError      && <div style={{ fontSize: 12, color: "#e53935" }}>{exportError}</div>}
 
-      {/* ── ブラウザ書き出しカード ── */}
-      <div style={{ borderRadius: 10, border: "1px solid #f0f0f0", padding: 14, background: "#fff", display: "flex", flexDirection: "column", gap: 10 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <IconBrowser />
-          <span style={{ fontSize: 13, fontWeight: 600, color: "#333", lineHeight: 1.4 }}>ブラウザで書き出す</span>
-        </div>
-        <p style={{ margin: 0, fontSize: 11, color: "#888", lineHeight: 1.7 }}>
-          テキスト・画像のみのプロジェクトを素早く書き出します。音声・動画クリップは含まれません。
-        </p>
-        <button
-          type="button"
-          onClick={() => void onExportLocal()}
-          disabled={localDisabled}
-          style={{
-            width: "100%", padding: "7px 0", fontSize: 12, fontWeight: 600,
-            borderRadius: 7, border: "none",
-            background: localDisabled ? "#c8e6e0" : TEAL,
-            color: "#fff", cursor: localDisabled ? "not-allowed" : "pointer", fontFamily: FONT,
-          }}
-        >
-          {isExporting ? "書き出し中..." : "書き出す"}
-        </button>
-      </div>
-
       {/* ── APIで書き出しカード ── */}
       <div style={{
         borderRadius: 10, padding: 14, background: "#fff", display: "flex", flexDirection: "column", gap: 12,
@@ -422,6 +398,30 @@ export default function SidePanelExport({
             )}
           </div>
         )}
+      </div>
+
+      {/* ── ブラウザ書き出しカード ── */}
+      <div style={{ borderRadius: 10, border: "1px solid #f0f0f0", padding: 14, background: "#fff", display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <IconBrowser />
+          <span style={{ fontSize: 13, fontWeight: 600, color: "#333", lineHeight: 1.4 }}>ブラウザで書き出す</span>
+        </div>
+        <p style={{ margin: 0, fontSize: 11, color: "#888", lineHeight: 1.7 }}>
+          テキスト・画像のみのプロジェクトを素早く書き出します。音声・動画クリップは含まれません。
+        </p>
+        <button
+          type="button"
+          onClick={() => void onExportLocal()}
+          disabled={localDisabled}
+          style={{
+            width: "100%", padding: "7px 0", fontSize: 12, fontWeight: 600,
+            borderRadius: 7, border: "none",
+            background: localDisabled ? "#c8e6e0" : TEAL,
+            color: "#fff", cursor: localDisabled ? "not-allowed" : "pointer", fontFamily: FONT,
+          }}
+        >
+          {isExporting ? "書き出し中..." : "書き出す"}
+        </button>
       </div>
     </div>
   );

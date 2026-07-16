@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { loadBgmSettings } from "@/lib/bgmSettings";
 
 const GRAD = "linear-gradient(45deg, #5184F0, #169385)";
 const FONT = "'Noto Sans JP', sans-serif";
@@ -25,10 +26,11 @@ type Props = {
 };
 
 export default function EditorBGMModal({ open, timelineDuration, workspaceId, onClose, onInsert }: Props) {
-  const [vocal, setVocal] = useState<"yes" | "no" | "">("");
-  const [genre, setGenre] = useState<string>("");
-  const [mood, setMood] = useState<string>("");
-  const [prompt, setPrompt] = useState("");
+  const defaults = loadBgmSettings();
+  const [vocal, setVocal] = useState<"yes" | "no" | "">(defaults.defaultVocal);
+  const [genre, setGenre] = useState<string>(defaults.defaultGenre);
+  const [mood, setMood] = useState<string>(defaults.defaultMood);
+  const [prompt, setPrompt] = useState(defaults.commonPrompt);
   const [useDurationAuto, setUseDurationAuto] = useState(true);
   const [customDuration, setCustomDuration] = useState(30);
   const [status, setStatus] = useState<"idle" | "generating" | "done" | "error">("idle");
@@ -58,7 +60,7 @@ export default function EditorBGMModal({ open, timelineDuration, workspaceId, on
           prompt,
           duration,
           workspaceId: workspaceId ?? undefined,
-          model: "lyria-3-pro-preview",
+          model: defaults.model ?? "lyria-3-pro-preview",
         }),
       });
       const data = await res.json() as { ok: boolean; audioUrl?: string; message?: string };
@@ -66,7 +68,7 @@ export default function EditorBGMModal({ open, timelineDuration, workspaceId, on
       const audioUrl = data.audioUrl;
       setStatus("done");
       if (audioUrl) {
-        onInsert({ type: "audio", src: audioUrl, volume: 0.7 }, 0);
+        onInsert({ type: "audio", src: audioUrl, volume: defaults.defaultVolume }, 0);
         onClose();
       }
     } catch (e) {
@@ -79,7 +81,11 @@ export default function EditorBGMModal({ open, timelineDuration, workspaceId, on
     if (status === "generating") return;
     setStatus("idle");
     setErrorMsg("");
-    setVocal("");
+    const d = loadBgmSettings();
+    setVocal(d.defaultVocal);
+    setGenre(d.defaultGenre);
+    setMood(d.defaultMood);
+    setPrompt(d.commonPrompt);
     onClose();
   };
 

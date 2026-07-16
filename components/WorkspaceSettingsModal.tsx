@@ -17,10 +17,14 @@ import { loadScriptSettings, saveScriptSettings, DEFAULT_SCRIPT_SETTINGS } from 
 import type { ScriptSettings } from "@/lib/scriptSettings";
 import { loadTelopSettings, saveTelopSettings, DEFAULT_TELOP_SETTINGS } from "@/lib/telopSettings";
 import type { TelopSettings } from "@/lib/telopSettings";
-import { loadExportSettings, saveExportSettings, DEFAULT_EXPORT_SETTINGS, RESOLUTION_MAP } from "@/lib/exportSettings";
-import type { ExportSettings, ExportResolution } from "@/lib/exportSettings";
+import { loadExportSettings, saveExportSettings, DEFAULT_EXPORT_SETTINGS, RESOLUTION_MAP, loadPdfSettings, savePdfSettings, DEFAULT_PDF_SETTINGS, loadSpreadsheetSettings, saveSpreadsheetSettings, DEFAULT_SPREADSHEET_SETTINGS } from "@/lib/exportSettings";
+import type { ExportSettings, ExportResolution, PdfSettings, SpreadsheetSettings } from "@/lib/exportSettings";
+import { loadBgmSettings, saveBgmSettings, DEFAULT_BGM_SETTINGS, BGM_MODELS } from "@/lib/bgmSettings";
+import type { BgmSettings, BgmVocal } from "@/lib/bgmSettings";
+import { loadVideoExportSettings, saveVideoExportSettings, resetVideoExportToSequence } from "@/lib/videoExportSettings";
+import type { VideoExportSettings } from "@/lib/videoExportSettings";
 
-export type WsSettingsTab = "general" | "script" | "telop" | "image" | "video" | "narration" | "export";
+export type WsSettingsTab = "general" | "script" | "telop" | "image" | "video" | "narration" | "bgm" | "render" | "export";
 
 const FONT = "'Noto Sans JP', sans-serif";
 
@@ -85,6 +89,25 @@ function ExportTabIcon() {
       <path d="M4 13h6M7 10v3"/>
       <path d="M4.5 6l2.5-2.5L9.5 6"/>
       <path d="M7 3.5v4"/>
+    </svg>
+  );
+}
+
+function BgmTabIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5 11V3l7-1.5v8"/>
+      <circle cx="3.5" cy="11" r="1.5"/>
+      <circle cx="10.5" cy="9.5" r="1.5"/>
+    </svg>
+  );
+}
+
+function RenderTabIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="1" y="2" width="12" height="10" rx="1.5"/>
+      <path d="M5.5 5.2l4 2.3-4 2.3V5.2z" fill="currentColor" stroke="none"/>
     </svg>
   );
 }
@@ -221,7 +244,9 @@ const TABS: { id: WsSettingsTab; label: string; icon: React.ReactNode }[] = [
   { id: "image",     label: "AI 画像生成",      icon: <ImgTabIcon /> },
   { id: "video",     label: "AI 動画生成",      icon: <VideoTabIcon /> },
   { id: "narration", label: "AI ナレーション",  icon: <MicTabIcon /> },
-  { id: "export",    label: "変換設定",          icon: <ExportTabIcon /> },
+  { id: "bgm",       label: "AI BGM",           icon: <BgmTabIcon /> },
+  { id: "render",    label: "動画書き出し",       icon: <RenderTabIcon /> },
+  { id: "export",    label: "コンテ変換",         icon: <ExportTabIcon /> },
 ];
 
 // ─── Model definitions ────────────────────────────────────────────────────────
@@ -286,6 +311,10 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
   const [scr, setScr]       = useState<ScriptSettings>(() => loadScriptSettings());
   const [telop, setTelop]   = useState<TelopSettings>(() => loadTelopSettings());
   const [exp, setExp]       = useState<ExportSettings>(() => loadExportSettings());
+  const [pdf, setPdf]       = useState<PdfSettings>(() => loadPdfSettings());
+  const [ss,  setSs]        = useState<SpreadsheetSettings>(() => loadSpreadsheetSettings());
+  const [bgm, setBgm]       = useState<BgmSettings>(() => loadBgmSettings());
+  const [render, setRender] = useState<VideoExportSettings>(() => loadVideoExportSettings());
   const [saving, setSaving] = useState(false);
   const [wsTemplatePickerOpen, setWsTemplatePickerOpen] = useState(false);
   const [uploadingRefImg, setUploadingRefImg] = useState(false);
@@ -320,6 +349,10 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
       saveScriptSettings(scr);
       saveTelopSettings(telop);
       saveExportSettings(exp);
+      savePdfSettings(pdf);
+      saveSpreadsheetSettings(ss);
+      saveBgmSettings(bgm);
+      saveVideoExportSettings(render);
       audioRef.current?.pause();
       onClose();
     } finally {
@@ -1313,13 +1346,382 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
               );
             })()}
 
-            {/* ── 変換設定 ── */}
-            {activeTab === "export" && (() => {
-              const expColor = "#5184F0";
+            {/* ── AI BGM生成 ── */}
+            {activeTab === "bgm" && (() => {
+              const GENRES = ["Pop", "Jazz", "Classical", "Electronic", "Cinematic", "Ambient", "Lo-fi", "Rock"] as const;
+              const MOODS  = ["Happy", "Calm", "Epic", "Melancholic", "Energetic", "Mysterious", "Romantic", "Tense"] as const;
+              const GENRE_JA: Record<string, string> = {
+                Pop: "ポップ", Jazz: "ジャズ", Classical: "クラシック", Electronic: "エレクトロニック",
+                Cinematic: "シネマティック", Ambient: "アンビエント", "Lo-fi": "Lo-fi", Rock: "ロック",
+              };
+              const MOOD_JA: Record<string, string> = {
+                Happy: "明るい", Calm: "穏やか", Epic: "壮大", Melancholic: "切ない",
+                Energetic: "エネルギッシュ", Mysterious: "神秘的", Romantic: "ロマンチック", Tense: "緊張感",
+              };
+              const chipStyle = (active: boolean): React.CSSProperties => ({
+                border: active ? "none" : "1.5px solid #e2e8f0",
+                borderRadius: 20, padding: "4px 12px", fontSize: 12,
+                fontWeight: active ? 700 : 400, fontFamily: FONT, cursor: "pointer",
+                background: active ? "linear-gradient(45deg,#5184F0,#169385)" : "#f8fafc",
+                color: active ? "#fff" : "#475569", transition: "all 0.15s",
+              });
+              return (
+              <>
+                <div style={SEC}>使用モデル</div>
+                <div style={{ ...FIELD, display: "flex", flexDirection: "column", gap: 6 }}>
+                  {BGM_MODELS.map((m) => {
+                    const active = bgm.model === m.id;
+                    const locked = m.lockedFree && isFree;
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => { if (!locked) setBgm((s) => ({ ...s, model: m.id })); }}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 10,
+                          padding: "9px 12px", borderRadius: 10, cursor: locked ? "not-allowed" : "pointer",
+                          border: `1.5px solid ${active ? "#5184F0" : "#e2e8f0"}`,
+                          background: locked ? "#f8fafc" : active ? "#5184F010" : "#fff",
+                          opacity: locked ? 0.7 : 1, fontFamily: FONT, textAlign: "left" as const,
+                        }}
+                      >
+                        <ProviderLogo provider="google" size={22} />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 9, fontWeight: 600, color: active ? "#5184F0" : "#94a3b8", textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>{m.label}</div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: active ? "#5184F0" : "#334155", marginTop: 1 }}>{m.sub}</div>
+                          <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 1 }}>{m.note}</div>
+                        </div>
+                        {locked && (
+                          <span style={{ fontSize: 9, fontWeight: 700, color: "#e67d30", background: "#fff3e8", padding: "2px 6px", borderRadius: 4, border: "1px solid #e67d3040", whiteSpace: "nowrap" as const, flexShrink: 0 }}>
+                            有料プラン
+                          </span>
+                        )}
+                        {active && !locked && (
+                          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#5184F0" strokeWidth="2" strokeLinecap="round">
+                            <path d="M2 7l4 4 6-6"/>
+                          </svg>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div style={SEC}>ボーカル</div>
+                <div style={{ ...FIELD, display: "flex", gap: 8 }}>
+                  {(["no", "yes", ""] as BgmVocal[]).map((v) => {
+                    const label = v === "no" ? "なし（インスト）" : v === "yes" ? "あり" : "指定なし";
+                    return <button key={v} type="button" onClick={() => setBgm((s) => ({ ...s, defaultVocal: v }))} style={chipStyle(bgm.defaultVocal === v)}>{label}</button>;
+                  })}
+                </div>
+
+                <div style={SEC}>デフォルトジャンル</div>
+                <div style={{ ...FIELD, display: "flex", flexWrap: "wrap", gap: 7 }}>
+                  <button type="button" onClick={() => setBgm((s) => ({ ...s, defaultGenre: "" }))} style={chipStyle(bgm.defaultGenre === "")}>指定なし</button>
+                  {GENRES.map((g) => (
+                    <button key={g} type="button" onClick={() => setBgm((s) => ({ ...s, defaultGenre: s.defaultGenre === g ? "" : g }))} style={chipStyle(bgm.defaultGenre === g)}>
+                      {GENRE_JA[g] ?? g}
+                    </button>
+                  ))}
+                </div>
+
+                <div style={SEC}>デフォルトムード</div>
+                <div style={{ ...FIELD, display: "flex", flexWrap: "wrap", gap: 7 }}>
+                  <button type="button" onClick={() => setBgm((s) => ({ ...s, defaultMood: "" }))} style={chipStyle(bgm.defaultMood === "")}>指定なし</button>
+                  {MOODS.map((m) => (
+                    <button key={m} type="button" onClick={() => setBgm((s) => ({ ...s, defaultMood: s.defaultMood === m ? "" : m }))} style={chipStyle(bgm.defaultMood === m)}>
+                      {MOOD_JA[m] ?? m}
+                    </button>
+                  ))}
+                </div>
+
+                <div style={SEC}>共通プロンプト</div>
+                <div style={FIELD}>
+                  <textarea
+                    value={bgm.commonPrompt}
+                    onChange={(e) => setBgm((s) => ({ ...s, commonPrompt: e.target.value }))}
+                    placeholder="例：明るくテンポの速いポップス、ピアノメロディあり"
+                    rows={3}
+                    style={{ ...INPUT, resize: "none", lineHeight: 1.6 }}
+                  />
+                  <div style={{ marginTop: 4, fontSize: 10, color: "#94a3b8", fontFamily: FONT }}>
+                    BGM生成モーダルを開くたびにプロンプト欄にプリセットされます。
+                  </div>
+                </div>
+
+                <div style={SEC}>デフォルト音量 ({Math.round(bgm.defaultVolume * 100)}%)</div>
+                <div style={FIELD}>
+                  <input
+                    type="range" min={0} max={1} step={0.05}
+                    value={bgm.defaultVolume}
+                    onChange={(e) => setBgm((s) => ({ ...s, defaultVolume: parseFloat(e.target.value) }))}
+                    style={{ width: "100%", accentColor: "#5184F0" }}
+                  />
+                  <div style={{ marginTop: 4, fontSize: 10, color: "#94a3b8", fontFamily: FONT }}>
+                    タイムラインに挿入する際のデフォルト音量です。
+                  </div>
+                </div>
+              </>
+              );
+            })()}
+
+            {/* ── 動画書き出し（ShotStack出力設定） ── */}
+            {activeTab === "render" && (() => {
+              const RC = "#5184F0";
+              const SEQ_BADGE = (
+                <span style={{ fontSize: 9, fontWeight: 700, color: "#5184F0", background: "#5184F018", border: "1px solid #5184F033", borderRadius: 4, padding: "1px 5px", letterSpacing: "0.02em" }}>
+                  シーケンス連動
+                </span>
+              );
+              const chip = (active: boolean): React.CSSProperties => ({
+                fontSize: 11, padding: "4px 11px", borderRadius: 6, cursor: "pointer", fontFamily: FONT,
+                border: `1.5px solid ${active ? RC : "#e2e8f0"}`,
+                background: active ? `${RC}18` : "#fff",
+                color: active ? RC : "#64748b", fontWeight: active ? 700 : 400,
+              });
+
+              const FORMAT_OPTIONS: { v: string; label: string; sub: string }[] = [
+                { v: "mp4", label: "MP4", sub: "H.264 / 最も互換性が高い" },
+                { v: "gif", label: "GIF", sub: "アニメーションGIF / ループ再生" },
+              ];
+              const QUALITY_OPTIONS: { v: string; label: string; sub: string }[] = [
+                { v: "verylow",  label: "最低", sub: "verylow — 最小ファイルサイズ" },
+                { v: "low",      label: "低",   sub: "low" },
+                { v: "medium",   label: "標準", sub: "medium — デフォルト / Web推奨" },
+                { v: "high",     label: "高",   sub: "high" },
+                { v: "veryhigh", label: "最高", sub: "veryhigh — 高ビットレート / アーカイブ向け" },
+              ];
+              const RES_OPTIONS: { v: ExportResolution; label: string }[] = [
+                { v: "720p",  label: "HD 720p (1280×720)" },
+                { v: "1080p", label: "Full HD 1080p (1920×1080)" },
+                { v: "4k",    label: "4K UHD (3840×2160)" },
+              ];
+              const FPS_OPTIONS: { v: 24 | 25 | 30 | 60; label: string }[] = [
+                { v: 24, label: "24 fps" },
+                { v: 25, label: "25 fps" },
+                { v: 30, label: "30 fps" },
+                { v: 60, label: "60 fps" },
+              ];
+
               return (
               <>
                 <div style={{ ...SEC, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <span>プロジェクト設定</span>
+                  <span>出力設定</span>
+                  <button type="button" onClick={() => setRender(resetVideoExportToSequence())}
+                    style={{ fontSize: 10, fontWeight: 600, color: RC, background: "none", border: `1px solid ${RC}55`, borderRadius: 5, cursor: "pointer", padding: "1px 7px", fontFamily: FONT }}>
+                    シーケンス設定に戻す
+                  </button>
+                </div>
+
+                {/* 解像度（シーケンス連動） */}
+                <div style={FIELD}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                    <label style={{ ...LBL, margin: 0 }}>解像度</label>
+                    {SEQ_BADGE}
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    {RES_OPTIONS.map(({ v, label }) => {
+                      const active = render.resolution === v;
+                      return (
+                        <button key={v} type="button" onClick={() => setRender((s) => ({ ...s, resolution: v }))}
+                          style={{ ...chip(active), textAlign: "left", padding: "5px 10px" }}>
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div style={{ fontSize: 10, color: "#94a3b8", fontFamily: FONT, marginTop: 4 }}>
+                    デフォルトはコンテ変換タブの解像度と連動。変更すると書き出し時のみ適用されます。
+                  </div>
+                </div>
+
+                {/* FPS（シーケンス連動） */}
+                <div style={FIELD}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                    <label style={{ ...LBL, margin: 0 }}>フレームレート（fps）</label>
+                    {SEQ_BADGE}
+                  </div>
+                  <div style={{ display: "flex", gap: 4 }}>
+                    {FPS_OPTIONS.map(({ v, label }) => {
+                      const active = render.fps === v;
+                      return (
+                        <button key={v} type="button" onClick={() => setRender((s) => ({ ...s, fps: v }))}
+                          style={chip(active)}>
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div style={{ fontSize: 10, color: "#94a3b8", fontFamily: FONT, marginTop: 4 }}>
+                    ShotStack対応: 12, 15, 23.976, 24, 25, 29.97, 30 fps
+                  </div>
+                </div>
+
+                {/* 背景色（シーケンス連動） */}
+                <div style={FIELD}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                    <label style={{ ...LBL, margin: 0 }}>背景色</label>
+                    {SEQ_BADGE}
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <input type="color" value={render.backgroundColor}
+                      onChange={(e) => setRender((s) => ({ ...s, backgroundColor: e.target.value }))}
+                      style={{ width: 34, height: 34, border: "1px solid #e2e8f0", borderRadius: 6, cursor: "pointer", padding: 2, background: "#f8fafd" }}
+                    />
+                    <input value={render.backgroundColor}
+                      onChange={(e) => setRender((s) => ({ ...s, backgroundColor: e.target.value }))}
+                      style={{ ...INPUT, width: 110 }}
+                    />
+                    <span style={{ fontSize: 10, color: "#94a3b8", fontFamily: FONT }}>映像・画像がないシーンの背景</span>
+                  </div>
+                </div>
+
+                {/* フォーマット */}
+                <div style={{ ...SEC }}>書き出しフォーマット</div>
+                <div style={FIELD}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    {FORMAT_OPTIONS.map(({ v, label, sub }) => {
+                      const active = render.format === v;
+                      return (
+                        <button key={v} type="button" onClick={() => setRender((s) => ({ ...s, format: v as VideoExportSettings["format"] }))}
+                          style={{ ...chip(active), display: "flex", alignItems: "center", gap: 8, textAlign: "left", padding: "7px 10px" }}>
+                          <span style={{ fontWeight: 700, minWidth: 32 }}>{label}</span>
+                          <span style={{ fontSize: 10, color: active ? RC : "#94a3b8" }}>{sub}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 品質 */}
+                <div style={{ ...SEC }}>品質（ビットレート）</div>
+                <div style={FIELD}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    {QUALITY_OPTIONS.map(({ v, label, sub }) => {
+                      const active = render.quality === v;
+                      return (
+                        <button key={v} type="button" onClick={() => setRender((s) => ({ ...s, quality: v as VideoExportSettings["quality"] }))}
+                          style={{ ...chip(active), display: "flex", alignItems: "center", gap: 8, textAlign: "left", padding: "6px 10px" }}>
+                          <span style={{ fontWeight: 700, minWidth: 30 }}>{label}</span>
+                          <span style={{ fontSize: 10, color: active ? RC : "#94a3b8" }}>{sub}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* ミュート */}
+                <div style={FIELD}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, color: "#475569", fontFamily: FONT }}>
+                    <input type="checkbox" checked={render.mute}
+                      onChange={(e) => setRender((s) => ({ ...s, mute: e.target.checked }))}
+                      style={{ accentColor: RC, width: 14, height: 14 }}
+                    />
+                    <div>
+                      <span style={{ fontWeight: 600 }}>ミュート出力</span>
+                      <span style={{ fontSize: 10, color: "#94a3b8", marginLeft: 6 }}>— ナレーション・BGMを含まず映像のみ書き出す</span>
+                    </div>
+                  </label>
+                </div>
+
+                {/* ポスター画像 */}
+                <div style={{ ...SEC }}>ポスター画像（poster）</div>
+                <div style={FIELD}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, color: "#475569", fontFamily: FONT, marginBottom: 8 }}>
+                    <input type="checkbox" checked={render.posterEnabled}
+                      onChange={(e) => setRender((s) => ({ ...s, posterEnabled: e.target.checked }))}
+                      style={{ accentColor: RC, width: 14, height: 14 }}
+                    />
+                    <span style={{ fontWeight: 600 }}>ポスター画像を生成する</span>
+                  </label>
+                  {render.posterEnabled && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, paddingLeft: 22 }}>
+                      <span style={{ fontSize: 11, color: "#64748b", fontFamily: FONT, whiteSpace: "nowrap" }}>キャプチャ位置</span>
+                      <input type="number" min={0} step={0.5} value={render.posterCapture}
+                        onChange={(e) => setRender((s) => ({ ...s, posterCapture: Math.max(0, parseFloat(e.target.value) || 0) }))}
+                        style={{ ...INPUT, width: 70 }}
+                      />
+                      <span style={{ fontSize: 11, color: "#94a3b8", fontFamily: FONT }}>秒</span>
+                    </div>
+                  )}
+                  <div style={{ fontSize: 10, color: "#94a3b8", fontFamily: FONT, marginTop: 4 }}>
+                    指定秒のフレームをJPEG（-poster.jpg）として動画と同時生成します。
+                  </div>
+                </div>
+
+                {/* サムネイル */}
+                <div style={{ ...SEC }}>サムネイル（thumbnail）</div>
+                <div style={FIELD}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, color: "#475569", fontFamily: FONT, marginBottom: 8 }}>
+                    <input type="checkbox" checked={render.thumbnailEnabled}
+                      onChange={(e) => setRender((s) => ({ ...s, thumbnailEnabled: e.target.checked }))}
+                      style={{ accentColor: RC, width: 14, height: 14 }}
+                    />
+                    <span style={{ fontWeight: 600 }}>サムネイルを生成する</span>
+                  </label>
+                  {render.thumbnailEnabled && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingLeft: 22 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontSize: 11, color: "#64748b", fontFamily: FONT, whiteSpace: "nowrap", width: 80 }}>キャプチャ位置</span>
+                        <input type="number" min={0} step={0.5} value={render.thumbnailCapture}
+                          onChange={(e) => setRender((s) => ({ ...s, thumbnailCapture: Math.max(0, parseFloat(e.target.value) || 0) }))}
+                          style={{ ...INPUT, width: 70 }}
+                        />
+                        <span style={{ fontSize: 11, color: "#94a3b8", fontFamily: FONT }}>秒</span>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontSize: 11, color: "#64748b", fontFamily: FONT, whiteSpace: "nowrap", width: 80 }}>スケール</span>
+                        <input type="range" min={0.1} max={1} step={0.05} value={render.thumbnailScale}
+                          onChange={(e) => setRender((s) => ({ ...s, thumbnailScale: parseFloat(e.target.value) }))}
+                          style={{ flex: 1, accentColor: RC }}
+                        />
+                        <span style={{ fontSize: 11, color: "#334155", fontFamily: FONT, width: 36, textAlign: "right" }}>{Math.round(render.thumbnailScale * 100)}%</span>
+                      </div>
+                    </div>
+                  )}
+                  <div style={{ fontSize: 10, color: "#94a3b8", fontFamily: FONT, marginTop: 4 }}>
+                    縮小JPEG（-thumbnail.jpg）を同時生成。スケールは出力解像度に対する倍率。
+                  </div>
+                </div>
+
+                {/* コールバック */}
+                <div style={{ ...SEC }}>コールバック（Webhook）</div>
+                <div style={FIELD}>
+                  <label style={LBL}>完了通知URL（callback）</label>
+                  <input type="url" value={render.callbackUrl}
+                    onChange={(e) => setRender((s) => ({ ...s, callbackUrl: e.target.value }))}
+                    placeholder="https://your-server.com/webhook"
+                    style={INPUT}
+                  />
+                  <div style={{ fontSize: 10, color: "#94a3b8", fontFamily: FONT, marginTop: 4, lineHeight: 1.6 }}>
+                    レンダリング完了・失敗時にShotStackがPOSTで通知。空欄の場合は通知なし。
+                    ポスター・サムネイルを有効にすると最大3回コールバックされます。
+                  </div>
+                </div>
+
+                {/* ShotStack仕様メモ */}
+                <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, padding: "10px 12px", fontSize: 10, color: "#64748b", fontFamily: FONT, lineHeight: 1.7, marginTop: 4 }}>
+                  <strong>ShotStack output 仕様</strong><br />
+                  format: mp4(H.264) / gif（codec選択不可）<br />
+                  quality: verylow / low / medium(デフォルト) / high / veryhigh<br />
+                  fps(API): 12 / 15 / 23.976 / 24 / 25 / 29.97 / 30<br />
+                  resolution: preview(512×288) / mobile(640×360) / sd(1024×576) / hd(1280×720) / 1080(1920×1080) / 4k(3840×2160)<br />
+                  aspectRatio: 16:9 / 9:16 / 1:1 / 4:5 / 4:3（resolutionと組み合わせ）<br />
+                  最大: 動画1920px / 画像4096px / ソースファイル5GB / Sandbox上限10分
+                </div>
+              </>
+              );
+            })()}
+
+            {/* ── コンテ変換 ── */}
+            {activeTab === "export" && (() => {
+              const expColor = "#5184F0";
+              const pdfColor = "#e05c3a";
+              const ssColor  = "#22a35a";
+              return (
+              <>
+                {/* ════ コンテ → 動画プロジェクト ════ */}
+                <div style={{ ...SEC, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <span>コンテ → 動画プロジェクト</span>
                   <button type="button" onClick={() => setExp({ ...DEFAULT_EXPORT_SETTINGS })} style={{ fontSize: 10, fontWeight: 600, color: TEAL, background: "none", border: `1px solid ${TEAL}55`, borderRadius: 5, cursor: "pointer", padding: "1px 7px", fontFamily: FONT }}>デフォルトに戻す</button>
                 </div>
 
@@ -1504,6 +1906,127 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                     onChange={(e) => setExp((s) => ({ ...s, narrationVolume: parseFloat(e.target.value) }))}
                     style={{ width: "100%", accentColor: expColor }}
                   />
+                </div>
+
+                {/* ════ コンテ → PDF変換 ════ */}
+                <div style={{ ...SEC, display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 24 }}>
+                  <span>コンテ → PDF変換</span>
+                  <button type="button" onClick={() => setPdf({ ...DEFAULT_PDF_SETTINGS })} style={{ fontSize: 10, fontWeight: 600, color: pdfColor, background: "none", border: `1px solid ${pdfColor}55`, borderRadius: 5, cursor: "pointer", padding: "1px 7px", fontFamily: FONT }}>デフォルトに戻す</button>
+                </div>
+
+                <div style={FIELD}>
+                  <label style={LBL}>用紙サイズ</label>
+                  <div style={{ display: "flex", gap: 4 }}>
+                    {([["A4", "A4"], ["A3", "A3"], ["letter", "Letter"]] as const).map(([val, label]) => {
+                      const active = pdf.paperSize === val;
+                      return (
+                        <button key={val} onClick={() => setPdf((s) => ({ ...s, paperSize: val }))}
+                          style={{ fontSize: 11, padding: "4px 14px", borderRadius: 6, cursor: "pointer", fontFamily: FONT, border: `1.5px solid ${active ? pdfColor : "#e2e8f0"}`, background: active ? `${pdfColor}18` : "#fff", color: active ? pdfColor : "#64748b", fontWeight: active ? 700 : 400 }}
+                        >{label}</button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div style={FIELD}>
+                  <label style={LBL}>向き</label>
+                  <div style={{ display: "flex", gap: 4 }}>
+                    {([["landscape", "横"], ["portrait", "縦"]] as const).map(([val, label]) => {
+                      const active = pdf.orientation === val;
+                      return (
+                        <button key={val} onClick={() => setPdf((s) => ({ ...s, orientation: val }))}
+                          style={{ fontSize: 11, padding: "4px 16px", borderRadius: 6, cursor: "pointer", fontFamily: FONT, border: `1.5px solid ${active ? pdfColor : "#e2e8f0"}`, background: active ? `${pdfColor}18` : "#fff", color: active ? pdfColor : "#64748b", fontWeight: active ? 700 : 400 }}
+                        >{label}</button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div style={FIELD}>
+                  <label style={LBL}>1ページあたりのシーン数</label>
+                  <div style={{ display: "flex", gap: 4 }}>
+                    {([1, 2, 4, 6] as const).map((n) => {
+                      const active = pdf.scenesPerPage === n;
+                      return (
+                        <button key={n} onClick={() => setPdf((s) => ({ ...s, scenesPerPage: n }))}
+                          style={{ fontSize: 11, padding: "4px 14px", borderRadius: 6, cursor: "pointer", fontFamily: FONT, border: `1.5px solid ${active ? pdfColor : "#e2e8f0"}`, background: active ? `${pdfColor}18` : "#fff", color: active ? pdfColor : "#64748b", fontWeight: active ? 700 : 400 }}
+                        >{n}コマ</button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div style={FIELD}>
+                  <label style={{ ...LBL, marginBottom: 8 }}>出力内容</label>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {([
+                      ["showScript",    "台本テキスト"] as const,
+                      ["showNarration", "ナレーションテキスト"] as const,
+                    ]).map(([key, label]) => (
+                      <label key={key} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, color: "#475569", fontFamily: FONT }}>
+                        <input type="checkbox" checked={pdf[key]} onChange={(e) => setPdf((s) => ({ ...s, [key]: e.target.checked }))}
+                          style={{ accentColor: pdfColor, width: 14, height: 14 }}
+                        />
+                        {label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* ════ コンテ → Excel / CSV ════ */}
+                <div style={{ ...SEC, display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 24 }}>
+                  <span>コンテ → Excel / CSV</span>
+                  <button type="button" onClick={() => setSs({ ...DEFAULT_SPREADSHEET_SETTINGS })} style={{ fontSize: 10, fontWeight: 600, color: ssColor, background: "none", border: `1px solid ${ssColor}55`, borderRadius: 5, cursor: "pointer", padding: "1px 7px", fontFamily: FONT }}>デフォルトに戻す</button>
+                </div>
+
+                <div style={FIELD}>
+                  <label style={LBL}>フォーマット</label>
+                  <div style={{ display: "flex", gap: 4 }}>
+                    {([["xlsx", "Excel (.xlsx)"], ["csv", "CSV (.csv)"]] as const).map(([val, label]) => {
+                      const active = ss.format === val;
+                      return (
+                        <button key={val} onClick={() => setSs((s) => ({ ...s, format: val }))}
+                          style={{ fontSize: 11, padding: "4px 12px", borderRadius: 6, cursor: "pointer", fontFamily: FONT, border: `1.5px solid ${active ? ssColor : "#e2e8f0"}`, background: active ? `${ssColor}18` : "#fff", color: active ? ssColor : "#64748b", fontWeight: active ? 700 : 400 }}
+                        >{label}</button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {ss.format === "csv" && (
+                  <div style={FIELD}>
+                    <label style={LBL}>文字コード（CSV）</label>
+                    <div style={{ display: "flex", gap: 4 }}>
+                      {([["utf-8", "UTF-8"], ["shift-jis", "Shift-JIS"]] as const).map(([val, label]) => {
+                        const active = ss.csvEncoding === val;
+                        return (
+                          <button key={val} onClick={() => setSs((s) => ({ ...s, csvEncoding: val }))}
+                            style={{ fontSize: 11, padding: "4px 12px", borderRadius: 6, cursor: "pointer", fontFamily: FONT, border: `1.5px solid ${active ? ssColor : "#e2e8f0"}`, background: active ? `${ssColor}18` : "#fff", color: active ? ssColor : "#64748b", fontWeight: active ? 700 : 400 }}
+                          >{label}</button>
+                        );
+                      })}
+                    </div>
+                    <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 4, fontFamily: FONT }}>Shift-JIS は Excel で直接開く場合に便利です</div>
+                  </div>
+                )}
+
+                <div style={FIELD}>
+                  <label style={{ ...LBL, marginBottom: 8 }}>出力列</label>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {([
+                      ["includeScript",    "台本テキスト"] as const,
+                      ["includeNarration", "ナレーションテキスト"] as const,
+                      ["includeImageUrl",  "画像URL"] as const,
+                      ["includeVideoUrl",  "動画URL"] as const,
+                    ]).map(([key, label]) => (
+                      <label key={key} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, color: "#475569", fontFamily: FONT }}>
+                        <input type="checkbox" checked={ss[key]} onChange={(e) => setSs((s) => ({ ...s, [key]: e.target.checked }))}
+                          style={{ accentColor: ssColor, width: 14, height: 14 }}
+                        />
+                        {label}
+                      </label>
+                    ))}
+                  </div>
                 </div>
               </>
               );

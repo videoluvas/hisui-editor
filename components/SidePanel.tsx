@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { goToHisuiLogin } from "@/lib/auth.front";
 import { useAuthUser } from "@/lib/auth.user";
@@ -80,6 +80,31 @@ export default function SidePanel({
   });
   const { user, loading, isLoggedIn, logoutUser } = useAuthUser();
   const router = useRouter();
+
+  type Credits = {
+    plan: string | null;
+    creditScript: number; creditScriptMax: number;
+    creditImg: number;    creditImgMax: number;
+    creditVideo: number;  creditVideoMax: number;
+    creditAudio: number;  creditAudioMax: number;
+    creditBgm: number;    creditBgmMax: number;
+  };
+  const [credits, setCredits] = useState<Credits | null>(null);
+
+  const fetchCredits = useCallback(async () => {
+    if (!isLoggedIn) return;
+    try {
+      const res = await fetch("/api/user/credits", { credentials: "include", cache: "no-store" });
+      const data = await res.json();
+      if (data.ok) setCredits(data as Credits);
+    } catch {}
+  }, [isLoggedIn]);
+
+  useEffect(() => {
+    fetchCredits();
+    const id = setInterval(fetchCredits, 60_000);
+    return () => clearInterval(id);
+  }, [fetchCredits]);
 
   const toggleHeader = () => {
     setHeaderCollapsed((v) => {
@@ -195,6 +220,34 @@ export default function SidePanel({
             </button>
           )}
         </div>
+
+        {/* クレジット残数ミニ表示（無料プランのみ） */}
+        {isLoggedIn && credits && (!credits.plan || credits.plan === "Free") && (
+          <div
+            onClick={() => setDashboardOpen(true)}
+            style={{ margin: "0 10px 10px", padding: "7px 10px", background: "#f8fafc", border: "1px solid #f1f5f9", borderRadius: 8, cursor: "pointer" }}
+            title="クリックしてダッシュボードを開く"
+          >
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 10px" }}>
+              {([
+                { label: "台本", used: credits.creditScript, max: credits.creditScriptMax },
+                { label: "画像", used: credits.creditImg,    max: credits.creditImgMax },
+                { label: "動画", used: credits.creditVideo,  max: credits.creditVideoMax },
+                { label: "音声", used: credits.creditAudio,  max: credits.creditAudioMax },
+                { label: "BGM",  used: credits.creditBgm,    max: credits.creditBgmMax },
+              ] as const).map(({ label, used, max }) => {
+                const color = used <= 0 ? "#ef4444" : used <= max * 0.25 ? "#f59e0b" : "#64748b";
+                return (
+                  <div key={label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 4 }}>
+                    <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 600, whiteSpace: "nowrap" }}>{label}</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, color }}>{used}<span style={{ color: "#cbd5e1", fontWeight: 400 }}>/{max}</span></span>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ fontSize: 9, color: "#c0c8d4", textAlign: "center", marginTop: 4 }}>残クレジット ▸ 詳細はクリック</div>
+          </div>
+        )}
       </div>
 
       {/* 折りたたみトグル */}
@@ -217,7 +270,7 @@ export default function SidePanel({
 
       {dashboardOpen && (
         <UserDashboardModal
-          onClose={() => setDashboardOpen(false)}
+          onClose={() => { setDashboardOpen(false); fetchCredits(); }}
           onLogout={async () => { setDashboardOpen(false); await logoutUser(); goToHisuiLogin(); }}
           userIconUrl={user?.iconUrl}
           userName={user?.name}

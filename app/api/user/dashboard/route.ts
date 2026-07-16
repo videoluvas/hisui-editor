@@ -29,8 +29,9 @@ export async function GET() {
   const [videoAudioRow] = await prisma.$queryRaw<[{
     credit_video: number; credit_video_max: number;
     credit_audio: number; credit_audio_max: number;
+    credit_bgm: number;   credit_bgm_max: number;
   }]>`
-    SELECT credit_video, credit_video_max, credit_audio, credit_audio_max
+    SELECT credit_video, credit_video_max, credit_audio, credit_audio_max, credit_bgm, credit_bgm_max
     FROM users WHERE id = ${session.userId}::uuid
   `;
 
@@ -40,6 +41,8 @@ export async function GET() {
     creditVideoMax: videoAudioRow?.credit_video_max ?? 10,
     creditAudio:    videoAudioRow?.credit_audio     ?? 20,
     creditAudioMax: videoAudioRow?.credit_audio_max ?? 20,
+    creditBgm:      videoAudioRow?.credit_bgm       ?? 5,
+    creditBgmMax:   videoAudioRow?.credit_bgm_max   ?? 5,
   };
 
   const [creditLogs, checkoutLogs, errorLogs] = await Promise.all([
