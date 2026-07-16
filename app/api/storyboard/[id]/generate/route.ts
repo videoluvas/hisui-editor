@@ -162,7 +162,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   if (!scenes) {
     await prisma.storyboardMain.update({
       where: { id: params.id },
-      data: { status: "error", aiScriptLog: rawContent, log: "JSON parse error" },
+      data: { status: "error", aiScriptLog: rawContent, aiScriptLogEx: "JSON parse error" },
     });
     return NextResponse.json({ ok: false, message: "AIの出力の解析に失敗しました" }, { status: 500 });
   }
