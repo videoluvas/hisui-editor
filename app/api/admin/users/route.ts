@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getEditorSessionFromCookie } from "@/lib/auth.backend";
-import { grantCredits } from "@/lib/credits";
+import { grantCredits, planDefaultCredits } from "@/lib/credits";
 
 async function isAdmin(userId: string): Promise<boolean> {
   const adminEmails = (process.env.ADMIN_EMAIL ?? "")
@@ -52,6 +52,7 @@ export async function PATCH(req: NextRequest) {
     userId: string;
     plan?: string;
     grantCredits?: number;
+    initCredits?: boolean;
   };
 
   if (!body.userId) return NextResponse.json({ ok: false, message: "userId が必要です" }, { status: 400 });
@@ -67,7 +68,7 @@ export async function PATCH(req: NextRequest) {
   const planChanging = body.plan !== undefined && body.plan !== target.plan;
   if (planChanging) updateData.plan = body.plan;
 
-  if (Object.keys(updateData).length === 0 && !body.grantCredits) {
+  if (Object.keys(updateData).length === 0 && !body.grantCredits && !body.initCredits) {
     return NextResponse.json({ ok: false, message: "変更内容がありません" }, { status: 400 });
   }
 
@@ -79,7 +80,14 @@ export async function PATCH(req: NextRequest) {
     await grantCredits(body.userId, PLAN_CREDIT_GRANT[body.plan], `plan_upgrade_${body.plan.toLowerCase()}`);
   }
 
-  if (body.grantCredits && body.grantCredits !== 0) {
+  if (body.initCredits) {
+    const planAfter = body.plan ?? target.plan;
+    const defaultAmt = planDefaultCredits(planAfter);
+    await prisma.user.update({ where: { id: body.userId }, data: { credits: defaultAmt } });
+    prisma.logCredit.create({
+      data: { userId: body.userId, creditType: "grant", delta: defaultAmt, balanceAfter: defaultAmt, reason: "admin_init" },
+    }).catch(() => {});
+  } else if (body.grantCredits && body.grantCredits !== 0) {
     await grantCredits(body.userId, body.grantCredits, "admin_grant");
   }
 

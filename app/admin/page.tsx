@@ -165,6 +165,8 @@ function UserRow({ user, onUpdate, onDelete }: {
     setGrantAmount("");
   };
 
+  const handleInit = () => patch({ initCredits: true });
+
   const pc = planColor(user.plan);
 
   return (
@@ -227,6 +229,15 @@ function UserRow({ user, onUpdate, onDelete }: {
               opacity: !grantAmount ? 0.4 : 1,
             }}
           >付与</button>
+          <button
+            onClick={handleInit}
+            disabled={busy}
+            title="プランのデフォルト値にリセット"
+            style={{
+              fontSize: 11, fontWeight: 600, padding: "4px 8px", borderRadius: 6, border: "1px solid #e2e8f0",
+              background: "#f8fafc", color: "#64748b", cursor: "pointer", whiteSpace: "nowrap",
+            }}
+          >初期化</button>
           {msg && <span style={{ fontSize: 11, color: msg.startsWith("✓") ? TEAL : "#dc2626" }}>{msg}</span>}
         </div>
       </td>

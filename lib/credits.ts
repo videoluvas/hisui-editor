@@ -165,25 +165,26 @@ export async function grantCredits(
   reason: string = "manual_grant",
 ): Promise<{ ok: boolean; creditsRemaining?: number }> {
   try {
-    const newBalance = await prisma.$transaction(async (tx) => {
-      await tx.$executeRaw`UPDATE users SET credits = credits + ${amount} WHERE id = ${userId}::uuid`;
-      const rows = await tx.$queryRaw<Array<{ credits: number }>>`
-        SELECT credits FROM users WHERE id = ${userId}::uuid
-      `;
-      const balance = rows[0]?.credits ?? 0;
-      await tx.logCredit.create({
-        data: {
-          userId,
-          creditType: "grant",
-          delta: amount,
-          balanceAfter: balance,
-          reason,
-        },
-      });
-      return balance;
-    });
-    return { ok: true, creditsRemaining: newBalance };
+    await prisma.$executeRaw`UPDATE users SET credits = credits + ${amount} WHERE id = ${userId}::uuid`;
+    const rows = await prisma.$queryRaw<Array<{ credits: number }>>`
+      SELECT credits FROM users WHERE id = ${userId}::uuid
+    `;
+    const balance = rows[0]?.credits ?? 0;
+    prisma.logCredit.create({
+      data: { userId, creditType: "grant", delta: amount, balanceAfter: balance, reason },
+    }).catch(() => {});
+    return { ok: true, creditsRemaining: balance };
   } catch {
     return { ok: false };
   }
+}
+
+const PLAN_DEFAULT_CREDITS: Record<string, number> = {
+  Free:     1_000,
+  Pro:    500_000,
+  Business: 150_000,
+};
+
+export function planDefaultCredits(plan: string | null): number {
+  return PLAN_DEFAULT_CREDITS[plan ?? "Free"] ?? 1_000;
 }
