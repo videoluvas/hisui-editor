@@ -775,18 +775,23 @@ export default function AdminPage() {
                 onClick={async () => {
                   setInvLoading(true);
                   setInvResult(null);
-                  const res = await fetch("/api/admin/invite", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ email: invEmail, name: invName, companyName: invCompany, customPassword: invPassword }),
-                  });
-                  const data = await res.json() as { ok: boolean; email?: string; password?: string; message?: string };
-                  setInvResult(data);
-                  if (data.ok && data.email && data.password) {
-                    setInvHistory((h) => [{ email: data.email!, name: invName, password: data.password!, sentAt: new Date().toLocaleString("ja-JP") }, ...h]);
-                    setInvEmail(""); setInvName(""); setInvCompany(""); setInvPassword("");
+                  try {
+                    const res = await fetch("/api/admin/invite", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ email: invEmail, name: invName, companyName: invCompany, customPassword: invPassword }),
+                    });
+                    const data = await res.json() as { ok: boolean; email?: string; password?: string; message?: string };
+                    setInvResult(data);
+                    if (data.ok && data.email && data.password) {
+                      setInvHistory((h) => [{ email: data.email!, name: invName, password: data.password!, sentAt: new Date().toLocaleString("ja-JP") }, ...h]);
+                      setInvEmail(""); setInvName(""); setInvCompany(""); setInvPassword("");
+                    }
+                  } catch (e) {
+                    setInvResult({ ok: false, message: e instanceof Error ? e.message : "送信エラーが発生しました" });
+                  } finally {
+                    setInvLoading(false);
                   }
-                  setInvLoading(false);
                 }}
                 style={{
                   width: "100%", padding: "10px 0", fontSize: 13, fontWeight: 700, border: "none", borderRadius: 10, cursor: invLoading || !invEmail ? "not-allowed" : "pointer",

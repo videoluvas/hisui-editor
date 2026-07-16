@@ -13,14 +13,14 @@ export async function PUT(
   if (!session) return NextResponse.json({ ok: false, message: "未ログインです" }, { status: 401 });
 
   try {
-    const ws = await (prisma as any).workspace.findUnique({ where: { id: params.id } });
+    const ws = await prisma.workspace.findUnique({ where: { id: params.id } });
     if (!ws || ws.userId !== session.userId)
       return NextResponse.json({ ok: false, message: "見つかりません" }, { status: 404 });
 
     const body = await request.json().catch(() => ({}));
     const name = String(body.name ?? "").trim() || ws.name;
 
-    await (prisma as any).workspace.update({ where: { id: params.id }, data: { name } });
+    await prisma.workspace.update({ where: { id: params.id }, data: { name } });
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("[workspace PUT]", e);
@@ -36,7 +36,7 @@ export async function DELETE(
   if (!session) return NextResponse.json({ ok: false, message: "未ログインです" }, { status: 401 });
 
   try {
-    const ws = await (prisma as any).workspace.findUnique({ where: { id: params.id } });
+    const ws = await prisma.workspace.findUnique({ where: { id: params.id } });
     if (!ws || ws.userId !== session.userId)
       return NextResponse.json({ ok: false, message: "見つかりません" }, { status: 404 });
 
@@ -44,7 +44,7 @@ export async function DELETE(
     await prisma.storyboardMain.deleteMany({ where: { workspaceId: params.id } });
     await prisma.file.deleteMany({ where: { workspaceId: params.id } });
     await prisma.project.deleteMany({ where: { workspaceId: params.id } });
-    await (prisma as any).workspace.delete({ where: { id: params.id } });
+    await prisma.workspace.delete({ where: { id: params.id } });
 
     return NextResponse.json({ ok: true });
   } catch (e) {

@@ -27,6 +27,7 @@ type Props = {
   isExporting:      boolean;
   isProjectLoading: boolean;
   exportError:      string | null;
+  onOpenDashboard?: () => void;
 };
 
 // ─── Phase metadata ───────────────────────────────────────────────────────────
@@ -202,10 +203,22 @@ function ProgressBar({ percent }: { percent: number }) {
   );
 }
 
+function CopyUrlButton({ url }: { url: string }) {
+  const [copied, setCopied] = useState(false);
+  const handle = () => {
+    navigator.clipboard.writeText(url).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); }).catch(() => {});
+  };
+  return (
+    <button onClick={handle} style={{ width: "100%", padding: "7px 0", fontSize: 12, fontWeight: 600, borderRadius: 7, border: `1px solid ${copied ? "#bbf7d0" : "#e2e8f0"}`, background: copied ? "#f0fdf4" : "#f8fafc", color: copied ? GREEN : "#64748b", cursor: "pointer", fontFamily: FONT }}>
+      {copied ? "✓ URLをコピーしました" : "URLをコピー"}
+    </button>
+  );
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function SidePanelExport({
-  selectedProject, onExportLocal, onExportApi, isExporting, isProjectLoading, exportError,
+  selectedProject, onExportLocal, onExportApi, isExporting, isProjectLoading, exportError, onOpenDashboard,
 }: Props) {
   const [phase,       setPhase]       = useState<ExportProgressPhase | "idle">("idle");
   const [elapsed,     setElapsed]     = useState(0);
@@ -349,21 +362,24 @@ export default function SidePanelExport({
               </div>
             )}
 
-            {/* ダウンロードボタン */}
+            {/* ダウンロード・コピー */}
             {phase === "done" && downloadUrl && (
-              <a
-                href={downloadUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: "block", textAlign: "center", padding: "11px 0",
-                  borderRadius: 8, background: GREEN, color: "#fff",
-                  fontWeight: 700, fontSize: 14, textDecoration: "none",
-                  fontFamily: FONT,
-                }}
-              >
-                ↓ 動画をダウンロード
-              </a>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <a
+                  href={downloadUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: "block", textAlign: "center", padding: "11px 0",
+                    borderRadius: 8, background: GREEN, color: "#fff",
+                    fontWeight: 700, fontSize: 14, textDecoration: "none",
+                    fontFamily: FONT,
+                  }}
+                >
+                  ↓ 動画をダウンロード
+                </a>
+                <CopyUrlButton url={downloadUrl} />
+              </div>
             )}
 
             {/* 完了後リセット */}
@@ -372,7 +388,7 @@ export default function SidePanelExport({
                 onClick={resetApi}
                 style={{ background: "none", border: "none", cursor: "pointer", fontSize: 11, color: "#94a3b8", padding: "2px 0", fontFamily: FONT }}
               >
-                × 閉じる
+                再度書き出す
               </button>
             )}
 
@@ -380,8 +396,15 @@ export default function SidePanelExport({
             {phase === "failed" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {errorMsg && (
-                  <div style={{ fontSize: 11, color: RED, background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 7, padding: "8px 10px", lineHeight: 1.5 }}>
+                  <div style={{ fontSize: 11, color: RED, background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 7, padding: "8px 10px", lineHeight: 1.6 }}>
                     {errorMsg}
+                    {errorMsg.includes("クレジット") && onOpenDashboard && (
+                      <div style={{ marginTop: 6 }}>
+                        <button onClick={onOpenDashboard} style={{ fontSize: 11, fontWeight: 700, color: ACCENT, background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>
+                          クレジット残高を確認する →
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
                 <button

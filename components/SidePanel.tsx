@@ -78,7 +78,7 @@ export default function SidePanel({
   const [headerCollapsed, setHeaderCollapsed] = useState(() => {
     try { return localStorage.getItem("hisui_header_collapsed") === "1"; } catch { return false; }
   });
-  const { user, loading, isLoggedIn, logoutUser } = useAuthUser();
+  const { user, loading, isLoggedIn, logoutUser, refreshUser } = useAuthUser();
   const router = useRouter();
 
   const [credits, setCredits] = useState<number | null>(null);
@@ -217,13 +217,28 @@ export default function SidePanel({
         {isLoggedIn && credits !== null && (
           <div
             onClick={() => setDashboardOpen(true)}
-            style={{ margin: "0 10px 10px", padding: "6px 10px", background: "#f8fafc", border: "1px solid #f1f5f9", borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between" }}
-            title="クリックしてダッシュボードを開く"
+            style={{
+              margin: "0 10px 10px", padding: "6px 10px", cursor: "pointer",
+              background: credits < 200 ? "#fef2f2" : "#f8fafc",
+              border: `1px solid ${credits < 200 ? "#fecaca" : "#f1f5f9"}`,
+              borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "space-between",
+            }}
+            title={credits < 500 ? "クレジットが少なくなっています。クリックして確認" : "クリックしてダッシュボードを開く"}
           >
-            <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 600 }}>残クレジット</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              {credits < 200 && <span style={{ fontSize: 10 }}>⚠️</span>}
+              <span style={{ fontSize: 10, color: credits < 200 ? "#b91c1c" : "#94a3b8", fontWeight: 600 }}>
+                {credits < 200 ? "残量注意" : "残クレジット"}
+              </span>
+            </div>
             <span style={{ fontSize: 12, fontWeight: 700, color: credits < 500 ? "#ef4444" : credits < 2000 ? "#f59e0b" : "#169385" }}>
               {credits.toLocaleString()} cr
             </span>
+          </div>
+        )}
+        {isLoggedIn && credits !== null && credits < 500 && credits >= 200 && (
+          <div style={{ margin: "-6px 10px 10px", fontSize: 10, color: "#f59e0b", textAlign: "right", paddingRight: 2 }}>
+            残りわずかです
           </div>
         )}
       </div>
@@ -252,6 +267,7 @@ export default function SidePanel({
           onLogout={async () => { setDashboardOpen(false); await logoutUser(); goToHisuiLogin(); }}
           userIconUrl={user?.iconUrl}
           userName={user?.name}
+          onProfileUpdated={() => refreshUser()}
         />
       )}
 
@@ -334,6 +350,7 @@ export default function SidePanel({
               isExporting={isExporting}
               isProjectLoading={isProjectLoading}
               exportError={exportError}
+              onOpenDashboard={() => setDashboardOpen(true)}
             />
           </div>
         )}

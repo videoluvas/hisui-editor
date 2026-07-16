@@ -13,7 +13,7 @@ export async function GET() {
   if (!session) return NextResponse.json({ ok: false, message: "未ログインです" }, { status: 401 });
 
   try {
-    const workspaces = await (prisma as any).workspace.findMany({
+    const workspaces = await prisma.workspace.findMany({
       where: { userId: session.userId },
       orderBy: { updatedAt: "desc" },
     });
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}));
     const name = String(body.name ?? "新しいワークスペース").trim() || "新しいワークスペース";
 
-    const workspace = await (prisma as any).workspace.create({
+    const workspace = await prisma.workspace.create({
       data: { userId: session.userId, name },
     });
 

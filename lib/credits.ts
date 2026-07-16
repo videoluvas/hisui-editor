@@ -156,7 +156,9 @@ export async function refundCredits(
         },
       });
     });
-  } catch { /* refund失敗は無視 */ }
+  } catch (e) {
+    console.error("[refundCredits] failed", { userId, action, multiplier, error: e });
+  }
 }
 
 export async function grantCredits(

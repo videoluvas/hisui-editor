@@ -39,12 +39,17 @@ export async function POST(req: NextRequest) {
     const useSandbox = isFreeUser || (renderSettings.sandboxMode ?? false);
     // SHOTSTACK_API_KEY / SHOTSTACK_API_URL は現在サンドボックス環境
     // 本番（透かしなし）は SHOTSTACK_PROD_API_KEY / SHOTSTACK_PROD_API_URL を使用
+    const shotstackKey = process.env.SHOTSTACK_API_KEY;
+    if (!shotstackKey) return NextResponse.json({ ok: false, message: "書き出し設定が未構成です" }, { status: 500 });
+    const shotstackUrl = process.env.SHOTSTACK_API_URL;
+    if (!shotstackUrl) return NextResponse.json({ ok: false, message: "書き出し設定が未構成です" }, { status: 500 });
+
     const apiKey = useSandbox
-      ? process.env.SHOTSTACK_API_KEY!
-      : (process.env.SHOTSTACK_PROD_API_KEY ?? process.env.SHOTSTACK_API_KEY!);
+      ? shotstackKey
+      : (process.env.SHOTSTACK_PROD_API_KEY ?? shotstackKey);
     const apiUrl = useSandbox
-      ? process.env.SHOTSTACK_API_URL!
-      : (process.env.SHOTSTACK_PROD_API_URL ?? process.env.SHOTSTACK_API_URL!);
+      ? shotstackUrl
+      : (process.env.SHOTSTACK_PROD_API_URL ?? shotstackUrl);
 
     const resolution = renderSettings.resolution ?? "1080p";
     const durationSec = project.durationSec ?? 60;

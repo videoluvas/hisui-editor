@@ -12,11 +12,8 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const workspaceId = searchParams.get("workspaceId");
 
-  const where: Record<string, unknown> = { userId: session.userId };
-  if (workspaceId) where.workspaceId = workspaceId;
-
   const items = await prisma.storyboardMain.findMany({
-    where: where as any,
+    where: workspaceId ? { userId: session.userId, workspaceId } : { userId: session.userId },
     orderBy: { updatedAt: "desc" },
     select: {
       id: true, title: true, status: true, updatedAt: true,
@@ -45,7 +42,7 @@ export async function POST(request: NextRequest) {
   const workspaceId = body.workspaceId as string | undefined;
 
   const storyboard = await prisma.storyboardMain.create({
-    data: { userId: session.userId, title, ...(workspaceId ? { workspaceId } : {}) } as any,
+    data: { userId: session.userId, title, workspaceId: workspaceId ?? undefined },
     include: { scenes: { orderBy: { sceneNo: "asc" } } },
   });
 

@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
 
     await Promise.all(
       order.map((id, idx) =>
-        (prisma as any).decoPreset.updateMany({
+        prisma.decoPreset.updateMany({
           where: { id, userId: session.userId },
           data: { sortOrder: idx },
         })

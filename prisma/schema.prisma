@@ -180,12 +180,6 @@ model StoryboardMain {
   aiScriptLog   String? @map("ai_script_log")    // 11_AI_script_LOG
   aiScriptLogEx String? @map("ai_script_log_ex") // 11_AI_script_LOG_EX
 
-  // デバッグ/テスト用
-  log      String?   @map("log")       // 99_LOG
-  testJson String?   @map("test_json") // 99_test json
-  testList String[]  @default([]) @map("test_list") // 99_test list (List of texts)
-  testNo   Int?      @map("test_no")   // 99_TESTno
-
   isDefaultSample Boolean  @default(false) @map("is_default_sample")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt      @map("updated_at")

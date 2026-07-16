@@ -39,7 +39,7 @@ export default function EditorBGMModal({ open, timelineDuration, workspaceId, on
   if (!open) return null;
 
   const duration = useDurationAuto ? Math.max(1, Math.round(timelineDuration)) : customDuration;
-  const autoLabel = timelineDuration > 0 ? `${Math.round(timelineDuration)}秒（タイムラインに合わせる）` : "自動（タイムライン未確定）";
+  const autoLabel = timelineDuration > 0 ? `${Math.round(timelineDuration)}秒（タイムラインに合わせる）` : "タイムライン未確定（手動指定を推奨）";
 
   const handleGenerate = async () => {
     if (!genre && !mood && !prompt.trim()) {
@@ -187,6 +187,13 @@ export default function EditorBGMModal({ open, timelineDuration, workspaceId, on
           </div>
         )}
 
+        {/* ─── タイムライン未確定警告 ─── */}
+        {useDurationAuto && timelineDuration <= 0 && (
+          <div style={{ background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 8, padding: "8px 12px", fontSize: 12, color: "#92400e" }}>
+            タイムラインの尺が未確定です。手動で指定するか、先にクリップを配置してください。
+          </div>
+        )}
+
         {/* ─── 生成ボタン ─── */}
         {status !== "done" && (
           <button
@@ -200,7 +207,7 @@ export default function EditorBGMModal({ open, timelineDuration, workspaceId, on
               fontFamily: FONT, transition: "background 0.2s",
             }}
           >
-            {status === "generating" ? "生成中…" : "BGMを生成"}
+            {status === "generating" ? "生成中…" : status === "error" ? "再試行" : "BGMを生成"}
           </button>
         )}
       </div>

@@ -17,11 +17,8 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const workspaceId = searchParams.get("workspaceId");
 
-    const where: Record<string, unknown> = { userId: session.user.id };
-    if (workspaceId) where.workspaceId = workspaceId;
-
     const projects = await prisma.project.findMany({
-      where: where as any,
+      where: workspaceId ? { userId: session.user.id, workspaceId } : { userId: session.user.id },
       orderBy: { updatedAt: "desc" },
       include: {
         files: {
@@ -82,10 +79,9 @@ export async function POST(req: NextRequest) {
         height: height ?? 1080,
         fps: fps ?? 30,
         backgroundColor: backgroundColor ?? "#000000",
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         editJsonKey,
-        ...(workspaceId ? { workspaceId } : {}),
-      } as any,
+        workspaceId: workspaceId ?? undefined,
+      },
     });
 
     return NextResponse.json({ ok: true, project });
@@ -118,11 +114,10 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ ok: false, message: "プロジェクトが見つかりません" }, { status: 404 });
     }
 
-    const p = project as any;
-    const existingKey = p.editJsonKey as string | null;
+    const existingKey = project.editJsonKey;
     const editJsonKey = existingKey ?? buildEditJsonKey(
       session.user.id,
-      p.workspaceId ?? "no-workspace",
+      project.workspaceId ?? "no-workspace",
       projectId,
     );
     await putEditJsonToR2(editJsonKey, editJson);
@@ -130,7 +125,7 @@ export async function PATCH(req: NextRequest) {
     if (!existingKey) {
       await prisma.project.update({
         where: { id: projectId },
-        data: { editJsonKey } as any,
+        data: { editJsonKey },
       });
     }
 

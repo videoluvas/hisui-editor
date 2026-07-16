@@ -10,7 +10,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   if (!session) return NextResponse.json({ ok: false, message: "未ログインです" }, { status: 401 });
 
   try {
-    const existing = await (prisma as any).decoPreset.findFirst({
+    const existing = await prisma.decoPreset.findFirst({
       where: { id: params.id, userId: session.userId },
     });
     if (!existing) return NextResponse.json({ ok: false, message: "見つかりません" }, { status: 404 });
@@ -20,7 +20,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     if (body.name !== undefined) data.name = String(body.name).trim() || existing.name;
     if (body.settings !== undefined) data.settings = body.settings;
 
-    const preset = await (prisma as any).decoPreset.update({
+    const preset = await prisma.decoPreset.update({
       where: { id: params.id },
       data,
     });
@@ -40,12 +40,12 @@ export async function DELETE(_request: NextRequest, { params }: { params: { id: 
   if (!session) return NextResponse.json({ ok: false, message: "未ログインです" }, { status: 401 });
 
   try {
-    const existing = await (prisma as any).decoPreset.findFirst({
+    const existing = await prisma.decoPreset.findFirst({
       where: { id: params.id, userId: session.userId },
     });
     if (!existing) return NextResponse.json({ ok: false, message: "見つかりません" }, { status: 404 });
 
-    await (prisma as any).decoPreset.delete({ where: { id: params.id } });
+    await prisma.decoPreset.delete({ where: { id: params.id } });
 
     return NextResponse.json({ ok: true });
   } catch (e) {

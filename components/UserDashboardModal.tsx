@@ -201,11 +201,13 @@ export default function UserDashboardModal({
   onLogout,
   userIconUrl,
   userName,
+  onProfileUpdated,
 }: {
   onClose: () => void;
   onLogout: () => void;
   userIconUrl?: string | null;
   userName?: string | null;
+  onProfileUpdated?: (name: string | null, iconUrl: string | null) => void;
 }) {
   const [data, setData]         = useState<DashboardData | null>(null);
   const [loading, setLoading]   = useState(true);
@@ -245,6 +247,7 @@ export default function UserDashboardModal({
               ...prev,
               user: { ...prev.user, name: name ?? prev.user.name, iconUrl: iconUrl ?? prev.user.iconUrl },
             } : prev);
+            onProfileUpdated?.(name, iconUrl);
             setProfileOpen(false);
           }}
         />
@@ -384,7 +387,7 @@ export default function UserDashboardModal({
                   </div>
 
                   {unified.length === 0 ? (
-                    <EmptyMsg text="ログがありません" />
+                    <EmptyMsg text={filter === "credit" ? "まだクレジットの利用履歴がありません" : filter === "error" ? "エラーログはありません" : "まだ生成・書き出しの履歴がありません"} />
                   ) : unified.map((entry) =>
                     entry.kind === "credit"
                       ? <CreditEntry key={entry.data.id} log={entry.data} />
@@ -397,7 +400,7 @@ export default function UserDashboardModal({
               {tab === "checkout" && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
                   {(data?.checkoutLogs ?? []).length === 0 ? (
-                    <EmptyMsg text="支払い履歴がありません" />
+                    <EmptyMsg text="支払い履歴はまだありません" />
                   ) : (data?.checkoutLogs ?? []).map((log) => {
                     const st = CHECKOUT_STATUS_LABEL[log.status] ?? { label: log.status, color: "#94a3b8" };
                     return (

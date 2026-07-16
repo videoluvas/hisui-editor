@@ -321,6 +321,7 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
   const [bgm, setBgm]       = useState<BgmSettings>(() => loadBgmSettings());
   const [render, setRender] = useState<VideoExportSettings>(() => loadVideoExportSettings());
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [wsTemplatePickerOpen, setWsTemplatePickerOpen] = useState(false);
   const [uploadingRefImg, setUploadingRefImg] = useState(false);
   const wsRefUploadRef = useRef<HTMLInputElement>(null);
@@ -359,7 +360,8 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
       saveBgmSettings(bgm);
       saveVideoExportSettings(render);
       audioRef.current?.pause();
-      onClose();
+      setSaved(true);
+      setTimeout(() => { setSaved(false); onClose(); }, 900);
     } finally {
       setSaving(false);
     }
@@ -2052,10 +2054,10 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
             <button onClick={onClose} style={{ flex: 1, padding: "9px", fontSize: 13, fontWeight: 600, borderRadius: 10, border: "1px solid #e2e8f0", background: "#fff", color: "#64748b", cursor: "pointer", fontFamily: FONT }}>
               キャンセル
             </button>
-            <button onClick={handleSave} disabled={saving}
-              style={{ flex: 2, padding: "9px", fontSize: 13, fontWeight: 700, borderRadius: 10, border: "none", background: saving ? "#94a3b8" : `linear-gradient(135deg, ${TEAL}, #0d7a6e)`, color: "#fff", cursor: saving ? "default" : "pointer", fontFamily: FONT, boxShadow: saving ? "none" : `0 4px 14px ${TEAL}44` }}
+            <button onClick={handleSave} disabled={saving || saved}
+              style={{ flex: 2, padding: "9px", fontSize: 13, fontWeight: 700, borderRadius: 10, border: "none", background: saved ? "#169385" : saving ? "#94a3b8" : `linear-gradient(135deg, ${TEAL}, #0d7a6e)`, color: "#fff", cursor: (saving || saved) ? "default" : "pointer", fontFamily: FONT, boxShadow: (saving || saved) ? "none" : `0 4px 14px ${TEAL}44` }}
             >
-              {saving ? "保存中..." : "保存"}
+              {saved ? "✓ 保存しました" : saving ? "保存中..." : "保存"}
             </button>
           </div>
         </div>

@@ -10,7 +10,7 @@ export async function GET() {
   if (!session) return NextResponse.json({ ok: false, message: "未ログインです" }, { status: 401 });
 
   try {
-    const presets = await (prisma as any).decoPreset.findMany({
+    const presets = await prisma.decoPreset.findMany({
       where: { userId: session.userId },
       orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
     });
@@ -39,9 +39,9 @@ export async function POST(request: NextRequest) {
     const name = String(body.name ?? "").trim();
     if (!name) return NextResponse.json({ ok: false, message: "名前は必須です" }, { status: 400 });
 
-    const count = await (prisma as any).decoPreset.count({ where: { userId: session.userId } });
+    const count = await prisma.decoPreset.count({ where: { userId: session.userId } });
 
-    const preset = await (prisma as any).decoPreset.create({
+    const preset = await prisma.decoPreset.create({
       data: {
         userId: session.userId,
         name,

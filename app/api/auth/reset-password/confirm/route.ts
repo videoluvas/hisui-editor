@@ -32,15 +32,21 @@ export async function POST(req: NextRequest) {
 
     const passwordHash = await hashPassword(newPassword);
 
-    await prisma.$executeRaw`
-      UPDATE "users" SET password_hash = ${passwordHash}, updated_at = NOW() WHERE id = ${row.user_id}
-    `;
-    await prisma.$executeRaw`
-      UPDATE "password_reset_tokens" SET used_at = NOW() WHERE id = ${row.id}
-    `;
+    await prisma.$transaction(async (tx) => {
+      const affected = await tx.$executeRaw`
+        UPDATE "password_reset_tokens" SET used_at = NOW() WHERE id = ${row.id} AND used_at IS NULL
+      `;
+      if (affected === 0) throw new Error("TOKEN_ALREADY_USED");
+      await tx.$executeRaw`
+        UPDATE "users" SET password_hash = ${passwordHash}, updated_at = NOW() WHERE id = ${row.user_id}
+      `;
+    });
 
     return NextResponse.json({ ok: true });
   } catch (error) {
+    if (error instanceof Error && error.message === "TOKEN_ALREADY_USED") {
+      return NextResponse.json({ ok: false, message: "このリンクはすでに使用されました" }, { status: 400 });
+    }
     console.error("POST /api/auth/reset-password/confirm error:", error);
     return NextResponse.json({ ok: false, message: "サーバーエラーが発生しました" }, { status: 500 });
   }

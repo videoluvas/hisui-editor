@@ -21,6 +21,7 @@ function generatePassword(len = 12): string {
 }
 
 export async function POST(req: NextRequest) {
+  try {
   const session = await getEditorSessionFromCookie();
   if (!session) return NextResponse.json({ ok: false, message: "未ログインです" }, { status: 401 });
   if (!(await isAdmin(session.userId))) return NextResponse.json({ ok: false, message: "権限がありません" }, { status: 403 });
@@ -47,13 +48,9 @@ export async function POST(req: NextRequest) {
   const passwordHash = await hashPassword(password);
 
   const newUser = await prisma.$queryRaw<[{ id: string }]>`
-    INSERT INTO users (id, email, name, company_name, password_hash, plan,
-      credit_img, credit_img_max, credit_script, credit_script_max,
-      credit_video, credit_video_max, credit_audio, credit_audio_max,
-      credit_bgm, credit_bgm_max, created_at, updated_at)
+    INSERT INTO users (id, email, name, company_name, password_hash, plan, credits, created_at, updated_at)
     VALUES (
-      gen_random_uuid(), ${email}, ${name || null}, ${companyName || null}, ${passwordHash}, 'Free',
-      20, 20, 5, 5, 10, 10, 20, 20, 5, 5, NOW(), NOW()
+      gen_random_uuid(), ${email}, ${name || null}, ${companyName || null}, ${passwordHash}, 'Free', 1000, NOW(), NOW()
     )
     RETURNING id
   `;
@@ -63,4 +60,8 @@ export async function POST(req: NextRequest) {
   await sendInviteEmail(email, { name: name || email, password, loginUrl });
 
   return NextResponse.json({ ok: true, userId: newUser[0]?.id, email, password });
+  } catch (e) {
+    console.error("POST /api/admin/invite error:", e);
+    return NextResponse.json({ ok: false, message: e instanceof Error ? e.message : "サーバーエラーが発生しました" }, { status: 500 });
+  }
 }

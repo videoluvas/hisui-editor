@@ -38,7 +38,7 @@ export async function createPresignedUploadUrl(input: UploadFileInput) {
       mimeType: input.mimeType,
       sizeBytes: BigInt(input.sizeBytes),
       fileUrl: `${R2_PUBLIC_URL}/${storageKey}`,
-    } as any,
+    },
   });
 
   return {
@@ -50,17 +50,13 @@ export async function createPresignedUploadUrl(input: UploadFileInput) {
 }
 
 export async function getUserFiles(userId: string, projectId?: string, workspaceId?: string | null) {
-  const where: Record<string, unknown> = { userId };
-  if (workspaceId) where.workspaceId = workspaceId;
-  else if (projectId) where.projectId = projectId;
-
   const files = await prisma.file.findMany({
-    where: where as any,
+    where: workspaceId ? { userId, workspaceId } : projectId ? { userId, projectId } : { userId },
     orderBy: { createdAt: "desc" },
   });
 
   return files.map((file) => ({
     ...file,
-    sizeBytes: (file as any).sizeBytes?.toString() ?? null,
+    sizeBytes: file.sizeBytes?.toString() ?? null,
   }));
 }
