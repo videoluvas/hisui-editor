@@ -85,7 +85,7 @@ export async function POST(
       .map((l) => l.replace(/^[#*\-　\s【】「」『』\d.、。]+/, "").replace(/[#*\-　\s【】「」『』]+$/, "").trim())
       .filter(Boolean)[0] ?? raw.trim();
 
-    await logGeneration(session.userId, "script");
+    await logGeneration(session.userId, "scene_regen");
     return NextResponse.json({ ok: true, telopText });
   } catch (e) {
     await logError("generate-telop", `Anthropic API error: ${e}`, { userId: session.userId, detail: { storyboardId: params.id, sceneId: params.sceneId } });

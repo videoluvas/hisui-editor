@@ -7,7 +7,14 @@ import { prisma } from "@/lib/prisma";
 import { getEditorSessionFromCookie } from "@/lib/auth.backend";
 import { logError } from "@/lib/log.error";
 import { logGeneration } from "@/lib/log.generation";
+import type { CreditAction } from "@/lib/credits";
 import { r2Client, R2_BUCKET_NAME, R2_PUBLIC_URL } from "@/lib/fileupload.r2";
+
+function providerToAction(provider: string): CreditAction {
+  if (provider === "veo-3-lite") return "video_lite";
+  if (provider === "veo-3")      return "video_premium_audio";
+  return "video_lite";
+}
 
 const ARK_API_BASE   = "https://ark.ap-southeast.bytepluses.com/api/v3";
 const GOOGLE_AI_BASE = "https://generativelanguage.googleapis.com/v1beta";
@@ -97,7 +104,7 @@ export async function GET(request: NextRequest) {
           data: { userId, workspaceId, storageKey: key, fileUrl: videoUrl, fileName: key.split("/").pop() ?? "video.mp4", fileType: "video", mimeType: "video/mp4", sizeBytes: BigInt(videoBuffer.length) },
         }).catch(() => {});
 
-        await logGeneration(userId, "video");
+        await logGeneration(userId, providerToAction(provider));
         return NextResponse.json({ ok: true, status: "succeeded", videoUrl });
       }
 
@@ -138,10 +145,10 @@ export async function GET(request: NextRequest) {
           await prisma.file.create({
             data: { userId, workspaceId, storageKey: key, fileUrl: videoUrl, fileName: key.split("/").pop() ?? "video.mp4", fileType: "video", mimeType: "video/mp4", sizeBytes: BigInt(videoBuffer.length) },
           }).catch(() => {});
-          await logGeneration(userId, "video");
+          await logGeneration(userId, providerToAction(provider));
           return NextResponse.json({ ok: true, status: "succeeded", videoUrl });
         } catch {
-          await logGeneration(userId, "video");
+          await logGeneration(userId, providerToAction(provider));
           return NextResponse.json({ ok: true, status: "succeeded", videoUrl: externalUrl });
         }
       }

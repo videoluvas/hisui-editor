@@ -8,6 +8,7 @@ import { getEditorSessionFromCookie } from "@/lib/auth.backend";
 import { logError } from "@/lib/log.error";
 import { logGeneration } from "@/lib/log.generation";
 import { r2Client, R2_BUCKET_NAME, R2_PUBLIC_URL } from "@/lib/fileupload.r2";
+import type { CreditAction } from "@/lib/credits";
 
 const ARK_API_BASE   = "https://ark.ap-southeast.bytepluses.com/api/v3";
 const GOOGLE_AI_BASE = "https://generativelanguage.googleapis.com/v1beta";
@@ -180,7 +181,7 @@ export async function GET(
             sizeBytes:   BigInt(videoBuffer.length),
           },
         }).catch(() => {});
-        await logGeneration(session.userId, "video");
+        await logGeneration(session.userId, "video_premium_audio" as CreditAction);
         return NextResponse.json({ ok: true, status: "succeeded", videoUrl: publicUrl });
       }
 
@@ -258,7 +259,7 @@ export async function GET(
               sizeBytes:   BigInt(videoBuffer.length),
             },
           }).catch(() => {});
-          await logGeneration(session.userId, "video");
+          await logGeneration(session.userId, "video_lite" as CreditAction);
           return NextResponse.json({ ok: true, status: "succeeded", videoUrl: publicUrl });
         } catch (dlErr) {
           // ダウンロード失敗時は外部URLで保存（フォールバック）
@@ -266,7 +267,7 @@ export async function GET(
             where: { id: params.sceneId },
             data: { videoUrl: externalUrl, videoStatus: "succeeded", videoStatusYn: true, videoErrorYn: false },
           });
-          await logGeneration(session.userId, "video");
+          await logGeneration(session.userId, "video_lite" as CreditAction);
           return NextResponse.json({ ok: true, status: "succeeded", videoUrl: externalUrl });
         }
       }
