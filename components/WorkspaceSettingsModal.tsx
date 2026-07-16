@@ -20,7 +20,7 @@ import type { TelopSettings } from "@/lib/telopSettings";
 import { loadExportSettings, saveExportSettings, DEFAULT_EXPORT_SETTINGS, RESOLUTION_MAP, loadPdfSettings, savePdfSettings, DEFAULT_PDF_SETTINGS, loadSpreadsheetSettings, saveSpreadsheetSettings, DEFAULT_SPREADSHEET_SETTINGS } from "@/lib/exportSettings";
 import type { ExportSettings, ExportResolution, PdfSettings, SpreadsheetSettings } from "@/lib/exportSettings";
 import { loadBgmSettings, saveBgmSettings, DEFAULT_BGM_SETTINGS } from "@/lib/bgmSettings";
-import type { BgmSettings, BgmVocal } from "@/lib/bgmSettings";
+import type { BgmSettings, BgmVocal, BgmModel } from "@/lib/bgmSettings";
 import { loadVideoExportSettings, saveVideoExportSettings, resetVideoExportToSequence } from "@/lib/videoExportSettings";
 import type { VideoExportSettings } from "@/lib/videoExportSettings";
 
