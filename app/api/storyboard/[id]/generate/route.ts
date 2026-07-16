@@ -152,7 +152,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   } catch (e) {
     await prisma.storyboardMain.update({
       where: { id: params.id },
-      data: { status: "error", log: String(e) },
+      data: { status: "error", aiScriptLog: String(e) },
     });
     return NextResponse.json({ ok: false, message: `AI生成に失敗しました: ${e}` }, { status: 500 });
   }
