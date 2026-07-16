@@ -200,6 +200,13 @@ export async function generateSceneImage(
     googleAspectRatio?: string;
     googleOutputFormat?: string;
     googleQualityHint?: string;
+    // GPT Image 2 (high)
+    gptSize?: string;
+    gptQuality?: string;
+    gptBackground?: string;
+    gptCompression?: number;
+    gptModeration?: string;
+    gptOutputFormat?: string;
   },
 ): Promise<{ ok: boolean; imgUrl?: string; message?: string }> {
   const res = await fetch(`/api/storyboard/${mainId}/scenes/${sceneId}/generate-image`, {

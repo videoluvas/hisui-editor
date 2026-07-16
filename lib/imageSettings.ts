@@ -25,7 +25,11 @@ export type ImageSettings = {
   googleOutputFormat: "jpeg" | "png";
   googleQualityHint: "" | "detail" | "cinematic" | "commercial";
   // GPT Image 2 (high) 専用
-  gptSize: "1536x1024" | "1024x1536" | "1024x1024";
+  gptSize: "auto" | "1536x1024" | "1024x1536" | "1024x1024";
+  gptQuality: "auto" | "low" | "medium" | "high";
+  gptBackground: "auto" | "opaque" | "transparent";
+  gptCompression: number;
+  gptModeration: "auto" | "low";
   gptOutputFormat: "png" | "jpeg" | "webp";
   // ワークスペース参照スタイル（「参照して生成」のデフォルト）
   refStyle: RefStyle;
@@ -52,6 +56,10 @@ export const DEFAULT_IMAGE_SETTINGS: ImageSettings = {
   googleOutputFormat: "jpeg",
   googleQualityHint: "",
   gptSize: "1536x1024",
+  gptQuality: "high",
+  gptBackground: "auto",
+  gptCompression: 100,
+  gptModeration: "auto",
   gptOutputFormat: "png",
   refStyle: "none",
   refTemplateId: "",

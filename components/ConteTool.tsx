@@ -451,6 +451,12 @@ export default function ConteTool({
         googleAspectRatio: imgSettings.googleAspectRatio,
         googleOutputFormat: imgSettings.googleOutputFormat,
         googleQualityHint: imgSettings.googleQualityHint,
+        gptSize: imgSettings.gptSize,
+        gptQuality: imgSettings.gptQuality,
+        gptBackground: imgSettings.gptBackground,
+        gptCompression: imgSettings.gptCompression,
+        gptModeration: imgSettings.gptModeration,
+        gptOutputFormat: imgSettings.gptOutputFormat,
       });
       if (res.ok && res.imgUrl) {
         const m = imgSettings.imageModel ?? "reve-1";

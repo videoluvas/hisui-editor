@@ -36,6 +36,8 @@ export default function EditorRegenImageModal({ open, fileUrl, meta, workspaceId
   const [wsRules,     setWsRules]     = useState("");
   const [wsNeg,       setWsNeg]       = useState("");
 
+  const [imgSettings, setImgSettings] = useState(() => loadImageSettings());
+
   useEffect(() => {
     if (!open) return;
     setPrompt(meta.prompt);
@@ -44,6 +46,7 @@ export default function EditorRegenImageModal({ open, fileUrl, meta, workspaceId
     setErrorMsg("");
     setNewUrl(null);
     const s = loadImageSettings();
+    setImgSettings(s);
     setWsRules(s.imgCommonRules);
     setWsNeg(s.imgNegativePrompt);
   }, [open]);
@@ -64,6 +67,12 @@ export default function EditorRegenImageModal({ open, fileUrl, meta, workspaceId
           aspectRatio: meta.aspectRatio,
           googleAspectRatio: meta.aspectRatio,
           sdAspectRatio: meta.aspectRatio,
+          gptSize: imgSettings.gptSize,
+          gptQuality: imgSettings.gptQuality,
+          gptBackground: imgSettings.gptBackground,
+          gptCompression: imgSettings.gptCompression,
+          gptModeration: imgSettings.gptModeration,
+          gptOutputFormat: imgSettings.gptOutputFormat,
           imgUrl: useRefImage ? fileUrl : undefined,
           imgCommonRules: wsRules,
           imgNegativePrompt: wsNeg,

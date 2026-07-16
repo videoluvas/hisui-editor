@@ -74,6 +74,10 @@ export async function POST(request: NextRequest) {
     googleQualityHint?: string;
     // GPT Image 2
     gptSize?: string;
+    gptQuality?: string;
+    gptBackground?: string;
+    gptCompression?: number;
+    gptModeration?: string;
     gptOutputFormat?: string;
     // ワークスペース設定
     imgCommonRules?: string;
@@ -143,16 +147,24 @@ export async function POST(request: NextRequest) {
     const openaiApiKey = process.env.OPENAI_API_KEY;
     if (!openaiApiKey) return NextResponse.json({ ok: false, message: "OPENAI_API_KEY が設定されていません" }, { status: 500 });
 
-    const { gptSize = "1536x1024", gptOutputFormat = "png" } = body;
+    const { gptSize = "1536x1024", gptQuality = "high", gptBackground = "auto", gptCompression = 100, gptModeration = "auto", gptOutputFormat = "png" } = body;
     const ext = gptOutputFormat === "jpeg" ? "jpg" : gptOutputFormat;
     const contentType = gptOutputFormat === "jpeg" ? "image/jpeg" : gptOutputFormat === "webp" ? "image/webp" : "image/png";
+
+    const gptBody: Record<string, unknown> = {
+      model: "gpt-image-1", prompt, size: gptSize, quality: gptQuality,
+      output_format: gptOutputFormat, response_format: "b64_json", n: 1,
+      moderation: gptModeration,
+    };
+    if (gptBackground !== "auto") gptBody.background = gptBackground;
+    if ((gptOutputFormat === "jpeg" || gptOutputFormat === "webp") && gptCompression < 100) gptBody.output_compression = gptCompression;
 
     let imageB64: string;
     try {
       const resp = await fetch(OPENAI_IMG_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${openaiApiKey}` },
-        body: JSON.stringify({ model: "gpt-image-1", prompt, size: gptSize, quality: "high", output_format: gptOutputFormat, response_format: "b64_json", n: 1 }),
+        body: JSON.stringify(gptBody),
       });
       if (!resp.ok) throw new Error(`OpenAI ${resp.status}: ${await resp.text()}`);
       const data = await resp.json() as { data?: Array<{ b64_json?: string }>; error?: { message: string } };

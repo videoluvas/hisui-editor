@@ -743,6 +743,7 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                       <label style={LBL}>サイズ</label>
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                         {([
+                          { value: "auto"      as const, label: "自動" },
                           { value: "1536x1024" as const, label: "横長 (1536×1024)" },
                           { value: "1024x1536" as const, label: "縦長 (1024×1536)" },
                           { value: "1024x1024" as const, label: "正方形 (1024×1024)" },
@@ -760,18 +761,98 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                       </div>
                     </div>
                     <div style={FIELD}>
+                      <label style={LBL}>クオリティ</label>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                        {([
+                          { value: "auto"   as const, label: "自動" },
+                          { value: "low"    as const, label: "低" },
+                          { value: "medium" as const, label: "中" },
+                          { value: "high"   as const, label: "高" },
+                        ]).map((q) => (
+                          <button key={q.value} onClick={() => setImg((p) => ({ ...p, gptQuality: q.value }))}
+                            style={{
+                              fontSize: 11, padding: "4px 9px", borderRadius: 6, cursor: "pointer", fontFamily: FONT,
+                              border: `1.5px solid ${img.gptQuality === q.value ? currentModelDef.color : "#e2e8f0"}`,
+                              background: img.gptQuality === q.value ? `${currentModelDef.color}12` : "#fff",
+                              color: img.gptQuality === q.value ? currentModelDef.color : "#64748b",
+                              fontWeight: img.gptQuality === q.value ? 700 : 400,
+                            }}
+                          >{q.label}</button>
+                        ))}
+                      </div>
+                    </div>
+                    <div style={FIELD}>
+                      <label style={LBL}>背景</label>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                        {([
+                          { value: "auto"        as const, label: "自動" },
+                          { value: "opaque"      as const, label: "不透明" },
+                          { value: "transparent" as const, label: "透明（PNG/WebP）" },
+                        ]).map((b) => (
+                          <button key={b.value} onClick={() => setImg((p) => {
+                            const next = { ...p, gptBackground: b.value };
+                            if (b.value === "transparent" && p.gptOutputFormat === "jpeg") next.gptOutputFormat = "png";
+                            return next;
+                          })}
+                            style={{
+                              fontSize: 11, padding: "4px 9px", borderRadius: 6, cursor: "pointer", fontFamily: FONT,
+                              border: `1.5px solid ${img.gptBackground === b.value ? currentModelDef.color : "#e2e8f0"}`,
+                              background: img.gptBackground === b.value ? `${currentModelDef.color}12` : "#fff",
+                              color: img.gptBackground === b.value ? currentModelDef.color : "#64748b",
+                              fontWeight: img.gptBackground === b.value ? 700 : 400,
+                            }}
+                          >{b.label}</button>
+                        ))}
+                      </div>
+                    </div>
+                    <div style={FIELD}>
                       <label style={LBL}>出力フォーマット</label>
                       <div style={{ display: "flex", gap: 4 }}>
                         {(["png", "jpeg", "webp"] as const).map((f) => (
-                          <button key={f} onClick={() => setImg((p) => ({ ...p, gptOutputFormat: f }))}
+                          <button key={f}
+                            disabled={f === "jpeg" && img.gptBackground === "transparent"}
+                            onClick={() => setImg((p) => ({ ...p, gptOutputFormat: f }))}
                             style={{
-                              fontSize: 11, padding: "4px 9px", borderRadius: 6, cursor: "pointer", fontFamily: FONT,
+                              fontSize: 11, padding: "4px 9px", borderRadius: 6, cursor: f === "jpeg" && img.gptBackground === "transparent" ? "not-allowed" : "pointer", fontFamily: FONT,
                               border: `1.5px solid ${img.gptOutputFormat === f ? currentModelDef.color : "#e2e8f0"}`,
                               background: img.gptOutputFormat === f ? `${currentModelDef.color}12` : "#fff",
-                              color: img.gptOutputFormat === f ? currentModelDef.color : "#64748b",
+                              color: img.gptOutputFormat === f ? currentModelDef.color : f === "jpeg" && img.gptBackground === "transparent" ? "#cbd5e1" : "#64748b",
                               fontWeight: img.gptOutputFormat === f ? 700 : 400,
+                              opacity: f === "jpeg" && img.gptBackground === "transparent" ? 0.5 : 1,
                             }}
                           >{f}</button>
+                        ))}
+                      </div>
+                    </div>
+                    {(img.gptOutputFormat === "jpeg" || img.gptOutputFormat === "webp") && (
+                      <div style={FIELD}>
+                        <label style={LBL}>圧縮率（品質）: {img.gptCompression ?? 100}%</label>
+                        <input type="range" min={0} max={100} step={5}
+                          value={img.gptCompression ?? 100}
+                          onChange={(e) => setImg((p) => ({ ...p, gptCompression: Number(e.target.value) }))}
+                          style={{ width: "100%", accentColor: currentModelDef.color }}
+                        />
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#94a3b8", fontFamily: FONT }}>
+                          <span>最高圧縮（低画質）</span><span>無圧縮（高画質）</span>
+                        </div>
+                      </div>
+                    )}
+                    <div style={FIELD}>
+                      <label style={LBL}>モデレーション</label>
+                      <div style={{ display: "flex", gap: 4 }}>
+                        {([
+                          { value: "auto" as const, label: "標準" },
+                          { value: "low"  as const, label: "緩和" },
+                        ]).map((m) => (
+                          <button key={m.value} onClick={() => setImg((p) => ({ ...p, gptModeration: m.value }))}
+                            style={{
+                              fontSize: 11, padding: "4px 9px", borderRadius: 6, cursor: "pointer", fontFamily: FONT,
+                              border: `1.5px solid ${img.gptModeration === m.value ? currentModelDef.color : "#e2e8f0"}`,
+                              background: img.gptModeration === m.value ? `${currentModelDef.color}12` : "#fff",
+                              color: img.gptModeration === m.value ? currentModelDef.color : "#64748b",
+                              fontWeight: img.gptModeration === m.value ? 700 : 400,
+                            }}
+                          >{m.label}</button>
                         ))}
                       </div>
                     </div>

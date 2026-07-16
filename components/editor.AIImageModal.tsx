@@ -38,9 +38,12 @@ export default function EditorAIImageModal({ open, workspaceId, playbackTime, on
   const [errorMsg,          setErrorMsg]          = useState("");
   const [imageUrl,          setImageUrl]          = useState<string | null>(null);
 
+  const [imgSettings, setImgSettings] = useState(() => loadImageSettings());
+
   useEffect(() => {
     if (!open) return;
     const s = loadImageSettings();
+    setImgSettings(s);
     setImgCommonRules(s.imgCommonRules);
     setImgNegativePrompt(s.imgNegativePrompt);
     if (initialData) {
@@ -76,6 +79,12 @@ export default function EditorAIImageModal({ open, workspaceId, playbackTime, on
           aspectRatio,
           googleAspectRatio: aspectRatio,
           sdAspectRatio: aspectRatio,
+          gptSize: imgSettings.gptSize,
+          gptQuality: imgSettings.gptQuality,
+          gptBackground: imgSettings.gptBackground,
+          gptCompression: imgSettings.gptCompression,
+          gptModeration: imgSettings.gptModeration,
+          gptOutputFormat: imgSettings.gptOutputFormat,
           imgCommonRules,
           imgNegativePrompt,
           workspaceId: workspaceId ?? undefined,
