@@ -5,8 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getEditorSessionFromCookie } from "@/lib/auth.backend";
 import { logError } from "@/lib/log.error";
-import { logGeneration } from "@/lib/log.generation";
-import { checkFreeAccess } from "@/lib/free-limit";
+import { consumeCredits, refundCredits } from "@/lib/credits";
 
 const BASE_SYSTEM = `あなたはプロのナレーター兼映像ディレクターです。
 以下の元情報をもとに、この映像シーン1つ分のナレーション台本を作成してください。
@@ -35,10 +34,11 @@ export async function POST(
   if (!scene || scene.mainId !== params.id)
     return NextResponse.json({ ok: false, message: "見つかりません" }, { status: 404 });
 
-  const { ok: accessOk, message: accessMsg } = await checkFreeAccess(session.userId, "script", "");
-  if (!accessOk) return NextResponse.json({ ok: false, message: accessMsg }, { status: 402 });
-
   const body = await request.json().catch(() => ({})) as { sourceText?: string; model?: string; commonRules?: string; negativePrompt?: string };
+
+  const workspaceId = sb.workspaceId ?? null;
+  const credit = await consumeCredits(session.userId, "scene_regen", workspaceId);
+  if (!credit.ok) return NextResponse.json({ ok: false, message: credit.message }, { status: 402 });
   const sourceText = (body.sourceText ?? "").trim();
   const model = (body.model ?? "claude-sonnet-4-6").trim();
   const commonRules = (body.commonRules ?? "").trim();
@@ -79,10 +79,10 @@ export async function POST(
       .join("")
       .trim();
 
-    await logGeneration(session.userId, "script");
     return NextResponse.json({ ok: true, naText });
   } catch (e) {
     await logError("generate-script", `Anthropic API error: ${e}`, { userId: session.userId, detail: { storyboardId: params.id, sceneId: params.sceneId } });
+    await refundCredits(session.userId, "scene_regen", workspaceId);
     return NextResponse.json({ ok: false, message: `AI生成に失敗しました: ${e}` }, { status: 500 });
   }
 }

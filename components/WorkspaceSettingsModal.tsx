@@ -19,7 +19,7 @@ import { loadTelopSettings, saveTelopSettings, DEFAULT_TELOP_SETTINGS } from "@/
 import type { TelopSettings } from "@/lib/telopSettings";
 import { loadExportSettings, saveExportSettings, DEFAULT_EXPORT_SETTINGS, RESOLUTION_MAP, loadPdfSettings, savePdfSettings, DEFAULT_PDF_SETTINGS, loadSpreadsheetSettings, saveSpreadsheetSettings, DEFAULT_SPREADSHEET_SETTINGS } from "@/lib/exportSettings";
 import type { ExportSettings, ExportResolution, PdfSettings, SpreadsheetSettings } from "@/lib/exportSettings";
-import { loadBgmSettings, saveBgmSettings, DEFAULT_BGM_SETTINGS, BGM_MODELS } from "@/lib/bgmSettings";
+import { loadBgmSettings, saveBgmSettings, DEFAULT_BGM_SETTINGS } from "@/lib/bgmSettings";
 import type { BgmSettings, BgmVocal } from "@/lib/bgmSettings";
 import { loadVideoExportSettings, saveVideoExportSettings, resetVideoExportToSequence } from "@/lib/videoExportSettings";
 import type { VideoExportSettings } from "@/lib/videoExportSettings";
@@ -245,8 +245,8 @@ const TABS: { id: WsSettingsTab; label: string; icon: React.ReactNode }[] = [
   { id: "video",     label: "AI 動画生成",      icon: <VideoTabIcon /> },
   { id: "narration", label: "AI ナレーション",  icon: <MicTabIcon /> },
   { id: "bgm",       label: "AI BGM",           icon: <BgmTabIcon /> },
-  { id: "render",    label: "動画書き出し",       icon: <RenderTabIcon /> },
   { id: "export",    label: "コンテ変換",         icon: <ExportTabIcon /> },
+  { id: "render",    label: "動画書き出し",       icon: <RenderTabIcon /> },
 ];
 
 // ─── Model definitions ────────────────────────────────────────────────────────
@@ -279,6 +279,11 @@ const TELOP_MODELS = [
   { id: "claude-haiku-4-5",  label: "Anthropic", sub: "Claude Haiku 4.5",  color: "#D97706", provider: "anthropic" as const },
   { id: "claude-sonnet-4-6", label: "Anthropic", sub: "Claude Sonnet 4.6", color: "#B45309", provider: "anthropic" as const },
   { id: "claude-opus-4-7",   label: "Anthropic", sub: "Claude Opus 4.7",   color: "#92400E", provider: "anthropic" as const },
+] as const;
+
+const BGM_MODEL_ENTRIES = [
+  { id: "lyria-3-pro-preview", label: "Google AI", sub: "Lyria 3 Pro", color: "#1A73E8", provider: "google" as const },
+  { id: "lyria-2",             label: "Google AI", sub: "Lyria 2",     color: "#4285F4", provider: "google" as const },
 ] as const;
 
 const SD_ASPECT_RATIOS = ["16:9", "9:16", "1:1", "4:3", "3:4", "3:2", "2:3", "21:9"] as const;
@@ -1368,42 +1373,13 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
               return (
               <>
                 <div style={SEC}>使用モデル</div>
-                <div style={{ ...FIELD, display: "flex", flexDirection: "column", gap: 6 }}>
-                  {BGM_MODELS.map((m) => {
-                    const active = bgm.model === m.id;
-                    const locked = m.lockedFree && isFree;
-                    return (
-                      <button
-                        key={m.id}
-                        type="button"
-                        onClick={() => { if (!locked) setBgm((s) => ({ ...s, model: m.id })); }}
-                        style={{
-                          display: "flex", alignItems: "center", gap: 10,
-                          padding: "9px 12px", borderRadius: 10, cursor: locked ? "not-allowed" : "pointer",
-                          border: `1.5px solid ${active ? "#5184F0" : "#e2e8f0"}`,
-                          background: locked ? "#f8fafc" : active ? "#5184F010" : "#fff",
-                          opacity: locked ? 0.7 : 1, fontFamily: FONT, textAlign: "left" as const,
-                        }}
-                      >
-                        <ProviderLogo provider="google" size={22} />
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 9, fontWeight: 600, color: active ? "#5184F0" : "#94a3b8", textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>{m.label}</div>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: active ? "#5184F0" : "#334155", marginTop: 1 }}>{m.sub}</div>
-                          <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 1 }}>{m.note}</div>
-                        </div>
-                        {locked && (
-                          <span style={{ fontSize: 9, fontWeight: 700, color: "#e67d30", background: "#fff3e8", padding: "2px 6px", borderRadius: 4, border: "1px solid #e67d3040", whiteSpace: "nowrap" as const, flexShrink: 0 }}>
-                            有料プラン
-                          </span>
-                        )}
-                        {active && !locked && (
-                          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#5184F0" strokeWidth="2" strokeLinecap="round">
-                            <path d="M2 7l4 4 6-6"/>
-                          </svg>
-                        )}
-                      </button>
-                    );
-                  })}
+                <div style={FIELD}>
+                  <ModelDropdown
+                    models={BGM_MODEL_ENTRIES}
+                    value={bgm.model}
+                    onChange={(id) => setBgm((s) => ({ ...s, model: id as BgmModel }))}
+                    lockedIds={isFree ? ["lyria-3-pro-preview"] : []}
+                  />
                 </div>
 
                 <div style={SEC}>ボーカル</div>
@@ -1493,7 +1469,6 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
               const RES_OPTIONS: { v: ExportResolution; label: string }[] = [
                 { v: "720p",  label: "HD 720p (1280×720)" },
                 { v: "1080p", label: "Full HD 1080p (1920×1080)" },
-                { v: "4k",    label: "4K UHD (3840×2160)" },
               ];
               const FPS_OPTIONS: { v: 24 | 25 | 30 | 60; label: string }[] = [
                 { v: 24, label: "24 fps" },
@@ -1502,8 +1477,46 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                 { v: 60, label: "60 fps" },
               ];
 
+              const effectiveSandbox = isFree || render.sandboxMode;
+
               return (
               <>
+                {/* 書き出しモード（透かし） */}
+                <div style={SEC}>書き出しモード</div>
+                <div style={{ ...FIELD, display: "flex", flexDirection: "column", gap: 4 }}>
+                  {([
+                    { sandbox: true,  label: "透かしあり（サンドボックス）", sub: "クレジット消費なし・透かし入り出力", freeBadge: "無料" },
+                    { sandbox: false, label: "透かしなし（本番出力）",        sub: "クレジット消費あり・高品質出力",     freeBadge: null  },
+                  ] as const).map(({ sandbox, label, sub, freeBadge }) => {
+                    const active  = effectiveSandbox === sandbox;
+                    const locked  = !sandbox && isFree;
+                    return (
+                      <button key={String(sandbox)} type="button"
+                        onClick={() => { if (!locked) setRender((s) => ({ ...s, sandboxMode: sandbox })); }}
+                        style={{
+                          ...chip(active), display: "flex", alignItems: "center", justifyContent: "space-between",
+                          textAlign: "left", padding: "8px 11px",
+                          cursor: locked ? "not-allowed" : "pointer", opacity: locked ? 0.55 : 1,
+                        }}>
+                        <div>
+                          <div style={{ fontSize: 12, fontWeight: 700 }}>{label}</div>
+                          <div style={{ fontSize: 10, color: active ? RC : "#94a3b8", marginTop: 2 }}>{sub}</div>
+                        </div>
+                        {locked && (
+                          <span style={{ fontSize: 9, fontWeight: 700, color: "#e67d30", background: "#fff3e8", border: "1px solid #e67d3040", padding: "2px 6px", borderRadius: 4, whiteSpace: "nowrap", flexShrink: 0 }}>
+                            有料プランのみ
+                          </span>
+                        )}
+                        {freeBadge && !locked && (
+                          <span style={{ fontSize: 9, fontWeight: 700, color: active ? RC : "#94a3b8", background: active ? `${RC}18` : "#f1f5f9", padding: "2px 6px", borderRadius: 4, whiteSpace: "nowrap", flexShrink: 0 }}>
+                            {freeBadge}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
                 <div style={{ ...SEC, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                   <span>出力設定</span>
                   <button type="button" onClick={() => setRender(resetVideoExportToSequence())}
@@ -1623,31 +1636,6 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                   </label>
                 </div>
 
-                {/* ポスター画像 */}
-                <div style={{ ...SEC }}>ポスター画像（poster）</div>
-                <div style={FIELD}>
-                  <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, color: "#475569", fontFamily: FONT, marginBottom: 8 }}>
-                    <input type="checkbox" checked={render.posterEnabled}
-                      onChange={(e) => setRender((s) => ({ ...s, posterEnabled: e.target.checked }))}
-                      style={{ accentColor: RC, width: 14, height: 14 }}
-                    />
-                    <span style={{ fontWeight: 600 }}>ポスター画像を生成する</span>
-                  </label>
-                  {render.posterEnabled && (
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, paddingLeft: 22 }}>
-                      <span style={{ fontSize: 11, color: "#64748b", fontFamily: FONT, whiteSpace: "nowrap" }}>キャプチャ位置</span>
-                      <input type="number" min={0} step={0.5} value={render.posterCapture}
-                        onChange={(e) => setRender((s) => ({ ...s, posterCapture: Math.max(0, parseFloat(e.target.value) || 0) }))}
-                        style={{ ...INPUT, width: 70 }}
-                      />
-                      <span style={{ fontSize: 11, color: "#94a3b8", fontFamily: FONT }}>秒</span>
-                    </div>
-                  )}
-                  <div style={{ fontSize: 10, color: "#94a3b8", fontFamily: FONT, marginTop: 4 }}>
-                    指定秒のフレームをJPEG（-poster.jpg）として動画と同時生成します。
-                  </div>
-                </div>
-
                 {/* サムネイル */}
                 <div style={{ ...SEC }}>サムネイル（thumbnail）</div>
                 <div style={FIELD}>
@@ -1683,31 +1671,6 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                   </div>
                 </div>
 
-                {/* コールバック */}
-                <div style={{ ...SEC }}>コールバック（Webhook）</div>
-                <div style={FIELD}>
-                  <label style={LBL}>完了通知URL（callback）</label>
-                  <input type="url" value={render.callbackUrl}
-                    onChange={(e) => setRender((s) => ({ ...s, callbackUrl: e.target.value }))}
-                    placeholder="https://your-server.com/webhook"
-                    style={INPUT}
-                  />
-                  <div style={{ fontSize: 10, color: "#94a3b8", fontFamily: FONT, marginTop: 4, lineHeight: 1.6 }}>
-                    レンダリング完了・失敗時にShotStackがPOSTで通知。空欄の場合は通知なし。
-                    ポスター・サムネイルを有効にすると最大3回コールバックされます。
-                  </div>
-                </div>
-
-                {/* ShotStack仕様メモ */}
-                <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, padding: "10px 12px", fontSize: 10, color: "#64748b", fontFamily: FONT, lineHeight: 1.7, marginTop: 4 }}>
-                  <strong>ShotStack output 仕様</strong><br />
-                  format: mp4(H.264) / gif（codec選択不可）<br />
-                  quality: verylow / low / medium(デフォルト) / high / veryhigh<br />
-                  fps(API): 12 / 15 / 23.976 / 24 / 25 / 29.97 / 30<br />
-                  resolution: preview(512×288) / mobile(640×360) / sd(1024×576) / hd(1280×720) / 1080(1920×1080) / 4k(3840×2160)<br />
-                  aspectRatio: 16:9 / 9:16 / 1:1 / 4:5 / 4:3（resolutionと組み合わせ）<br />
-                  最大: 動画1920px / 画像4096px / ソースファイル5GB / Sandbox上限10分
-                </div>
               </>
               );
             })()}
@@ -2044,15 +2007,57 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
         )}
 
         {/* フッター */}
-        <div style={{ display: "flex", gap: 8, padding: "12px 20px", borderTop: "1px solid #f1f5f9", flexShrink: 0 }}>
-          <button onClick={onClose} style={{ flex: 1, padding: "9px", fontSize: 13, fontWeight: 600, borderRadius: 10, border: "1px solid #e2e8f0", background: "#fff", color: "#64748b", cursor: "pointer", fontFamily: FONT }}>
-            キャンセル
-          </button>
-          <button onClick={handleSave} disabled={saving}
-            style={{ flex: 2, padding: "9px", fontSize: 13, fontWeight: 700, borderRadius: 10, border: "none", background: saving ? "#94a3b8" : `linear-gradient(135deg, ${TEAL}, #0d7a6e)`, color: "#fff", cursor: saving ? "default" : "pointer", fontFamily: FONT, boxShadow: saving ? "none" : `0 4px 14px ${TEAL}44` }}
-          >
-            {saving ? "保存中..." : "保存"}
-          </button>
+        <div style={{ borderTop: "1px solid #f1f5f9", flexShrink: 0 }}>
+          {/* コスト目安（タブ別） */}
+          {(() => {
+            let items: { label: string; cost: string }[] | null = null;
+            if (activeTab === "script") {
+              items = [
+                { label: "コンテ生成", cost: "50 cr" },
+                { label: "シーン再生成", cost: "10 cr" },
+              ];
+            } else if (activeTab === "image") {
+              const cost = img.imageModel === "google-image-lite" ? 100 : 400;
+              items = [{ label: "1枚あたり", cost: `${cost} cr` }];
+            } else if (activeTab === "video") {
+              const cost = vid.videoModel === "veo-3-lite" ? 1_000 : (vid.generateAudio ? 5_000 : 2_500);
+              items = [{ label: "1本あたり", cost: `${cost.toLocaleString()} cr` }];
+            } else if (activeTab === "narration") {
+              items = [{ label: "200文字あたり", cost: "10 cr" }];
+            } else if (activeTab === "bgm") {
+              const cost = bgm.model === "lyria-2" ? 50 : 150;
+              items = [{ label: "1曲あたり", cost: `${cost} cr` }];
+            } else if (activeTab === "render") {
+              if (isFree || render.sandboxMode) {
+                items = [{ label: "透かしあり", cost: "0 cr" }];
+              } else {
+                const cost = render.resolution === "720p" ? 100 : 300;
+                items = [{ label: `${render.resolution} / 1分`, cost: `${cost} cr` }];
+              }
+            }
+            if (!items) return null;
+            return (
+              <div style={{ padding: "10px 20px 0", display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", whiteSpace: "nowrap", letterSpacing: "0.05em", textTransform: "uppercase" as const }}>生成コスト目安</span>
+                {items.map(({ label, cost }) => (
+                  <span key={label} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, background: "#f1f5f9", border: "1px solid #e2e8f0", borderRadius: 6, padding: "3px 7px", fontFamily: FONT }}>
+                    <span style={{ color: "#64748b", fontWeight: 500 }}>{label}</span>
+                    <span style={{ color: TEAL, fontWeight: 700 }}>{cost}</span>
+                  </span>
+                ))}
+              </div>
+            );
+          })()}
+          <div style={{ display: "flex", gap: 8, padding: "10px 20px 12px" }}>
+            <button onClick={onClose} style={{ flex: 1, padding: "9px", fontSize: 13, fontWeight: 600, borderRadius: 10, border: "1px solid #e2e8f0", background: "#fff", color: "#64748b", cursor: "pointer", fontFamily: FONT }}>
+              キャンセル
+            </button>
+            <button onClick={handleSave} disabled={saving}
+              style={{ flex: 2, padding: "9px", fontSize: 13, fontWeight: 700, borderRadius: 10, border: "none", background: saving ? "#94a3b8" : `linear-gradient(135deg, ${TEAL}, #0d7a6e)`, color: "#fff", cursor: saving ? "default" : "pointer", fontFamily: FONT, boxShadow: saving ? "none" : `0 4px 14px ${TEAL}44` }}
+            >
+              {saving ? "保存中..." : "保存"}
+            </button>
+          </div>
         </div>
       </div>
     </div>

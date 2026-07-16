@@ -125,7 +125,6 @@ const ASPECT_RATIO_PRESETS = [
 
 const RESOLUTION_PRESETS = [
   { label: "1080p",     w: 1920, h: 1080 },
-  { label: "4K",        w: 3840, h: 2160 },
   { label: "720p",      w: 1280, h: 720  },
   { label: "縦 720",    w: 720,  h: 1280 },
   { label: "縦 1080",   w: 1080, h: 1920 },

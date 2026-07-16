@@ -110,11 +110,11 @@ const CATEGORIES: {
     key: "F",
     name: "出力設定",
     desc: "背景色・解像度・FPS・画面サイズなどを設定します。",
-    sample: "解像度を4K（3840×2160）に変更して",
+    sample: "解像度を1080pに変更して",
     icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="8" cy="8" r="2.2"/><path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.22 3.22l1.06 1.06M11.72 11.72l1.06 1.06M3.22 12.78l1.06-1.06M11.72 4.28l1.06-1.06"/></svg>,
     ops: [
       "背景色を変更（任意の色を指定可）",
-      "解像度を変更（720p / 1080p / 4K）",
+      "解像度を変更（720p / 1080p）",
       "FPSを変更（24 / 30 / 60fps）",
     ],
   },

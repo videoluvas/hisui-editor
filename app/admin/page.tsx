@@ -22,12 +22,19 @@ type Stats = {
 
 type AdminUser = {
   id: string; name: string | null; email: string | null; plan: string | null;
-  creditImg: number; creditImgMax: number; creditScript: number; creditScriptMax: number;
+  credits: number;
   createdAt: string;
 };
 
 type PageState = "loading" | "unauthorized" | "forbidden" | "loaded";
-type Tab = "logs" | "users" | "samples";
+type Tab = "logs" | "users" | "invite" | "samples" | "plans";
+
+type PlanConfig = {
+  id: string; label: string; price_jpy: number;
+  credit_img_max: number; credit_script_max: number; credit_video_max: number;
+  credit_audio_max: number; credit_bgm_max: number;
+  free_model_img: string; free_model_video: string; max_workspaces: number;
+};
 
 type SampleStoryboard = {
   id: string; title: string | null; isDefaultSample: boolean; createdAt: string;
@@ -90,12 +97,17 @@ function StatCard({ label, value, color, bg }: { label: string; value: number; c
 
 // ─── User row with inline plan switcher ───────────────────────────────────────
 
-function UserRow({ user, onUpdate }: { user: AdminUser; onUpdate: (u: AdminUser) => void }) {
+function UserRow({ user, onUpdate, onDelete }: {
+  user: AdminUser;
+  onUpdate: (u: AdminUser) => void;
+  onDelete: (id: string) => void;
+}) {
   const [busy, setBusy] = useState(false);
-  const [grantImg, setGrantImg] = useState("");
-  const [grantScript, setGrantScript] = useState("");
+  const [grantAmount, setGrantAmount] = useState("");
   const [msg, setMsg] = useState("");
-
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [entering, setEntering] = useState(false);
   const patch = async (payload: Record<string, unknown>) => {
     setBusy(true); setMsg("");
     try {
@@ -112,12 +124,52 @@ function UserRow({ user, onUpdate }: { user: AdminUser; onUpdate: (u: AdminUser)
 
   const togglePlan = () => patch({ plan: user.plan === "Pro" ? "Free" : "Pro" });
 
+  const handleEnter = async () => {
+    setEntering(true);
+    try {
+      const res = await fetch("/api/admin/impersonate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ userId: user.id }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        window.open("/", "_blank");
+      } else {
+        alert(data.message ?? "エラーが発生しました");
+      }
+    } finally {
+      setEntering(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ userId: user.id }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        onDelete(user.id);
+      } else {
+        alert(data.message ?? "削除に失敗しました");
+        setConfirmDelete(false);
+      }
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const handleGrant = () => {
-    const img    = parseInt(grantImg)    || 0;
-    const script = parseInt(grantScript) || 0;
-    if (!img && !script) return;
-    patch({ grantImg: img || undefined, grantScript: script || undefined });
-    setGrantImg(""); setGrantScript("");
+    const amount = parseInt(grantAmount) || 0;
+    if (!amount) return;
+    patch({ grantCredits: amount });
+    setGrantAmount("");
   };
 
   const pc = planColor(user.plan);
@@ -156,41 +208,75 @@ function UserRow({ user, onUpdate }: { user: AdminUser; onUpdate: (u: AdminUser)
         </div>
       </td>
 
-      {/* 画像クレジット */}
+      {/* クレジット残高 */}
       <td style={{ padding: "10px 14px", whiteSpace: "nowrap" }}>
-        <CreditCell cur={user.creditImg} max={user.creditImgMax} color={CYAN} />
-      </td>
-
-      {/* 台本クレジット */}
-      <td style={{ padding: "10px 14px", whiteSpace: "nowrap" }}>
-        <CreditCell cur={user.creditScript} max={user.creditScriptMax} color="#7F5AF0" />
+        <span style={{ fontSize: 13, fontWeight: 700, color: user.credits < 500 ? "#dc2626" : "#334155" }}>
+          {user.credits.toLocaleString()} cr
+        </span>
       </td>
 
       {/* クレジット付与 */}
       <td style={{ padding: "10px 14px" }}>
         <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
           <input
-            value={grantImg}
-            onChange={(e) => setGrantImg(e.target.value)}
-            placeholder="画像 +n"
-            style={{ width: 68, fontSize: 11, padding: "4px 6px", border: "1px solid #e2e8f0", borderRadius: 6, outline: "none", color: "#334155" }}
-          />
-          <input
-            value={grantScript}
-            onChange={(e) => setGrantScript(e.target.value)}
-            placeholder="台本 +n"
-            style={{ width: 68, fontSize: 11, padding: "4px 6px", border: "1px solid #e2e8f0", borderRadius: 6, outline: "none", color: "#334155" }}
+            value={grantAmount}
+            onChange={(e) => setGrantAmount(e.target.value)}
+            placeholder="+cr"
+            type="number"
+            style={{ width: 72, fontSize: 11, padding: "4px 6px", border: "1px solid #e2e8f0", borderRadius: 6, outline: "none", color: "#334155" }}
           />
           <button
             onClick={handleGrant}
-            disabled={busy || (!grantImg && !grantScript)}
+            disabled={busy || !grantAmount}
             style={{
               fontSize: 11, fontWeight: 600, padding: "4px 10px", borderRadius: 6, border: "none",
               background: CYAN, color: "#fff", cursor: "pointer", whiteSpace: "nowrap",
-              opacity: !grantImg && !grantScript ? 0.4 : 1,
+              opacity: !grantAmount ? 0.4 : 1,
             }}
           >付与</button>
           {msg && <span style={{ fontSize: 11, color: msg.startsWith("✓") ? TEAL : "#dc2626" }}>{msg}</span>}
+        </div>
+      </td>
+
+      {/* アクション */}
+      <td style={{ padding: "10px 14px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+            <button
+              onClick={handleEnter}
+              disabled={entering}
+              title="このユーザーのセッションでツールを開く（新タブ）"
+              style={{
+                fontSize: 11, fontWeight: 600, padding: "4px 10px", borderRadius: 6, border: "none",
+                background: `${TEAL}18`, color: TEAL,
+                cursor: entering ? "default" : "pointer", opacity: entering ? 0.6 : 1, whiteSpace: "nowrap",
+              }}
+            >{entering ? "..." : "↗ 入る"}</button>
+
+            {!confirmDelete ? (
+              <button
+                onClick={() => setConfirmDelete(true)}
+                style={{
+                  fontSize: 11, fontWeight: 600, padding: "4px 10px", borderRadius: 6, border: "none",
+                  background: "#fee2e2", color: "#dc2626", cursor: "pointer", whiteSpace: "nowrap",
+                }}
+              >削除</button>
+            ) : (
+              <div style={{ display: "flex", gap: 4, alignItems: "center", background: "#fff1f2", border: "1px solid #fecdd3", borderRadius: 8, padding: "4px 8px" }}>
+                <span style={{ fontSize: 10, color: "#dc2626", fontWeight: 700, whiteSpace: "nowrap" }}>削除する？</span>
+                <button
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 5, border: "none", background: "#dc2626", color: "#fff", cursor: deleting ? "default" : "pointer" }}
+                >{deleting ? "..." : "YES"}</button>
+                <button
+                  onClick={() => setConfirmDelete(false)}
+                  style={{ fontSize: 11, padding: "3px 8px", borderRadius: 5, border: "none", background: "#f1f5f9", color: "#64748b", cursor: "pointer" }}
+                >NO</button>
+              </div>
+            )}
+          </div>
+
         </div>
       </td>
     </tr>
@@ -272,9 +358,24 @@ export default function AdminPage() {
   const [users, setUsers]           = useState<AdminUser[]>([]);
   const [userSearch, setUserSearch] = useState("");
 
+  // invite
+  const [invEmail, setInvEmail]         = useState("");
+  const [invName, setInvName]           = useState("");
+  const [invCompany, setInvCompany]     = useState("");
+  const [invPassword, setInvPassword]   = useState("");
+  const [invLoading, setInvLoading]     = useState(false);
+  const [invResult, setInvResult]       = useState<{ ok: boolean; email?: string; password?: string; message?: string } | null>(null);
+  const [invHistory, setInvHistory]     = useState<{ email: string; name: string; password: string; sentAt: string }[]>([]);
+
   // samples
   const [sampleStoryboards, setSampleStoryboards] = useState<SampleStoryboard[]>([]);
   const [sampleProjects, setSampleProjects]       = useState<SampleProject[]>([]);
+  const [samplesError, setSamplesError]           = useState<string | null>(null);
+  const [samplesLoading, setSamplesLoading]       = useState(false);
+
+  // plan configs
+  const [planConfigs, setPlanConfigs]       = useState<PlanConfig[]>([]);
+  const [planConfigsSaving, setPlanConfigsSaving] = useState<string | null>(null);
 
   // login
   const [loginEmail, setLoginEmail]       = useState("");
@@ -326,17 +427,54 @@ export default function AdminPage() {
     } catch { /* ignore */ }
   }, []);
 
-  const fetchSamples = useCallback(async () => {
+  const fetchPlanConfigs = useCallback(async () => {
     try {
-      const res  = await fetch("/api/admin/samples");
-      if (!res.ok) return;
+      const res  = await fetch("/api/admin/plan-config");
       const data = await res.json();
-      if (data.ok) { setSampleStoryboards(data.storyboards); setSampleProjects(data.projects); }
+      if (data.ok) setPlanConfigs(data.configs);
     } catch { /* ignore */ }
   }, []);
 
+  const patchPlanConfig = async (id: string, field: string, value: string | number) => {
+    const key = `${id}.${field}`;
+    setPlanConfigsSaving(key);
+    try {
+      const res  = await fetch("/api/admin/plan-config", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, field, value }),
+      });
+      const data = await res.json();
+      if (data.ok) setPlanConfigs(data.configs);
+    } finally { setPlanConfigsSaving(null); }
+  };
+
+  const fetchSamples = useCallback(async () => {
+    setSamplesLoading(true);
+    setSamplesError(null);
+    try {
+      const res  = await fetch("/api/admin/samples");
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { message?: string };
+        setSamplesError(`API エラー ${res.status}: ${body.message ?? res.statusText}`);
+        return;
+      }
+      const data = await res.json();
+      if (data.ok) {
+        setSampleStoryboards(data.storyboards);
+        setSampleProjects(data.projects);
+      } else {
+        setSamplesError(data.message ?? "取得に失敗しました");
+      }
+    } catch (e) {
+      setSamplesError(e instanceof Error ? e.message : "通信エラー");
+    } finally {
+      setSamplesLoading(false);
+    }
+  }, []);
+
   useEffect(() => { fetchStats(); }, [fetchStats]);
-  useEffect(() => { if (pageState === "loaded") { fetchLogs(); fetchUsers(); fetchSamples(); } }, [pageState, fetchLogs, fetchUsers, fetchSamples]);
+  useEffect(() => { if (pageState === "loaded") { fetchLogs(); fetchUsers(); fetchSamples(); fetchPlanConfigs(); } }, [pageState, fetchLogs, fetchUsers, fetchSamples, fetchPlanConfigs]);
   useEffect(() => {
     if (pageState !== "loaded") return;
     const id = setInterval(() => { fetchStats(); fetchLogs(); }, 30_000);
@@ -454,7 +592,9 @@ export default function AdminPage() {
           {([
             { id: "logs" as Tab,    label: "エラーログ" },
             { id: "users" as Tab,   label: `ユーザー管理（${users.length}）` },
+            { id: "invite" as Tab,  label: "ユーザー招待" },
             { id: "samples" as Tab, label: "サンプル管理" },
+            { id: "plans" as Tab,   label: "プラン設定" },
           ] as const).map((t) => (
             <button key={t.id} onClick={() => setTab(t.id)}
               style={{ padding: "6px 20px", fontSize: 12, fontWeight: 600, borderRadius: 8, border: "none", cursor: "pointer", fontFamily: FONT,
@@ -560,19 +700,20 @@ export default function AdminPage() {
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                 <thead>
                   <tr style={{ background: "#f8fafc" }}>
-                    {["ユーザー", "プラン", "画像クレジット", "台本クレジット", "クレジット付与"].map((h) => (
+                    {["ユーザー", "プラン", "クレジット残高", "クレジット付与", "アクション"].map((h) => (
                       <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "#94a3b8", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {filteredUsers.length === 0 ? (
-                    <tr><td colSpan={5} style={{ padding: "40px 14px", textAlign: "center", color: "#cbd5e1", fontSize: 13 }}>ユーザーがいません</td></tr>
+                    <tr><td colSpan={6} style={{ padding: "40px 14px", textAlign: "center", color: "#cbd5e1", fontSize: 13 }}>ユーザーがいません</td></tr>
                   ) : filteredUsers.map((u) => (
                     <UserRow
                       key={u.id}
                       user={u}
                       onUpdate={(updated) => setUsers((prev) => prev.map((x) => x.id === updated.id ? { ...x, ...updated } : x))}
+                      onDelete={(id) => setUsers((prev) => prev.filter((x) => x.id !== id))}
                     />
                   ))}
                 </tbody>
@@ -581,9 +722,121 @@ export default function AdminPage() {
           </div>
         )}
 
+        {/* ── ユーザー招待タブ ── */}
+        {tab === "invite" && (
+          <div style={{ display: "flex", gap: 20, alignItems: "flex-start", flexWrap: "wrap" }}>
+
+            {/* 招待フォーム */}
+            <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, padding: "24px 24px 20px", minWidth: 340, flex: "0 0 340px" }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "#1e293b", marginBottom: 18, fontFamily: FONT }}>新規ユーザーを招待</div>
+
+              {[
+                { label: "メールアドレス *", value: invEmail, set: setInvEmail, type: "email", placeholder: "user@company.com" },
+                { label: "お名前（任意）",   value: invName,    set: setInvName,    type: "text",  placeholder: "山田 太郎" },
+                { label: "会社名（任意）",   value: invCompany, set: setInvCompany, type: "text",  placeholder: "株式会社〇〇" },
+              ].map(({ label, value, set, type, placeholder }) => (
+                <div key={label} style={{ marginBottom: 12 }}>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: "#475569", display: "block", marginBottom: 4, fontFamily: FONT }}>{label}</label>
+                  <input
+                    type={type} value={value} onChange={(e) => set(e.target.value)}
+                    placeholder={placeholder}
+                    style={{ width: "100%", border: "1px solid #e2e8f0", borderRadius: 8, padding: "8px 10px", fontSize: 13, outline: "none", boxSizing: "border-box" as const, fontFamily: FONT }}
+                  />
+                </div>
+              ))}
+
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: "#475569", display: "block", marginBottom: 4, fontFamily: FONT }}>
+                  初期パスワード（空欄で自動生成）
+                </label>
+                <input
+                  type="text" value={invPassword} onChange={(e) => setInvPassword(e.target.value)}
+                  placeholder="空欄で自動生成"
+                  style={{ width: "100%", border: "1px solid #e2e8f0", borderRadius: 8, padding: "8px 10px", fontSize: 13, outline: "none", boxSizing: "border-box" as const, fontFamily: FONT, letterSpacing: "0.05em" }}
+                />
+                <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 4, fontFamily: FONT }}>メールに初期パスワードが記載されます</div>
+              </div>
+
+              {invResult && (
+                <div style={{
+                  padding: "10px 12px", borderRadius: 8, marginBottom: 14, fontSize: 12, fontFamily: FONT,
+                  background: invResult.ok ? "#f0faf5" : "#fff0f0",
+                  border: `1px solid ${invResult.ok ? "#a7f3d0" : "#ffcdd2"}`,
+                  color: invResult.ok ? "#065f46" : "#c62828",
+                }}>
+                  {invResult.ok ? (
+                    <>
+                      <strong>{invResult.email}</strong> に招待メールを送信しました<br />
+                      <span style={{ fontSize: 11, color: "#047857" }}>初期PW: <strong>{invResult.password}</strong></span>
+                    </>
+                  ) : invResult.message}
+                </div>
+              )}
+
+              <button
+                disabled={invLoading || !invEmail}
+                onClick={async () => {
+                  setInvLoading(true);
+                  setInvResult(null);
+                  const res = await fetch("/api/admin/invite", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email: invEmail, name: invName, companyName: invCompany, customPassword: invPassword }),
+                  });
+                  const data = await res.json() as { ok: boolean; email?: string; password?: string; message?: string };
+                  setInvResult(data);
+                  if (data.ok && data.email && data.password) {
+                    setInvHistory((h) => [{ email: data.email!, name: invName, password: data.password!, sentAt: new Date().toLocaleString("ja-JP") }, ...h]);
+                    setInvEmail(""); setInvName(""); setInvCompany(""); setInvPassword("");
+                  }
+                  setInvLoading(false);
+                }}
+                style={{
+                  width: "100%", padding: "10px 0", fontSize: 13, fontWeight: 700, border: "none", borderRadius: 10, cursor: invLoading || !invEmail ? "not-allowed" : "pointer",
+                  background: invLoading || !invEmail ? "#94a3b8" : `linear-gradient(135deg, ${TEAL}, #0d7a6e)`,
+                  color: "#fff", fontFamily: FONT,
+                }}
+              >
+                {invLoading ? "送信中..." : "招待メールを送信"}
+              </button>
+            </div>
+
+            {/* 送信履歴 */}
+            <div style={{ flex: 1, minWidth: 280 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#334155", marginBottom: 12, fontFamily: FONT }}>
+                今セッションの送信履歴
+              </div>
+              {invHistory.length === 0 ? (
+                <div style={{ fontSize: 12, color: "#94a3b8", fontFamily: FONT }}>まだ送信していません</div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {invHistory.map((h, i) => (
+                    <div key={i} style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, padding: "10px 14px", fontSize: 12, fontFamily: FONT }}>
+                      <div style={{ fontWeight: 700, color: "#1e293b" }}>{h.email}</div>
+                      {h.name && <div style={{ color: "#64748b", marginTop: 2 }}>{h.name}</div>}
+                      <div style={{ color: "#94a3b8", marginTop: 3 }}>初期PW: <span style={{ fontWeight: 600, color: "#475569", letterSpacing: "0.04em" }}>{h.password}</span></div>
+                      <div style={{ color: "#cbd5e1", marginTop: 2, fontSize: 11 }}>{h.sentAt}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* ── サンプル管理タブ ── */}
         {tab === "samples" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+
+            {samplesError && (
+              <div style={{ background: "#fff0f0", border: "1px solid #ffcdd2", borderRadius: 10, padding: "12px 16px", fontSize: 13, color: "#c62828", display: "flex", alignItems: "center", gap: 12 }}>
+                <span style={{ flex: 1 }}>⚠ {samplesError}</span>
+                <button
+                  onClick={fetchSamples}
+                  style={{ fontSize: 12, fontWeight: 600, padding: "4px 12px", borderRadius: 6, border: "none", background: "#dc2626", color: "#fff", cursor: "pointer" }}
+                >再試行</button>
+              </div>
+            )}
 
             <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, overflow: "hidden" }}>
               <div style={{ padding: "14px 20px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", gap: 12 }}>
@@ -591,6 +844,12 @@ export default function AdminPage() {
                 <span style={{ fontSize: 12, color: "#94a3b8" }}>
                   デフォルト: {sampleStoryboards.filter(s => s.isDefaultSample).length} 件
                 </span>
+                <div style={{ flex: 1 }} />
+                <button
+                  onClick={fetchSamples}
+                  disabled={samplesLoading}
+                  style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 6, border: "1px solid #e2e8f0", background: "#f8fafc", color: "#64748b", cursor: samplesLoading ? "default" : "pointer" }}
+                >{samplesLoading ? "読込中..." : "🔄 更新"}</button>
               </div>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                 <thead>
@@ -603,7 +862,7 @@ export default function AdminPage() {
                 <tbody>
                   {sampleStoryboards.length === 0 ? (
                     <tr><td colSpan={4} style={{ padding: "32px 16px", textAlign: "center", color: "#cbd5e1", fontSize: 13 }}>
-                      管理者アカウントでコンテを作成してください
+                      {samplesLoading ? "読み込み中..." : samplesError ? "上記エラーを確認してください" : "管理者アカウントでコンテを作成してください"}
                     </td></tr>
                   ) : sampleStoryboards.map((sb) => (
                     <SampleToggleRow
@@ -644,7 +903,7 @@ export default function AdminPage() {
                 <tbody>
                   {sampleProjects.length === 0 ? (
                     <tr><td colSpan={3} style={{ padding: "32px 16px", textAlign: "center", color: "#cbd5e1", fontSize: 13 }}>
-                      管理者アカウントでプロジェクトを作成してください
+                      {samplesLoading ? "読み込み中..." : samplesError ? "上記エラーを確認してください" : "管理者アカウントでプロジェクトを作成してください"}
                     </td></tr>
                   ) : sampleProjects.map((pj) => (
                     <SampleToggleRow
@@ -669,6 +928,82 @@ export default function AdminPage() {
 
             <div style={{ background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 10, padding: "12px 16px", fontSize: 13, color: "#92400e", lineHeight: 1.7 }}>
               ⚠️ デフォルトサンプルは<strong>新規ユーザー登録時</strong>に自動コピーされます。既存ユーザーには適用されません。
+            </div>
+          </div>
+        )}
+
+        {/* ── プラン設定タブ ── */}
+        {tab === "plans" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+            <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, overflow: "hidden" }}>
+              <div style={{ padding: "14px 20px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", gap: 12 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#334155" }}>プラン設定</span>
+                <span style={{ fontSize: 12, color: "#94a3b8" }}>値を編集してフォーカスを外すと自動保存されます</span>
+                <button onClick={fetchPlanConfigs} style={{ marginLeft: "auto", fontSize: 11, padding: "3px 10px", borderRadius: 6, border: "1px solid #e2e8f0", background: "#f8fafc", color: "#64748b", cursor: "pointer" }}>🔄 更新</button>
+              </div>
+              {planConfigs.length === 0 ? (
+                <div style={{ padding: "40px", textAlign: "center", color: "#94a3b8", fontSize: 13 }}>読み込み中...</div>
+              ) : (
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                    <thead>
+                      <tr style={{ background: "#f8fafc" }}>
+                        <th style={{ padding: "10px 16px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "#94a3b8", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>設定項目</th>
+                        {planConfigs.map((cfg) => (
+                          <th key={cfg.id} style={{ padding: "10px 16px", textAlign: "center", fontSize: 12, fontWeight: 700, borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap", color: cfg.id === "Pro" ? TEAL : "#64748b", background: cfg.id === "Pro" ? `${TEAL}08` : undefined }}>
+                            {cfg.label}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {([
+                        { field: "price_jpy",        label: "月額料金（円・税抜）",    type: "number" },
+                        { field: "credit_img_max",    label: "画像生成クレジット/月",   type: "number" },
+                        { field: "credit_script_max", label: "台本生成クレジット/月",   type: "number" },
+                        { field: "credit_video_max",  label: "動画生成クレジット/月",   type: "number" },
+                        { field: "credit_audio_max",  label: "ナレーション生成/月",     type: "number" },
+                        { field: "credit_bgm_max",    label: "BGM生成クレジット/月",    type: "number" },
+                        { field: "max_workspaces",    label: "ワークスペース上限",       type: "number" },
+                        { field: "free_model_img",    label: "画像モデル（無料枠）",    type: "text"   },
+                        { field: "free_model_video",  label: "動画モデル（無料枠）",    type: "text"   },
+                      ] as { field: keyof PlanConfig; label: string; type: string }[]).map(({ field, label, type }) => (
+                        <tr key={field} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                          <td style={{ padding: "10px 16px", color: "#475569", fontWeight: 500, whiteSpace: "nowrap" }}>{label}</td>
+                          {planConfigs.map((cfg) => {
+                            const key = `${cfg.id}.${field}`;
+                            const saving = planConfigsSaving === key;
+                            return (
+                              <td key={cfg.id} style={{ padding: "8px 16px", textAlign: "center", background: cfg.id === "Pro" ? `${TEAL}05` : undefined }}>
+                                <input
+                                  type={type}
+                                  defaultValue={String(cfg[field])}
+                                  disabled={saving}
+                                  onBlur={(e) => {
+                                    const raw = e.target.value;
+                                    const val = type === "number" ? Number(raw) : raw;
+                                    if (String(val) !== String(cfg[field])) patchPlanConfig(cfg.id, field, val);
+                                  }}
+                                  onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                                  style={{
+                                    width: type === "number" ? 80 : 180, fontSize: 12, padding: "5px 8px",
+                                    border: `1px solid ${saving ? TEAL : "#e2e8f0"}`, borderRadius: 6, outline: "none",
+                                    textAlign: type === "number" ? "right" : "left",
+                                    background: saving ? `${TEAL}10` : "#fff", color: "#334155",
+                                  }}
+                                />
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+            <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 10, padding: "12px 16px", fontSize: 13, color: "#1e40af", lineHeight: 1.7 }}>
+              💡 プラン変更時（Free → Pro）にこの設定が適用されます。既存ユーザーのクレジットには即時反映されません。
             </div>
           </div>
         )}

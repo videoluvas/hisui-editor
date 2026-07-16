@@ -7,8 +7,7 @@ import { getEditorSessionFromCookie } from "@/lib/auth.backend";
 import { logError } from "@/lib/log.error";
 import { r2Client, R2_BUCKET_NAME, R2_PUBLIC_URL } from "@/lib/fileupload.r2";
 import { prisma } from "@/lib/prisma";
-import { checkFreeAccess } from "@/lib/free-limit";
-import { logGeneration } from "@/lib/log.generation";
+import { consumeCredits, refundCredits, bgmModelToAction } from "@/lib/credits";
 import { v4 as uuidv4 } from "uuid";
 
 const GOOGLE_AI_BASE = "https://generativelanguage.googleapis.com/v1beta";
@@ -28,7 +27,8 @@ export async function POST(request: NextRequest) {
     model?: string;
   };
 
-  const credit = await checkFreeAccess(session.userId, "bgm", body.model ?? "lyria-3-pro-preview");
+  const model = (body.model ?? "lyria-3-pro-preview").trim();
+  const credit = await consumeCredits(session.userId, bgmModelToAction(model), body.workspaceId ?? null);
   if (!credit.ok) return NextResponse.json({ ok: false, message: credit.message }, { status: 402 });
 
   const combinedPrompt = buildPrompt(body);
@@ -38,8 +38,6 @@ export async function POST(request: NextRequest) {
   const apiKey = process.env.GOOGLE_AI_API_KEY;
   if (!apiKey)
     return NextResponse.json({ ok: false, message: "GOOGLE_AI_API_KEY が設定されていません" }, { status: 500 });
-
-  const model = credit.effectiveModel.trim();
 
   try {
     const res = await fetch(`${GOOGLE_AI_BASE}/models/${model}:generateContent`, {
@@ -107,12 +105,11 @@ export async function POST(request: NextRequest) {
       } as any,
     });
 
-    await logGeneration(session.userId, "bgm");
-
     return NextResponse.json({ ok: true, audioUrl });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     await logError("bgm-generate", msg, { userId: session.userId });
+    await refundCredits(session.userId, bgmModelToAction(model), body.workspaceId ?? null);
 
     if (msg.includes("401") || msg.includes("403"))
       return NextResponse.json({ ok: false, message: "Google APIキーが無効または権限がありません" }, { status: 500 });

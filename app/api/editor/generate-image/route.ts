@@ -7,10 +7,9 @@ import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { prisma } from "@/lib/prisma";
 import { getEditorSessionFromCookie } from "@/lib/auth.backend";
 import { logError } from "@/lib/log.error";
-import { logGeneration } from "@/lib/log.generation";
 import { r2Client, R2_BUCKET_NAME, R2_PUBLIC_URL } from "@/lib/fileupload.r2";
 import { resolveSeedreamSize } from "@/lib/imageSettings";
-import { checkFreeAccess } from "@/lib/free-limit";
+import { consumeCredits, refundCredits, imageModelToAction } from "@/lib/credits";
 
 const REVE_API_URL   = "https://api.reve.com/v1/image/edit";
 const ARK_API_URL    = "https://ark.ap-southeast.bytepluses.com/api/v3/images/generations";
@@ -85,10 +84,11 @@ export async function POST(request: NextRequest) {
   const neg   = body.imgNegativePrompt?.trim();
   const prompt = [basePrompt, rules, neg ? `以下の要素は含めないでください: ${neg}` : ""].filter(Boolean).join(" ");
 
-  const { ok: accessOk, message: accessMsg, effectiveModel: imageModel } = await checkFreeAccess(session.userId, "img", body.imageModel ?? "google-image-lite");
-  if (!accessOk) return NextResponse.json({ ok: false, message: accessMsg }, { status: 402 });
+  const imageModel = body.imageModel ?? "google-image-lite";
   const userId = session.userId;
   const workspaceId = body.workspaceId ?? null;
+  const credit = await consumeCredits(userId, imageModelToAction(imageModel), workspaceId);
+  if (!credit.ok) return NextResponse.json({ ok: false, message: credit.message }, { status: 402 });
 
   // ── Seedream 5.0 Pro ─────────────────────────────────────────────────────────
   if (imageModel === "seedream-5-0-pro") {
@@ -122,6 +122,7 @@ export async function POST(request: NextRequest) {
       imageB64 = data.data[0].b64_json;
     } catch (e) {
       await logError("editor-generate-image", `ARK API error: ${e}`, { userId, detail: {} });
+      await refundCredits(userId, imageModelToAction(imageModel), workspaceId);
       return NextResponse.json({ ok: false, message: `画像生成に失敗しました: ${e}` }, { status: 500 });
     }
 
@@ -130,7 +131,6 @@ export async function POST(request: NextRequest) {
     await r2Client.send(new PutObjectCommand({ Bucket: R2_BUCKET_NAME, Key: key, Body: imgBuffer, ContentType: contentType }));
     const url = `${R2_PUBLIC_URL}/${key}`;
     await prisma.file.create({ data: { userId, workspaceId, storageKey: key, fileUrl: url, fileName: key.split("/").pop() ?? "image", fileType: "image", mimeType: contentType, sizeBytes: BigInt(imgBuffer.length) } }).catch(() => {});
-    await logGeneration(userId, "img");
     return NextResponse.json({ ok: true, url });
   }
 
@@ -169,6 +169,7 @@ export async function POST(request: NextRequest) {
       mimeType = inlineData.mimeType ?? "image/jpeg";
     } catch (e) {
       await logError("editor-generate-image", `Google API error: ${e}`, { userId, detail: {} });
+      await refundCredits(userId, imageModelToAction(imageModel), workspaceId);
       return NextResponse.json({ ok: false, message: `画像生成に失敗しました: ${e}` }, { status: 500 });
     }
 
@@ -178,7 +179,6 @@ export async function POST(request: NextRequest) {
     await r2Client.send(new PutObjectCommand({ Bucket: R2_BUCKET_NAME, Key: key, Body: imgBuffer, ContentType: mimeType }));
     const url = `${R2_PUBLIC_URL}/${key}`;
     await prisma.file.create({ data: { userId, workspaceId, storageKey: key, fileUrl: url, fileName: key.split("/").pop() ?? "image", fileType: "image", mimeType, sizeBytes: BigInt(imgBuffer.length) } }).catch(() => {});
-    await logGeneration(userId, "img");
     return NextResponse.json({ ok: true, url });
   }
 
@@ -214,6 +214,7 @@ export async function POST(request: NextRequest) {
     imageB64 = data.image;
   } catch (e) {
     await logError("editor-generate-image", `Reve API error: ${e}`, { userId, detail: {} });
+    await refundCredits(userId, imageModelToAction(imageModel), workspaceId);
     return NextResponse.json({ ok: false, message: `画像生成に失敗しました: ${e}` }, { status: 500 });
   }
 
@@ -222,6 +223,5 @@ export async function POST(request: NextRequest) {
   await r2Client.send(new PutObjectCommand({ Bucket: R2_BUCKET_NAME, Key: key, Body: imgBuffer, ContentType: "image/png" }));
   const url = `${R2_PUBLIC_URL}/${key}`;
   await prisma.file.create({ data: { userId, workspaceId, storageKey: key, fileUrl: url, fileName: key.split("/").pop() ?? "image.png", fileType: "image", mimeType: "image/png", sizeBytes: BigInt(imgBuffer.length) } }).catch(() => {});
-  await logGeneration(userId, "img");
   return NextResponse.json({ ok: true, url });
 }

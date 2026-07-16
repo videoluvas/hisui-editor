@@ -77,12 +77,11 @@ export function saveSpreadsheetSettings(s: SpreadsheetSettings): void {
 
 // ─── コンテ → 動画プロジェクト変換設定 ──────────────────────────────────────
 
-export type ExportResolution = "720p" | "1080p" | "4k";
+export type ExportResolution = "720p" | "1080p";
 
 export const RESOLUTION_MAP: Record<ExportResolution, { width: number; height: number; label: string }> = {
-  "720p":  { width: 1280,  height: 720,  label: "HD 720p (1280×720)" },
-  "1080p": { width: 1920,  height: 1080, label: "Full HD 1080p (1920×1080)" },
-  "4k":    { width: 3840,  height: 2160, label: "4K UHD (3840×2160)" },
+  "720p":  { width: 1280, height: 720,  label: "HD 720p (1280×720)" },
+  "1080p": { width: 1920, height: 1080, label: "Full HD 1080p (1920×1080)" },
 };
 
 export type TelopFontFamily = "Noto Sans JP" | "Noto Serif JP";

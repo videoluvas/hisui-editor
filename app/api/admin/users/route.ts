@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getEditorSessionFromCookie } from "@/lib/auth.backend";
-import { logGeneration } from "@/lib/log.generation";
+import { grantCredits } from "@/lib/credits";
 
 async function isAdmin(userId: string): Promise<boolean> {
   const adminEmails = (process.env.ADMIN_EMAIL ?? "")
@@ -15,11 +15,6 @@ async function isAdmin(userId: string): Promise<boolean> {
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
   return !!user?.email && adminEmails.includes(user.email.toLowerCase());
 }
-
-const PLAN_DEFAULTS: Record<string, { imgMax: number; scriptMax: number }> = {
-  Free: { imgMax: 15,  scriptMax: 5   },
-  Pro:  { imgMax: 200, scriptMax: 100 },
-};
 
 // ── GET: ユーザー一覧 ──────────────────────────────────────────────────────────
 export async function GET() {
@@ -34,16 +29,18 @@ export async function GET() {
       name: true,
       email: true,
       plan: true,
-      creditImg: true,
-      creditImgMax: true,
-      creditScript: true,
-      creditScriptMax: true,
+      credits: true,
       createdAt: true,
     },
   });
 
   return NextResponse.json({ ok: true, users });
 }
+
+const PLAN_CREDIT_GRANT: Record<string, number> = {
+  Pro:      500_000,
+  Business: 150_000,
+};
 
 // ── PATCH: プラン・クレジット変更 ──────────────────────────────────────────────
 export async function PATCH(req: NextRequest) {
@@ -54,63 +51,63 @@ export async function PATCH(req: NextRequest) {
   const body = await req.json().catch(() => ({})) as {
     userId: string;
     plan?: string;
-    grantImg?: number;
-    grantScript?: number;
+    grantCredits?: number;
   };
 
   if (!body.userId) return NextResponse.json({ ok: false, message: "userId が必要です" }, { status: 400 });
 
   const target = await prisma.user.findUnique({
     where: { id: body.userId },
-    select: { id: true, plan: true, creditImg: true, creditImgMax: true, creditScript: true, creditScriptMax: true },
+    select: { id: true, plan: true, credits: true },
   });
   if (!target) return NextResponse.json({ ok: false, message: "ユーザーが見つかりません" }, { status: 404 });
 
-  const data: Record<string, unknown> = {};
+  const updateData: Record<string, unknown> = {};
 
-  // プラン変更
-  if (body.plan !== undefined && body.plan !== target.plan) {
-    const defaults = PLAN_DEFAULTS[body.plan] ?? PLAN_DEFAULTS.Free;
-    data.plan          = body.plan;
-    data.creditImgMax  = defaults.imgMax;
-    data.creditScriptMax = defaults.scriptMax;
-    // 残高をプラン上限にリセット（増加方向のみ）
-    data.creditImg    = Math.max(target.creditImg,    defaults.imgMax);
-    data.creditScript = Math.max(target.creditScript, defaults.scriptMax);
-  }
+  const planChanging = body.plan !== undefined && body.plan !== target.plan;
+  if (planChanging) updateData.plan = body.plan;
 
-  // クレジット付与
-  if (body.grantImg && body.grantImg !== 0) {
-    const cur = typeof data.creditImg    === "number" ? data.creditImg    : target.creditImg;
-    const max = typeof data.creditImgMax === "number" ? data.creditImgMax : target.creditImgMax;
-    data.creditImg = Math.min(cur + body.grantImg, max * 3);
-  }
-  if (body.grantScript && body.grantScript !== 0) {
-    const cur = typeof data.creditScript    === "number" ? data.creditScript    : target.creditScript;
-    const max = typeof data.creditScriptMax === "number" ? data.creditScriptMax : target.creditScriptMax;
-    data.creditScript = Math.min(cur + body.grantScript, max * 3);
-  }
-
-  if (Object.keys(data).length === 0)
+  if (Object.keys(updateData).length === 0 && !body.grantCredits) {
     return NextResponse.json({ ok: false, message: "変更内容がありません" }, { status: 400 });
+  }
 
-  const updated = await prisma.user.update({
+  if (Object.keys(updateData).length > 0) {
+    await prisma.user.update({ where: { id: body.userId }, data: updateData });
+  }
+
+  if (planChanging && body.plan && PLAN_CREDIT_GRANT[body.plan]) {
+    await grantCredits(body.userId, PLAN_CREDIT_GRANT[body.plan], `plan_upgrade_${body.plan.toLowerCase()}`);
+  }
+
+  if (body.grantCredits && body.grantCredits !== 0) {
+    await grantCredits(body.userId, body.grantCredits, "admin_grant");
+  }
+
+  const updated = await prisma.user.findUnique({
     where: { id: body.userId },
-    data: data as Parameters<typeof prisma.user.update>[0]["data"],
-    select: { id: true, plan: true, creditImg: true, creditImgMax: true, creditScript: true, creditScriptMax: true },
+    select: { id: true, plan: true, credits: true },
   });
 
-  // クレジット付与ログ
-  if (body.grantImg) {
-    await prisma.logCredit.create({
-      data: { userId: body.userId, creditType: "img", delta: body.grantImg, balanceAfter: updated.creditImg, reason: "manual_grant" },
-    }).catch(() => {});
-  }
-  if (body.grantScript) {
-    await prisma.logCredit.create({
-      data: { userId: body.userId, creditType: "script", delta: body.grantScript, balanceAfter: updated.creditScript, reason: "manual_grant" },
-    }).catch(() => {});
-  }
-
   return NextResponse.json({ ok: true, user: updated });
+}
+
+// ── DELETE: ユーザー削除 ───────────────────────────────────────────────────────
+export async function DELETE(req: NextRequest) {
+  const session = await getEditorSessionFromCookie();
+  if (!session) return NextResponse.json({ ok: false }, { status: 401 });
+  if (!(await isAdmin(session.userId))) return NextResponse.json({ ok: false }, { status: 403 });
+
+  const { userId } = await req.json().catch(() => ({})) as { userId?: string };
+  if (!userId) return NextResponse.json({ ok: false, message: "userId が必要です" }, { status: 400 });
+
+  if (userId === session.userId)
+    return NextResponse.json({ ok: false, message: "自分自身は削除できません" }, { status: 400 });
+
+  const target = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, email: true } });
+  if (!target) return NextResponse.json({ ok: false, message: "ユーザーが見つかりません" }, { status: 404 });
+
+  await prisma.session.deleteMany({ where: { userId } });
+  await prisma.user.delete({ where: { id: userId } });
+
+  return NextResponse.json({ ok: true });
 }

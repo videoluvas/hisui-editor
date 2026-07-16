@@ -67,14 +67,13 @@ export type BulkEditOps = {
   videoMute?: boolean;
   // F 出力設定
   backgroundColor?: string;
-  resolution?: "720p" | "1080p" | "4k";
+  resolution?: "720p" | "1080p";
   fps?: 24 | 30 | 60;
 };
 
 const RES_MAP: Record<string, { width: number; height: number }> = {
-  "720p":  { width: 1280,  height: 720  },
-  "1080p": { width: 1920,  height: 1080 },
-  "4k":    { width: 3840,  height: 2160 },
+  "720p":  { width: 1280, height: 720  },
+  "1080p": { width: 1920, height: 1080 },
 };
 
 export function applyBulkEdit(raw: unknown, ops: BulkEditOps): unknown {

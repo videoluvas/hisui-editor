@@ -20,7 +20,20 @@ export async function listWorkspaces(): Promise<{ ok: boolean; workspaces: Works
   return { ok: false, workspaces: [], ...data };
 }
 
-export async function createWorkspace(name: string): Promise<{ ok: boolean; workspace?: WorkspaceItem; message?: string }> {
+export type SampleProject = {
+  id: string; title: string; status: string; thumbnailUrl: string | null;
+  aspectRatio: string | null; width: number | null; height: number | null;
+  fps: number | null; backgroundColor: string | null; editJsonKey: string | null;
+  durationSec: number | null; createdAt: string; updatedAt: string;
+};
+
+export async function createWorkspace(name: string): Promise<{
+  ok: boolean;
+  workspace?: WorkspaceItem;
+  sampleStoryboardId?: string | null;
+  sampleProject?: SampleProject | null;
+  message?: string;
+}> {
   const res = await fetch("/api/workspace", {
     method: "POST",
     credentials: "include",

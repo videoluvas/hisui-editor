@@ -6,10 +6,9 @@ import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { prisma } from "@/lib/prisma";
 import { getEditorSessionFromCookie } from "@/lib/auth.backend";
 import { logError } from "@/lib/log.error";
-import { logGeneration } from "@/lib/log.generation";
 import { r2Client, R2_BUCKET_NAME, R2_PUBLIC_URL } from "@/lib/fileupload.r2";
 import { v4 as uuidv4 } from "uuid";
-import { checkFreeAccess } from "@/lib/free-limit";
+import { consumeCredits, refundCredits, narrationMultiplier } from "@/lib/credits";
 import {
   GEMINI_TTS_MODELS,
   GEMINI_VOICES,
@@ -176,9 +175,6 @@ export async function POST(
   if (!scene || scene.mainId !== params.id)
     return NextResponse.json({ ok: false, message: "見つかりません" }, { status: 404 });
 
-  const { ok: accessOk, message: accessMsg } = await checkFreeAccess(session.userId, "audio", "");
-  if (!accessOk) return NextResponse.json({ ok: false, message: accessMsg }, { status: 402 });
-
   const body = await request.json().catch(() => ({})) as {
     transcript?: string;
     provider?: TtsProvider;
@@ -200,6 +196,10 @@ export async function POST(
   const transcript = (body.transcript ?? "").trim();
   if (!transcript)
     return NextResponse.json({ ok: false, message: "台本テキストが空です" }, { status: 400 });
+
+  const mult = narrationMultiplier(transcript);
+  const credit = await consumeCredits(session.userId, "narration", sb.workspaceId ?? null, mult);
+  if (!credit.ok) return NextResponse.json({ ok: false, message: credit.message }, { status: 402 });
 
   const provider  = body.provider ?? "google-gemini";
   if (provider !== "google-gemini")
@@ -306,7 +306,6 @@ export async function POST(
       // ファイル登録失敗は無視（音声生成自体は成功）
     }
 
-    await logGeneration(session.userId, "audio");
     return NextResponse.json({ ok: true, audioUrl, audioDuration: audioDurationSec });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -319,6 +318,7 @@ export async function POST(
         model: modelKey,
       },
     });
+    await refundCredits(session.userId, "narration", sb.workspaceId ?? null, mult);
 
     if (msg.includes("401") || msg.includes("403"))
       return NextResponse.json({ ok: false, message: "Google APIキーが無効または権限がありません" }, { status: 500 });

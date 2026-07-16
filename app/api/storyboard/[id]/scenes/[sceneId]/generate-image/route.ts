@@ -7,10 +7,9 @@ import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { prisma } from "@/lib/prisma";
 import { getEditorSessionFromCookie } from "@/lib/auth.backend";
 import { logError } from "@/lib/log.error";
-import { logGeneration } from "@/lib/log.generation";
 import { r2Client, R2_BUCKET_NAME, R2_PUBLIC_URL } from "@/lib/fileupload.r2";
 import { resolveSeedreamSize } from "@/lib/imageSettings";
-import { checkFreeAccess } from "@/lib/free-limit";
+import { consumeCredits, refundCredits, imageModelToAction } from "@/lib/credits";
 
 const REVE_API_URL   = "https://api.reve.com/v1/image/edit";
 const ARK_API_URL    = "https://ark.ap-southeast.bytepluses.com/api/v3/images/generations";
@@ -182,8 +181,10 @@ export async function POST(
     imageModel: requestedImageModel = "reve-1",
   } = body;
 
-  const { ok: accessOk, message: accessMsg, effectiveModel: imageModel } = await checkFreeAccess(session.userId, "img", requestedImageModel);
-  if (!accessOk) return NextResponse.json({ ok: false, message: accessMsg }, { status: 402 });
+  const imageModel = requestedImageModel;
+  const workspaceId = sb.workspaceId ?? null;
+  const credit = await consumeCredits(session.userId, imageModelToAction(imageModel), workspaceId);
+  if (!credit.ok) return NextResponse.json({ ok: false, message: credit.message }, { status: 402 });
 
   // ── Seedream 5.0 Pro ─────────────────────────────────────────────────────────
   if (imageModel === "seedream-5-0-pro") {
@@ -255,6 +256,7 @@ export async function POST(
       imageB64 = item.b64_json;
     } catch (e) {
       await logError("generate-image", `ARK API error: ${e}`, { userId: session.userId, detail: { storyboardId: params.id, sceneId: params.sceneId } });
+      await refundCredits(session.userId, imageModelToAction(imageModel), workspaceId);
       return NextResponse.json({ ok: false, message: `画像生成に失敗しました: ${e}` }, { status: 500 });
     }
 
@@ -290,7 +292,6 @@ export async function POST(
         sizeBytes:   BigInt(imgBuffer.length),
       },
     }).catch(() => {});
-    await logGeneration(session.userId, "img");
     return NextResponse.json({ ok: true, imgUrl: publicUrl });
   }
 
@@ -361,6 +362,7 @@ export async function POST(
       mimeType = inlineData.mimeType ?? "image/jpeg";
     } catch (e) {
       await logError("generate-image", `Google API error: ${e}`, { userId: session.userId, detail: { storyboardId: params.id, sceneId: params.sceneId } });
+      await refundCredits(session.userId, imageModelToAction(imageModel), workspaceId);
       return NextResponse.json({ ok: false, message: `画像生成に失敗しました: ${e}` }, { status: 500 });
     }
 
@@ -389,7 +391,6 @@ export async function POST(
         sizeBytes:   BigInt(imgBuffer.length),
       },
     }).catch(() => {});
-    await logGeneration(session.userId, "img");
     return NextResponse.json({ ok: true, imgUrl: publicUrl });
   }
 
@@ -460,6 +461,7 @@ export async function POST(
     imageB64 = data.image;
   } catch (e) {
     await logError("generate-image", `Reve API error: ${e}`, { userId: session.userId, detail: { storyboardId: params.id, sceneId: params.sceneId } });
+    await refundCredits(session.userId, imageModelToAction(imageModel), workspaceId);
     return NextResponse.json({ ok: false, message: `画像生成に失敗しました: ${e}` }, { status: 500 });
   }
 
@@ -498,6 +500,5 @@ export async function POST(
     },
   }).catch(() => {});
 
-  await logGeneration(session.userId, "img");
   return NextResponse.json({ ok: true, imgUrl: publicUrl });
 }

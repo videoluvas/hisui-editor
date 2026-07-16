@@ -17,9 +17,11 @@ export type VideoExportSettings = {
   thumbnailScale:   number;
   callbackUrl:      string;
   // ── シーケンス設定連動（デフォルトは ExportSettings から取得） ───────────────
-  resolution:       ExportResolution;        // "720p" | "1080p" | "4k"
+  resolution:       ExportResolution;        // "720p" | "1080p"
   fps:              24 | 25 | 30 | 60;
   backgroundColor:  string;
+  // ── 透かし / サンドボックス ──────────────────────────────────────────────────
+  sandboxMode:      boolean;  // true = 透かしあり（無料）, false = 透かしなし（本番・有料）
 };
 
 const STATIC_DEFAULTS: VideoExportSettings = {
@@ -35,6 +37,7 @@ const STATIC_DEFAULTS: VideoExportSettings = {
   resolution:       "1080p",
   fps:              30,
   backgroundColor:  "#000000",
+  sandboxMode:      false,  // 有料ユーザーデフォルトは本番（無料ユーザーはサーバー側で強制）
 };
 
 export { RESOLUTION_MAP };

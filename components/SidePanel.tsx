@@ -81,22 +81,14 @@ export default function SidePanel({
   const { user, loading, isLoggedIn, logoutUser } = useAuthUser();
   const router = useRouter();
 
-  type Credits = {
-    plan: string | null;
-    creditScript: number; creditScriptMax: number;
-    creditImg: number;    creditImgMax: number;
-    creditVideo: number;  creditVideoMax: number;
-    creditAudio: number;  creditAudioMax: number;
-    creditBgm: number;    creditBgmMax: number;
-  };
-  const [credits, setCredits] = useState<Credits | null>(null);
+  const [credits, setCredits] = useState<number | null>(null);
 
   const fetchCredits = useCallback(async () => {
     if (!isLoggedIn) return;
     try {
       const res = await fetch("/api/user/credits", { credentials: "include", cache: "no-store" });
       const data = await res.json();
-      if (data.ok) setCredits(data as Credits);
+      if (data.ok) setCredits(data.credits as number);
     } catch {}
   }, [isLoggedIn]);
 
@@ -221,31 +213,17 @@ export default function SidePanel({
           )}
         </div>
 
-        {/* クレジット残数ミニ表示（無料プランのみ） */}
-        {isLoggedIn && credits && (!credits.plan || credits.plan === "Free") && (
+        {/* クレジット残数ミニ表示 */}
+        {isLoggedIn && credits !== null && (
           <div
             onClick={() => setDashboardOpen(true)}
-            style={{ margin: "0 10px 10px", padding: "7px 10px", background: "#f8fafc", border: "1px solid #f1f5f9", borderRadius: 8, cursor: "pointer" }}
+            style={{ margin: "0 10px 10px", padding: "6px 10px", background: "#f8fafc", border: "1px solid #f1f5f9", borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between" }}
             title="クリックしてダッシュボードを開く"
           >
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 10px" }}>
-              {([
-                { label: "台本", used: credits.creditScript, max: credits.creditScriptMax },
-                { label: "画像", used: credits.creditImg,    max: credits.creditImgMax },
-                { label: "動画", used: credits.creditVideo,  max: credits.creditVideoMax },
-                { label: "音声", used: credits.creditAudio,  max: credits.creditAudioMax },
-                { label: "BGM",  used: credits.creditBgm,    max: credits.creditBgmMax },
-              ] as const).map(({ label, used, max }) => {
-                const color = used <= 0 ? "#ef4444" : used <= max * 0.25 ? "#f59e0b" : "#64748b";
-                return (
-                  <div key={label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 4 }}>
-                    <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 600, whiteSpace: "nowrap" }}>{label}</span>
-                    <span style={{ fontSize: 10, fontWeight: 700, color }}>{used}<span style={{ color: "#cbd5e1", fontWeight: 400 }}>/{max}</span></span>
-                  </div>
-                );
-              })}
-            </div>
-            <div style={{ fontSize: 9, color: "#c0c8d4", textAlign: "center", marginTop: 4 }}>残クレジット ▸ 詳細はクリック</div>
+            <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 600 }}>残クレジット</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: credits < 500 ? "#ef4444" : credits < 2000 ? "#f59e0b" : "#169385" }}>
+              {credits.toLocaleString()} cr
+            </span>
           </div>
         )}
       </div>
@@ -303,7 +281,11 @@ export default function SidePanel({
       <WorkspaceBar
         selectedWorkspaceId={selectedWorkspaceId}
         onSelectWorkspace={onSelectWorkspace ?? (() => {})}
-        onCreated={() => onAppModeChange?.("conte")}
+        onCreated={(sbId, proj) => {
+          onAppModeChange?.("conte");
+          if (sbId) onSelectStoryboard?.(sbId);
+          if (proj) onSelectProject?.(proj);
+        }}
         isLoggedIn={loading ? undefined : isLoggedIn}
       />
 

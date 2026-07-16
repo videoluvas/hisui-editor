@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { TEAL } from "@/components/icons";
 import { useIsMobile } from "@/lib/useIsMobile";
 import { listWorkspaces, createWorkspace, updateWorkspace, deleteWorkspace } from "@/lib/workspace.api";
-import type { WorkspaceItem } from "@/lib/workspace.api";
+import type { WorkspaceItem, SampleProject } from "@/lib/workspace.api";
 import WorkspaceSettingsModal from "@/components/WorkspaceSettingsModal";
 
 const FONT = "'Noto Sans JP', sans-serif";
@@ -72,7 +72,7 @@ function GearIcon({ size = 14 }: { size?: number }) {
 type Props = {
   selectedWorkspaceId: string | null;
   onSelectWorkspace: (id: string, name: string) => void;
-  onCreated?: () => void;
+  onCreated?: (storyboardId: string | null, project: SampleProject | null) => void;
   isLoggedIn?: boolean;
 };
 
@@ -83,6 +83,7 @@ export default function WorkspaceBar({ selectedWorkspaceId, onSelectWorkspace, o
   const [loaded, setLoaded]             = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [creating, setCreating]         = useState(false);
+  const [submitting, setSubmitting]     = useState(false);
   const [newName, setNewName]           = useState("");
   const [renamingId, setRenamingId]     = useState<string | null>(null);
   const [renameValue, setRenameValue]   = useState("");
@@ -117,16 +118,22 @@ export default function WorkspaceBar({ selectedWorkspaceId, onSelectWorkspace, o
   const selectedWs = workspaces.find((w) => w.id === selectedWorkspaceId) ?? null;
 
   const handleCreate = async () => {
-    const name = newName.trim() || "新しいワークスペース";
-    const res = await createWorkspace(name);
-    if (res.ok && res.workspace) {
-      setWorkspaces((prev) => [res.workspace!, ...prev]);
-      onSelectWorkspace(res.workspace!.id, name);
-      onCreated?.();
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      const name = newName.trim() || "新しいワークスペース";
+      const res = await createWorkspace(name);
+      if (res.ok && res.workspace) {
+        setWorkspaces((prev) => [res.workspace!, ...prev]);
+        onSelectWorkspace(res.workspace!.id, name);
+        onCreated?.(res.sampleStoryboardId ?? null, res.sampleProject ?? null);
+      }
+      setNewName("");
+      setCreating(false);
+      setDropdownOpen(false);
+    } finally {
+      setSubmitting(false);
     }
-    setNewName("");
-    setCreating(false);
-    setDropdownOpen(false);
   };
 
   const startRename = (ws: WorkspaceItem, e: React.MouseEvent) => {
@@ -146,7 +153,7 @@ export default function WorkspaceBar({ selectedWorkspaceId, onSelectWorkspace, o
 
   const handleDelete = async (ws: WorkspaceItem, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm(`「${ws.name}」を削除しますか？\n（コンテ・プロジェクト・ファイルは削除されません）`)) return;
+    if (!confirm(`「${ws.name}」を削除しますか？\nコンテ・プロジェクト・ファイルもすべて削除されます。`)) return;
     const res = await deleteWorkspace(ws.id);
     if (res.ok) {
       const next = workspaces.filter((w) => w.id !== ws.id);
@@ -352,15 +359,17 @@ export default function WorkspaceBar({ selectedWorkspaceId, onSelectWorkspace, o
                       value={newName}
                       onChange={(e) => setNewName(e.target.value)}
                       placeholder="ワークスペース名"
-                      onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); if (e.key === "Escape") setCreating(false); }}
+                      onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); if (e.key === "Escape") { setCreating(false); setNewName(""); } }}
                       autoFocus
+                      disabled={submitting}
                       style={{ flex: 1, border: `1px solid ${TEAL}`, borderRadius: 6, background: "#f8fafd", fontSize: 12, color: "#1e293b", padding: "5px 8px", outline: "none", fontFamily: FONT }}
                     />
                     <button
                       onClick={handleCreate}
-                      style={{ padding: "5px 10px", fontSize: 12, fontWeight: 600, borderRadius: 6, border: "none", background: TEAL, color: "#fff", cursor: "pointer", whiteSpace: "nowrap", fontFamily: FONT }}
+                      disabled={submitting}
+                      style={{ padding: "5px 10px", fontSize: 12, fontWeight: 600, borderRadius: 6, border: "none", background: submitting ? "#94a3b8" : TEAL, color: "#fff", cursor: submitting ? "not-allowed" : "pointer", whiteSpace: "nowrap", fontFamily: FONT }}
                     >
-                      作成
+                      {submitting ? "作成中..." : "作成"}
                     </button>
                   </div>
                 ) : (

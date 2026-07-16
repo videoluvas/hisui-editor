@@ -4,8 +4,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { getEditorSessionFromCookie } from "@/lib/auth.backend";
 import { logError } from "@/lib/log.error";
-import { logGeneration } from "@/lib/log.generation";
-import { checkFreeAccess } from "@/lib/free-limit";
+import { consumeCredits, refundCredits, videoModelToAction } from "@/lib/credits";
 
 
 const ARK_API_BASE   = "https://ark.ap-southeast.bytepluses.com/api/v3";
@@ -44,8 +43,9 @@ export async function POST(request: NextRequest) {
   const neg   = body.vidNegativePrompt?.trim();
   const prompt = [basePrompt, rules, neg ? `以下の要素は含めないでください: ${neg}` : ""].filter(Boolean).join(" ");
 
-  const { ok: accessOk, message: accessMsg, effectiveModel: videoModel } = await checkFreeAccess(session.userId, "video", body.videoModel ?? "seedance-1-5-pro");
-  if (!accessOk) return NextResponse.json({ ok: false, message: accessMsg }, { status: 402 });
+  const videoModel = body.videoModel ?? "veo-3-lite";
+  const credit = await consumeCredits(session.userId, videoModelToAction(videoModel, body.generateAudio ?? false));
+  if (!credit.ok) return NextResponse.json({ ok: false, message: credit.message }, { status: 402 });
 
   const {
     resolution    = "720p",
@@ -92,10 +92,10 @@ export async function POST(request: NextRequest) {
       const data = await resp.json() as { name?: string; error?: { message: string } };
       if (!data.name) throw new Error(data.error?.message ?? "オペレーション名が返されませんでした");
 
-      await logGeneration(userId, "video");
       return NextResponse.json({ ok: true, taskId: `veo:${data.name}`, provider: videoModel });
     } catch (e) {
       await logError("editor-generate-video", `Veo create error: ${e}`, { userId, detail: {} });
+      await refundCredits(userId, videoModelToAction(videoModel, body.generateAudio ?? false));
       return NextResponse.json({ ok: false, message: `動画生成タスクの作成に失敗しました: ${e}` }, { status: 500 });
     }
   }
@@ -125,10 +125,10 @@ export async function POST(request: NextRequest) {
     const data = await resp.json() as { id?: string; message?: string };
     if (!data.id) throw new Error(data.message ?? "タスクIDが返されませんでした");
 
-    await logGeneration(userId, "video");
     return NextResponse.json({ ok: true, taskId: data.id, provider: "seedance" });
   } catch (e) {
     await logError("editor-generate-video", `BytePlus create error: ${e}`, { userId, detail: {} });
+    await refundCredits(userId, videoModelToAction(videoModel, body.generateAudio ?? false));
     return NextResponse.json({ ok: false, message: `動画生成タスクの作成に失敗しました: ${e}` }, { status: 500 });
   }
 }

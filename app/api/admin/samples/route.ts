@@ -18,26 +18,32 @@ export async function GET() {
   if (!session) return NextResponse.json({ ok: false }, { status: 401 });
   if (!(await isAdmin(session.userId))) return NextResponse.json({ ok: false }, { status: 403 });
 
-  const [storyboards, projects] = await Promise.all([
-    prisma.storyboardMain.findMany({
-      where: { userId: session.userId },
-      select: {
-        id: true, title: true, isDefaultSample: true, createdAt: true,
-        _count: { select: { scenes: true } },
-      },
-      orderBy: { createdAt: "desc" },
-    }),
-    prisma.project.findMany({
-      where: { userId: session.userId },
-      select: {
-        id: true, title: true, isDefaultSample: true, createdAt: true,
-        thumbnailUrl: true,
-      },
-      orderBy: { createdAt: "desc" },
-    }),
-  ]);
+  try {
+    const [storyboards, projects] = await Promise.all([
+      prisma.storyboardMain.findMany({
+        where: { userId: session.userId },
+        select: {
+          id: true, title: true, isDefaultSample: true, createdAt: true,
+          _count: { select: { scenes: true } },
+        },
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.project.findMany({
+        where: { userId: session.userId },
+        select: {
+          id: true, title: true, isDefaultSample: true, createdAt: true,
+          thumbnailUrl: true,
+        },
+        orderBy: { createdAt: "desc" },
+      }),
+    ]);
 
-  return NextResponse.json({ ok: true, storyboards, projects });
+    return NextResponse.json({ ok: true, storyboards, projects });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("[admin/samples GET]", msg);
+    return NextResponse.json({ ok: false, message: msg }, { status: 500 });
+  }
 }
 
 export async function PATCH(req: NextRequest) {

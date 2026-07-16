@@ -48,16 +48,7 @@ model User {
   newSignupBonus Boolean @default(false)  @map("new_signup_bonus")
 
   // Credits
-  creditImg       Int @default(20) @map("credit_img")
-  creditImgMax    Int @default(20) @map("credit_img_max")
-  creditScript    Int @default(5)  @map("credit_script")
-  creditScriptMax Int @default(5)  @map("credit_script_max")
-  creditVideo     Int @default(10) @map("credit_video")
-  creditVideoMax  Int @default(10) @map("credit_video_max")
-  creditAudio     Int @default(20) @map("credit_audio")
-  creditAudioMax  Int @default(20) @map("credit_audio_max")
-  creditBgm       Int @default(5)  @map("credit_bgm")
-  creditBgmMax    Int @default(5)  @map("credit_bgm_max")
+  credits Int @default(1000) @map("credits")
 
   // Stripe
   stripeCustomerId         String?   @unique @map("stripe_customer_id")
@@ -368,15 +359,17 @@ model LogCheckout {
 model LogCredit {
   id           String   @id @default(uuid())
   userId       String   @map("user_id")
-  creditType   String   @map("credit_type")  // "img" | "script"
+  workspaceId  String?  @map("workspace_id")
+  creditType   String   @map("credit_type")  // CreditAction
   delta        Int                            // 消費は負値、補填は正値
   balanceAfter Int      @map("balance_after")
-  reason       String?                        // "generation_used" | "plan_upgrade" | "manual_grant" 等
+  reason       String?
   createdAt    DateTime @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId, creditType])
+  @@index([userId])
+  @@index([userId, workspaceId])
   @@map("logs_credit")
 }
 

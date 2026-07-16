@@ -5,8 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getEditorSessionFromCookie } from "@/lib/auth.backend";
 import { logError } from "@/lib/log.error";
-import { logGeneration } from "@/lib/log.generation";
-import { checkFreeAccess } from "@/lib/free-limit";
+import { consumeCredits, refundCredits, videoModelToAction } from "@/lib/credits";
 
 
 const ARK_API_BASE   = "https://ark.ap-southeast.bytepluses.com/api/v3";
@@ -51,8 +50,10 @@ export async function POST(
     vidNegativePrompt?: string;
   };
 
-  const { ok: accessOk, message: accessMsg, effectiveModel: videoModel } = await checkFreeAccess(session.userId, "video", body.videoModel ?? "seedance-1-5-pro");
-  if (!accessOk) return NextResponse.json({ ok: false, message: accessMsg }, { status: 402 });
+  const videoModel = body.videoModel ?? "veo-3-lite";
+  const workspaceId = sb.workspaceId ?? null;
+  const credit = await consumeCredits(session.userId, videoModelToAction(videoModel, body.generateAudio ?? false), workspaceId);
+  if (!credit.ok) return NextResponse.json({ ok: false, message: credit.message }, { status: 402 });
 
   const {
     resolution    = "720p",
@@ -142,13 +143,13 @@ export async function POST(
         },
       });
 
-      await logGeneration(session.userId, "video");
       return NextResponse.json({ ok: true, taskId: `veo:${data.name}` });
     } catch (e) {
       await logError("generate-video", `Veo create error: ${e}`, {
         userId: session.userId,
         detail: { storyboardId: params.id, sceneId: params.sceneId },
       });
+      await refundCredits(session.userId, videoModelToAction(videoModel, body.generateAudio ?? false), workspaceId);
       return NextResponse.json({ ok: false, message: `動画生成タスクの作成に失敗しました: ${e}` }, { status: 500 });
     }
   }
@@ -218,13 +219,13 @@ export async function POST(
       },
     });
 
-    await logGeneration(session.userId, "video");
     return NextResponse.json({ ok: true, taskId: data.id });
   } catch (e) {
     await logError("generate-video", `BytePlus create error: ${e}`, {
       userId: session.userId,
       detail: { storyboardId: params.id, sceneId: params.sceneId },
     });
+    await refundCredits(session.userId, videoModelToAction(videoModel, body.generateAudio ?? false), workspaceId);
     return NextResponse.json({ ok: false, message: `動画生成タスクの作成に失敗しました: ${e}` }, { status: 500 });
   }
 }

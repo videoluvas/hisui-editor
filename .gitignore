@@ -17,3 +17,6 @@ tsconfig.tsbuildinfo
 # OS
 .DS_Store
 Thumbs.db
+
+# Backup
+hisui-ai/

@@ -40,7 +40,12 @@ export async function DELETE(
     if (!ws || ws.userId !== session.userId)
       return NextResponse.json({ ok: false, message: "見つかりません" }, { status: 404 });
 
+    // コンテ（シーンはカスケード）→ ファイル → プロジェクト → ワークスペースの順で削除
+    await prisma.storyboardMain.deleteMany({ where: { workspaceId: params.id } });
+    await prisma.file.deleteMany({ where: { workspaceId: params.id } });
+    await prisma.project.deleteMany({ where: { workspaceId: params.id } });
     await (prisma as any).workspace.delete({ where: { id: params.id } });
+
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("[workspace DELETE]", e);

@@ -38,7 +38,7 @@ const SYSTEM_PROMPT = `あなたはShotstack動画編集システムのアシス
   "narrationVolume": number,      // ナレーション音量 0〜1
   "videoMute": boolean,           // 動画音声をミュート
   "backgroundColor": string,      // 背景色 例: "#000000"
-  "resolution": "720p"|"1080p"|"4k",
+  "resolution": "720p"|"1080p",
   "fps": 24|30|60
 }
 

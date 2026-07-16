@@ -3,8 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { TEAL } from "@/components/icons";
 import ProfileSettingsModal from "@/components/ProfileSettingsModal";
+import { CREDIT_ACTION_LABEL } from "@/lib/credits";
+import type { CreditAction } from "@/lib/credits";
 
 const FONT = "'Noto Sans JP', sans-serif";
+const GRAD = "linear-gradient(90deg, #5184F0, #169385)";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -14,20 +17,12 @@ type DashUser = {
   email: string | null;
   plan: string | null;
   iconUrl: string | null;
-  creditImg: number;
-  creditImgMax: number;
-  creditScript: number;
-  creditScriptMax: number;
-  creditVideo: number;
-  creditVideoMax: number;
-  creditAudio: number;
-  creditAudioMax: number;
-  creditBgm: number;
-  creditBgmMax: number;
+  credits: number;
 };
 
 type CreditLog = {
   id: string;
+  workspaceId: string | null;
   creditType: string;
   delta: number;
   balanceAfter: number;
@@ -52,16 +47,19 @@ type CheckoutLog = {
   createdAt: string;
 };
 
+type WorkspaceConsumption = {
+  id: string;
+  name: string;
+  consumed: number;
+};
+
 type DashboardData = {
   user: DashUser;
   creditLogs: CreditLog[];
   errorLogs: ErrorLog[];
   checkoutLogs: CheckoutLog[];
+  workspaceConsumption: WorkspaceConsumption[];
 };
-
-type UnifiedEntry =
-  | { kind: "credit"; data: CreditLog; ts: number }
-  | { kind: "error";  data: ErrorLog;  ts: number };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -75,6 +73,10 @@ function fmtDate(s: string) {
   try { return dtFmt.format(new Date(s)); } catch { return s; }
 }
 
+function fmtCredits(n: number): string {
+  return n.toLocaleString("ja-JP") + " クレジット";
+}
+
 function fmtCurrency(amount: number | null, currency: string | null) {
   if (amount == null) return "—";
   const cur = (currency ?? "jpy").toUpperCase();
@@ -82,34 +84,14 @@ function fmtCurrency(amount: number | null, currency: string | null) {
   catch { return `${amount} ${cur}`; }
 }
 
-const CREDIT_TYPE_LABEL: Record<string, string> = {
-  img:   "画像生成",
-  script:"台本生成",
-  video: "動画生成",
-  audio: "ナレーション生成",
-};
-
-const CREDIT_TYPE_COLOR: Record<string, { bg: string; fg: string }> = {
-  img:   { bg: `${TEAL}18`,    fg: TEAL },
-  script:{ bg: "#7F5AF018",    fg: "#7F5AF0" },
-  video: { bg: "#f59e0b18",    fg: "#f59e0b" },
-  audio: { bg: "#22c55e18",    fg: "#22c55e" },
-};
-
-const REASON_LABEL: Record<string, string> = {
-  generation_used: "利用",
-  plan_upgrade:    "プランアップグレード",
-  manual_grant:    "付与",
-  refund:          "返金",
-  refund_error:    "エラー返金",
-};
+function actionLabel(creditType: string): string {
+  return CREDIT_ACTION_LABEL[creditType as CreditAction] ?? creditType;
+}
 
 const REASON_COLOR: Record<string, string> = {
-  generation_used: "#ef4444",
-  plan_upgrade:    TEAL,
-  manual_grant:    "#22c55e",
-  refund:          "#22c55e",
-  refund_error:    "#22c55e",
+  refund_error: "#22c55e",
+  grant:        "#22c55e",
+  manual_grant: "#22c55e",
 };
 
 const LEVEL_COLOR: Record<string, { bg: string; fg: string; label: string }> = {
@@ -138,10 +120,6 @@ const CHECKOUT_STATUS_LABEL: Record<string, { label: string; color: string }> = 
   canceled:  { label: "キャンセル", color: "#94a3b8" },
 };
 
-function isFree(user: DashUser): boolean {
-  return !user.plan || user.plan === "Free";
-}
-
 function planLabel(plan: string | null): string {
   if (!plan || plan === "Free") return "無料プラン";
   return plan;
@@ -154,49 +132,27 @@ function planColors(plan: string | null): { bg: string; color: string } {
 
 // ─── Sub-components ────────────────────────────────────────────────────────────
 
-function CreditBar({ label, used, max, note }: { label: string; used: number; max: number; note?: string }) {
-  const usedCount = max - used;
-  const ratio = max > 0 ? used / max : 0;
+function CreditBadge({ delta }: { delta: number }) {
+  const isGrant = delta > 0;
+  const color = isGrant ? "#22c55e" : "#ef4444";
   return (
-    <div style={{ marginBottom: 12 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5, fontFamily: FONT }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <span style={{ fontSize: 12, fontWeight: 600, color: "#475569" }}>{label}</span>
-          {note && <span style={{ fontSize: 9, color: "#94a3b8", fontWeight: 500 }}>{note}</span>}
-        </div>
-        <span style={{ fontSize: 11, color: "#94a3b8" }}>
-          残り <strong style={{ color: used < 0 ? "#ef4444" : "#1e293b", fontWeight: 700 }}>{used}</strong> / {max}
-        </span>
-      </div>
-      <div style={{ height: 6, borderRadius: 99, background: "#e2e8f0", overflow: "hidden" }}>
-        <div style={{
-          height: "100%", borderRadius: 99,
-          width: `${Math.max(0, Math.min(100, ratio * 100))}%`,
-          background: ratio > 0.5 ? TEAL : ratio > 0.2 ? "#f59e0b" : "#ef4444",
-          transition: "width 0.4s ease",
-        }} />
-      </div>
-      <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 3, fontFamily: FONT, textAlign: "right" }}>
-        {usedCount} 回使用済
-      </div>
-    </div>
+    <span style={{ fontSize: 13, fontWeight: 700, color, flexShrink: 0 }}>
+      {isGrant ? `+${delta.toLocaleString()}` : delta.toLocaleString()} cr
+    </span>
   );
 }
 
 function CreditEntry({ log }: { log: CreditLog }) {
-  const ct = CREDIT_TYPE_COLOR[log.creditType] ?? { bg: "#f1f5f9", fg: "#94a3b8" };
-  const reason = log.reason ?? "generation_used";
+  const isGrant = log.delta > 0;
+  const color = REASON_COLOR[log.reason ?? ""] ?? (isGrant ? "#22c55e" : "#ef4444");
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 8, background: "#f8fafc", marginBottom: 4 }}>
-      <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 4, flexShrink: 0, background: ct.bg, color: ct.fg, letterSpacing: "0.02em" }}>
-        {CREDIT_TYPE_LABEL[log.creditType] ?? log.creditType}
-      </span>
       <span style={{ fontSize: 11, color: "#475569", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-        {REASON_LABEL[reason] ?? reason}
+        {actionLabel(log.creditType)}
       </span>
       <div style={{ textAlign: "right", flexShrink: 0 }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: REASON_COLOR[reason] ?? (log.delta < 0 ? "#ef4444" : "#22c55e") }}>
-          {log.delta > 0 ? `+${log.delta}` : log.delta}
+        <span style={{ fontSize: 12, fontWeight: 700, color }}>
+          {log.delta > 0 ? `+${log.delta.toLocaleString()}` : log.delta.toLocaleString()} cr
         </span>
         <div style={{ fontSize: 10, color: "#94a3b8" }}>{fmtDate(log.createdAt)}</div>
       </div>
@@ -267,14 +223,17 @@ export default function UserDashboardModal({
   const user = data?.user;
   const pc = planColors(user?.plan ?? null);
 
-  const unified: UnifiedEntry[] = useMemo(() => {
-    const credits: UnifiedEntry[] = (data?.creditLogs ?? []).map((d) => ({ kind: "credit", data: d, ts: new Date(d.createdAt).getTime() }));
-    const errors:  UnifiedEntry[] = (data?.errorLogs  ?? []).map((d) => ({ kind: "error",  data: d, ts: new Date(d.createdAt).getTime() }));
+  const unified = useMemo(() => {
+    const credits = (data?.creditLogs ?? []).map((d) => ({ kind: "credit" as const, data: d, ts: new Date(d.createdAt).getTime() }));
+    const errors  = (data?.errorLogs  ?? []).map((d) => ({ kind: "error"  as const, data: d, ts: new Date(d.createdAt).getTime() }));
     const all = [...credits, ...errors].sort((a, b) => b.ts - a.ts);
     if (filter === "credit") return credits.sort((a, b) => b.ts - a.ts);
     if (filter === "error")  return errors.sort((a, b) => b.ts - a.ts);
     return all;
   }, [data, filter]);
+
+  const wsConsumption = data?.workspaceConsumption ?? [];
+  const totalConsumed = wsConsumption.reduce((s, w) => s + w.consumed, 0);
 
   return (
     <>
@@ -356,23 +315,42 @@ export default function UserDashboardModal({
                 </svg>
               </button>
 
-              {/* ── 生成クレジット ── */}
-              <Section title="生成クレジット">
-                {user ? (
-                  <>
-                    <CreditBar label="AI台本生成" used={user.creditScript} max={user.creditScriptMax} />
-                    <CreditBar label="AI画像生成" used={user.creditImg}    max={user.creditImgMax}    note={isFree(user) ? "※モデル制限あり" : undefined} />
-                    <CreditBar label="AI動画生成" used={user.creditVideo}  max={user.creditVideoMax}  note={isFree(user) ? "※モデル制限あり" : undefined} />
-                    <CreditBar label="AIナレーション生成" used={user.creditAudio} max={user.creditAudioMax} note={isFree(user) ? "※モデル制限あり" : undefined} />
-                    <CreditBar label="AI BGM生成" used={user.creditBgm} max={user.creditBgmMax} />
-                    {isFree(user) && (
-                      <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 4, fontFamily: FONT, lineHeight: 1.6 }}>
-                        書き出し：無制限（透かし・画質制限あり）
-                      </div>
-                    )}
-                  </>
-                ) : <EmptyMsg />}
+              {/* ── クレジット残高 ── */}
+              <Section title="クレジット残高">
+                <div style={{ borderRadius: 12, border: "1px solid #e8edf4", padding: "14px 16px", background: "#f8fafc" }}>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                    <span style={{
+                      fontSize: 32, fontWeight: 800, letterSpacing: "-0.03em",
+                      backgroundImage: GRAD, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
+                    }}>
+                      {(user?.credits ?? 0).toLocaleString()}
+                    </span>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: "#64748b" }}>クレジット</span>
+                  </div>
+                  <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>
+                    累計消費: {totalConsumed.toLocaleString()} cr
+                  </div>
+                </div>
               </Section>
+
+              {/* ── ワークスペース別消費 ── */}
+              {wsConsumption.length > 0 && (
+                <Section title="ワークスペース別消費">
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {wsConsumption.map((ws) => (
+                      <div key={ws.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", borderRadius: 8, background: "#f8fafc", border: "1px solid #f1f5f9" }}>
+                        <div style={{ width: 6, height: 6, borderRadius: "50%", background: TEAL, flexShrink: 0 }} />
+                        <span style={{ fontSize: 12, color: "#334155", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {ws.name}
+                        </span>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: ws.consumed > 0 ? "#ef4444" : "#94a3b8", flexShrink: 0 }}>
+                          {ws.consumed > 0 ? `-${ws.consumed.toLocaleString()}` : "0"} cr
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </Section>
+              )}
 
               {/* ── タブ ── */}
               <div style={{ display: "flex", gap: 2, background: "#f0f0f0", borderRadius: 10, padding: 3, flexShrink: 0 }}>
@@ -393,7 +371,6 @@ export default function UserDashboardModal({
               {/* ── ログ タブ ── */}
               {tab === "log" && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {/* フィルター */}
                   <div style={{ display: "flex", gap: 4 }}>
                     {(["all", "credit", "error"] as const).map((f) => (
                       <button key={f} onClick={() => setFilter(f)}
@@ -406,7 +383,6 @@ export default function UserDashboardModal({
                     ))}
                   </div>
 
-                  {/* 統合ログ */}
                   {unified.length === 0 ? (
                     <EmptyMsg text="ログがありません" />
                   ) : unified.map((entry) =>
