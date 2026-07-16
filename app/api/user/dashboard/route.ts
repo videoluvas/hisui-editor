@@ -28,18 +28,17 @@ export async function GET() {
         where: { userId: session.userId },
         orderBy: { createdAt: "desc" },
         take: 60,
-      }),
+      }).catch(() => []),
       prisma.logCheckout.findMany({
         where: { userId: session.userId },
         orderBy: { createdAt: "desc" },
         take: 30,
-      }),
+      }).catch(() => []),
       prisma.logError.findMany({
         where: { userId: session.userId },
         orderBy: { createdAt: "desc" },
         take: 40,
-      }),
-      // ワークスペース別の消費クレジット合計
+      }).catch(() => []),
       prisma.$queryRaw<Array<{ id: string; name: string; consumed: number }>>`
         SELECT w.id, w.name, COALESCE(SUM(ABS(lc.delta)), 0)::int AS consumed
         FROM workspaces w
@@ -48,7 +47,7 @@ export async function GET() {
         WHERE w.user_id = ${session.userId}::uuid
         GROUP BY w.id, w.name
         ORDER BY consumed DESC
-      `,
+      `.catch(() => []),
     ]);
 
     return NextResponse.json({
