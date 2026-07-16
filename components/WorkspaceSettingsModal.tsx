@@ -115,7 +115,7 @@ function RenderTabIcon() {
 
 // ─── Provider logos ───────────────────────────────────────────────────────────
 
-function ProviderLogo({ provider, size = 20 }: { provider: "google" | "byteplus" | "reve" | "elevenlabs" | "anthropic"; size?: number }) {
+function ProviderLogo({ provider, size = 20 }: { provider: "google" | "byteplus" | "reve" | "elevenlabs" | "anthropic" | "openai"; size?: number }) {
   if (provider === "google") {
     return (
       <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" style={{ flexShrink: 0 }}>
@@ -129,6 +129,7 @@ function ProviderLogo({ provider, size = 20 }: { provider: "google" | "byteplus"
   const cfg = provider === "byteplus"   ? { bg: "#E67D30", text: "B+", r: 5 }
             : provider === "elevenlabs" ? { bg: "#6C47FF", text: "11", r: 5 }
             : provider === "anthropic"  ? { bg: "#D97706", text: "A",  r: 5 }
+            : provider === "openai"     ? { bg: "#10A37F", text: "AI", r: 5 }
             :                             { bg: "#7F5AF0", text: "R",  r: size };
   return (
     <div style={{
@@ -144,7 +145,7 @@ function ProviderLogo({ provider, size = 20 }: { provider: "google" | "byteplus"
 
 // ─── Model dropdown ────────────────────────────────────────────────────────────
 
-type ModelEntry = { id: string; label: string; sub: string; color: string; provider: "google" | "byteplus" | "reve" | "elevenlabs" | "anthropic" };
+type ModelEntry = { id: string; label: string; sub: string; color: string; provider: "google" | "byteplus" | "reve" | "elevenlabs" | "anthropic" | "openai" };
 
 function ModelDropdown({ models, value, onChange, lockedIds }: {
   models: readonly ModelEntry[];
@@ -257,6 +258,7 @@ const IMAGE_MODELS = [
   { id: "google-image-pro",  label: "Google AI",         sub: "Nano Banana Pro",    color: "#1A73E8", provider: "google"   as const },
   { id: "reve-1",            label: "Reve AI",           sub: "Reve-1",             color: "#7F5AF0", provider: "reve"     as const },
   { id: "seedream-5-0-pro",  label: "BytePlus ModelArk", sub: "Seedream 5.0 Pro",   color: "#E67D30", provider: "byteplus" as const },
+  { id: "gpt-image-2-high",  label: "OpenAI",            sub: "GPT Image 2 (high)", color: "#10A37F", provider: "openai"   as const },
 ] as const;
 
 const VIDEO_MODELS = [
@@ -598,7 +600,7 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                     models={IMAGE_MODELS}
                     value={img.imageModel}
                     onChange={(id) => setImg((s) => ({ ...s, imageModel: id as ImageSettings["imageModel"] }))}
-                    lockedIds={isFree ? ["google-image-pro", "reve-1", "seedream-5-0-pro"] : []}
+                    lockedIds={isFree ? ["google-image-pro", "reve-1", "seedream-5-0-pro", "gpt-image-2-high"] : []}
                   />
                 </div>
 
@@ -730,6 +732,49 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                       </div>
                     </div>
 
+                  </>
+                )}
+
+                {/* ── GPT Image 2 (high) 設定 ── */}
+                {img.imageModel === "gpt-image-2-high" && (
+                  <>
+                    <div style={SEC}>生成設定</div>
+                    <div style={FIELD}>
+                      <label style={LBL}>サイズ</label>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                        {([
+                          { value: "1536x1024" as const, label: "横長 (1536×1024)" },
+                          { value: "1024x1536" as const, label: "縦長 (1024×1536)" },
+                          { value: "1024x1024" as const, label: "正方形 (1024×1024)" },
+                        ]).map((s) => (
+                          <button key={s.value} onClick={() => setImg((p) => ({ ...p, gptSize: s.value }))}
+                            style={{
+                              fontSize: 11, padding: "4px 9px", borderRadius: 6, cursor: "pointer", fontFamily: FONT,
+                              border: `1.5px solid ${img.gptSize === s.value ? currentModelDef.color : "#e2e8f0"}`,
+                              background: img.gptSize === s.value ? `${currentModelDef.color}12` : "#fff",
+                              color: img.gptSize === s.value ? currentModelDef.color : "#64748b",
+                              fontWeight: img.gptSize === s.value ? 700 : 400,
+                            }}
+                          >{s.label}</button>
+                        ))}
+                      </div>
+                    </div>
+                    <div style={FIELD}>
+                      <label style={LBL}>出力フォーマット</label>
+                      <div style={{ display: "flex", gap: 4 }}>
+                        {(["png", "jpeg", "webp"] as const).map((f) => (
+                          <button key={f} onClick={() => setImg((p) => ({ ...p, gptOutputFormat: f }))}
+                            style={{
+                              fontSize: 11, padding: "4px 9px", borderRadius: 6, cursor: "pointer", fontFamily: FONT,
+                              border: `1.5px solid ${img.gptOutputFormat === f ? currentModelDef.color : "#e2e8f0"}`,
+                              background: img.gptOutputFormat === f ? `${currentModelDef.color}12` : "#fff",
+                              color: img.gptOutputFormat === f ? currentModelDef.color : "#64748b",
+                              fontWeight: img.gptOutputFormat === f ? 700 : 400,
+                            }}
+                          >{f}</button>
+                        ))}
+                      </div>
+                    </div>
                   </>
                 )}
 
@@ -2027,8 +2072,8 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                 { label: "シーン再生成", cost: "10 cr" },
               ];
             } else if (activeTab === "image") {
-              const cost = img.imageModel === "google-image-lite" ? 100 : 400;
-              items = [{ label: "1枚あたり", cost: `${cost} cr` }];
+              const cost = img.imageModel === "google-image-lite" ? 100 : img.imageModel === "gpt-image-2-high" ? 2_000 : 400;
+              items = [{ label: "1枚あたり", cost: `${cost.toLocaleString()} cr` }];
             } else if (activeTab === "video") {
               const cost = vid.videoModel === "veo-3-lite" ? 1_000 : (vid.generateAudio ? 5_000 : 2_500);
               items = [{ label: "1本あたり", cost: `${cost.toLocaleString()} cr` }];

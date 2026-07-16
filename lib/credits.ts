@@ -7,6 +7,7 @@ export type CreditAction =
   | "conte_generate"          // 台本→コンテ生成
   | "image_lite"              // AI画像生成（軽量）
   | "image_premium"           // AI画像生成（上位）
+  | "image_gpt_high"          // AI画像生成・GPT Image 2 (high)
   | "video_lite"              // AI動画生成・Lite
   | "video_premium_no_audio"  // AI動画生成・上位（音声なし）
   | "video_premium_audio"     // AI動画生成・上位（音声あり）
@@ -22,6 +23,7 @@ export const CREDIT_COST: Record<CreditAction, number> = {
   conte_generate:         50,
   image_lite:            100,
   image_premium:         400,
+  image_gpt_high:      2_000,
   video_lite:          1_000,
   video_premium_no_audio: 2_500,
   video_premium_audio:  5_000,
@@ -38,6 +40,7 @@ export const CREDIT_ACTION_LABEL: Record<CreditAction, string> = {
   conte_generate:         "コンテ生成",
   image_lite:             "AI画像生成（軽量）",
   image_premium:          "AI画像生成（上位）",
+  image_gpt_high:         "AI画像生成・GPT Image 2",
   video_lite:             "AI動画生成・Lite",
   video_premium_no_audio: "AI動画生成・上位",
   video_premium_audio:    "AI動画生成・上位（音声あり）",
@@ -51,10 +54,13 @@ export const CREDIT_ACTION_LABEL: Record<CreditAction, string> = {
 
 // ─── Model → action helpers ───────────────────────────────────────────────────
 
-const IMAGE_LITE_MODELS = new Set(["google-image-lite"]);
+const IMAGE_LITE_MODELS     = new Set(["google-image-lite"]);
+const IMAGE_GPT_HIGH_MODELS = new Set(["gpt-image-2-high"]);
 
 export function imageModelToAction(model: string): CreditAction {
-  return IMAGE_LITE_MODELS.has(model) ? "image_lite" : "image_premium";
+  if (IMAGE_LITE_MODELS.has(model))     return "image_lite";
+  if (IMAGE_GPT_HIGH_MODELS.has(model)) return "image_gpt_high";
+  return "image_premium";
 }
 
 const VIDEO_LITE_MODELS = new Set(["veo-3-lite"]);

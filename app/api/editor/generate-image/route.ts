@@ -14,6 +14,7 @@ import { consumeCredits, refundCredits, imageModelToAction } from "@/lib/credits
 const REVE_API_URL   = "https://api.reve.com/v1/image/edit";
 const ARK_API_URL    = "https://ark.ap-southeast.bytepluses.com/api/v3/images/generations";
 const GOOGLE_AI_BASE = "https://generativelanguage.googleapis.com/v1beta";
+const OPENAI_IMG_URL = "https://api.openai.com/v1/images/generations";
 
 function buildBlankPng(w = 16, h = 9): Buffer {
   const t = new Uint32Array(256);
@@ -71,6 +72,9 @@ export async function POST(request: NextRequest) {
     // Google
     googleAspectRatio?: string;
     googleQualityHint?: string;
+    // GPT Image 2
+    gptSize?: string;
+    gptOutputFormat?: string;
     // ワークスペース設定
     imgCommonRules?: string;
     imgNegativePrompt?: string;
@@ -122,6 +126,41 @@ export async function POST(request: NextRequest) {
       imageB64 = data.data[0].b64_json;
     } catch (e) {
       await logError("editor-generate-image", `ARK API error: ${e}`, { userId, detail: {} });
+      await refundCredits(userId, imageModelToAction(imageModel), workspaceId);
+      return NextResponse.json({ ok: false, message: `画像生成に失敗しました: ${e}` }, { status: 500 });
+    }
+
+    const imgBuffer = Buffer.from(imageB64, "base64");
+    const key = `user/${userId}/editor/images/${Date.now()}.${ext}`;
+    await r2Client.send(new PutObjectCommand({ Bucket: R2_BUCKET_NAME, Key: key, Body: imgBuffer, ContentType: contentType }));
+    const url = `${R2_PUBLIC_URL}/${key}`;
+    await prisma.file.create({ data: { userId, workspaceId, storageKey: key, fileUrl: url, fileName: key.split("/").pop() ?? "image", fileType: "image", mimeType: contentType, sizeBytes: BigInt(imgBuffer.length) } }).catch(() => {});
+    return NextResponse.json({ ok: true, url });
+  }
+
+  // ── GPT Image 2 (high) ───────────────────────────────────────────────────────
+  if (imageModel === "gpt-image-2-high") {
+    const openaiApiKey = process.env.OPENAI_API_KEY;
+    if (!openaiApiKey) return NextResponse.json({ ok: false, message: "OPENAI_API_KEY が設定されていません" }, { status: 500 });
+
+    const { gptSize = "1536x1024", gptOutputFormat = "png" } = body;
+    const ext = gptOutputFormat === "jpeg" ? "jpg" : gptOutputFormat;
+    const contentType = gptOutputFormat === "jpeg" ? "image/jpeg" : gptOutputFormat === "webp" ? "image/webp" : "image/png";
+
+    let imageB64: string;
+    try {
+      const resp = await fetch(OPENAI_IMG_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${openaiApiKey}` },
+        body: JSON.stringify({ model: "gpt-image-1", prompt, size: gptSize, quality: "high", output_format: gptOutputFormat, response_format: "b64_json", n: 1 }),
+      });
+      if (!resp.ok) throw new Error(`OpenAI ${resp.status}: ${await resp.text()}`);
+      const data = await resp.json() as { data?: Array<{ b64_json?: string }>; error?: { message: string } };
+      if (data.error) throw new Error((data.error as { message: string }).message);
+      if (!data.data?.[0]?.b64_json) throw new Error("画像データが返されませんでした");
+      imageB64 = data.data[0].b64_json;
+    } catch (e) {
+      await logError("editor-generate-image", `OpenAI API error: ${e}`, { userId, detail: {} });
       await refundCredits(userId, imageModelToAction(imageModel), workspaceId);
       return NextResponse.json({ ok: false, message: `画像生成に失敗しました: ${e}` }, { status: 500 });
     }

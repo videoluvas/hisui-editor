@@ -1,4 +1,4 @@
-export type ImageModel = "reve-1" | "seedream-5-0-pro" | "google-image-lite" | "google-image-pro";
+export type ImageModel = "reve-1" | "seedream-5-0-pro" | "google-image-lite" | "google-image-pro" | "gpt-image-2-high";
 
 export type RefStyle = "none" | "template" | "upload";
 
@@ -24,6 +24,9 @@ export type ImageSettings = {
   googleAspectRatio: string;
   googleOutputFormat: "jpeg" | "png";
   googleQualityHint: "" | "detail" | "cinematic" | "commercial";
+  // GPT Image 2 (high) 専用
+  gptSize: "1536x1024" | "1024x1536" | "1024x1024";
+  gptOutputFormat: "png" | "jpeg" | "webp";
   // ワークスペース参照スタイル（「参照して生成」のデフォルト）
   refStyle: RefStyle;
   refTemplateId: string;
@@ -48,6 +51,8 @@ export const DEFAULT_IMAGE_SETTINGS: ImageSettings = {
   googleAspectRatio: "16:9",
   googleOutputFormat: "jpeg",
   googleQualityHint: "",
+  gptSize: "1536x1024",
+  gptOutputFormat: "png",
   refStyle: "none",
   refTemplateId: "",
   refImageUrl: "",

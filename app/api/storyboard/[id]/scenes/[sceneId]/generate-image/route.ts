@@ -11,9 +11,10 @@ import { r2Client, R2_BUCKET_NAME, R2_PUBLIC_URL } from "@/lib/fileupload.r2";
 import { resolveSeedreamSize } from "@/lib/imageSettings";
 import { consumeCredits, refundCredits, imageModelToAction } from "@/lib/credits";
 
-const REVE_API_URL   = "https://api.reve.com/v1/image/edit";
-const ARK_API_URL    = "https://ark.ap-southeast.bytepluses.com/api/v3/images/generations";
-const GOOGLE_AI_BASE = "https://generativelanguage.googleapis.com/v1beta";
+const REVE_API_URL    = "https://api.reve.com/v1/image/edit";
+const ARK_API_URL     = "https://ark.ap-southeast.bytepluses.com/api/v3/images/generations";
+const GOOGLE_AI_BASE  = "https://generativelanguage.googleapis.com/v1beta";
+const OPENAI_IMG_URL  = "https://api.openai.com/v1/images/generations";
 
 // ── 白紙PNG生成 ──────────────────────────────────────────────────────────────
 
@@ -171,6 +172,9 @@ export async function POST(
     googleAspectRatio?: string;
     googleOutputFormat?: string;
     googleQualityHint?: string;
+    // GPT Image 2 (high)
+    gptSize?: string;
+    gptOutputFormat?: string;
   };
 
   const {
@@ -291,6 +295,66 @@ export async function POST(
         mimeType:    contentType,
         sizeBytes:   BigInt(imgBuffer.length),
       },
+    }).catch(() => {});
+    return NextResponse.json({ ok: true, imgUrl: publicUrl });
+  }
+
+  // ── GPT Image 2 (high) ───────────────────────────────────────────────────────
+  if (imageModel === "gpt-image-2-high") {
+    const openaiApiKey = process.env.OPENAI_API_KEY;
+    if (!openaiApiKey)
+      return NextResponse.json({ ok: false, message: "OPENAI_API_KEY が設定されていません" }, { status: 500 });
+
+    const { gptSize = "1536x1024", gptOutputFormat = "png" } = body;
+    const prompt = buildGoogleImagePrompt(style, sceneContent, composition, undefined, body.imgNegativePrompt, undefined, body.imgCommonRules);
+    if (!prompt.trim())
+      return NextResponse.json({ ok: false, message: "シーン内容または構図を入力してください" }, { status: 400 });
+
+    let imageB64: string;
+    const ext = gptOutputFormat === "jpeg" ? "jpg" : gptOutputFormat;
+    const contentType = gptOutputFormat === "jpeg" ? "image/jpeg" : gptOutputFormat === "webp" ? "image/webp" : "image/png";
+
+    try {
+      const resp = await fetch(OPENAI_IMG_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${openaiApiKey}` },
+        body: JSON.stringify({
+          model: "gpt-image-1",
+          prompt,
+          size: gptSize,
+          quality: "high",
+          output_format: gptOutputFormat,
+          response_format: "b64_json",
+          n: 1,
+        }),
+      });
+      if (!resp.ok) {
+        const errText = await resp.text();
+        throw new Error(`OpenAI ${resp.status}: ${errText}`);
+      }
+      const data = await resp.json() as { data?: Array<{ b64_json?: string }>; error?: { message: string } };
+      if (data.error) throw new Error((data.error as { message: string }).message);
+      if (!data.data?.[0]?.b64_json) throw new Error("画像データが返されませんでした");
+      imageB64 = data.data[0].b64_json;
+    } catch (e) {
+      await logError("generate-image", `OpenAI API error: ${e}`, { userId: session.userId, detail: { storyboardId: params.id, sceneId: params.sceneId } });
+      await refundCredits(session.userId, imageModelToAction(imageModel), workspaceId);
+      return NextResponse.json({ ok: false, message: `画像生成に失敗しました: ${e}` }, { status: 500 });
+    }
+
+    const imgBuffer = Buffer.from(imageB64, "base64");
+    const wsSegment = (sb as any).workspaceId ?? "no-workspace";
+    const key = `user/${sb.userId}/${wsSegment}/generate/${params.sceneId}/image-${Date.now()}.${ext}`;
+    try {
+      await r2Client.send(new PutObjectCommand({ Bucket: R2_BUCKET_NAME, Key: key, Body: imgBuffer, ContentType: contentType }));
+    } catch (e) {
+      await logError("generate-image", `R2 upload error: ${e}`, { userId: session.userId, detail: { key } });
+      return NextResponse.json({ ok: false, message: `R2アップロードに失敗しました: ${e}` }, { status: 500 });
+    }
+    const publicUrl = `${R2_PUBLIC_URL}/${key}`;
+    await prisma.storyboardScene.update({ where: { id: params.sceneId }, data: { imgUrl: publicUrl, imgStatusYn: true } });
+    await prisma.file.create({
+      data: { userId: session.userId, workspaceId: (sb as any).workspaceId ?? null, storageKey: key, fileUrl: publicUrl, fileName: key.split("/").pop() ?? "generated-image", fileType: "image", mimeType: contentType, sizeBytes: BigInt(imgBuffer.length) },
     }).catch(() => {});
     return NextResponse.json({ ok: true, imgUrl: publicUrl });
   }
