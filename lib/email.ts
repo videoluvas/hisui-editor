@@ -323,6 +323,32 @@ export async function sendQuoteEmail(opts: {
   await send(toEmail, `【Hisui AI】${plan.name}プラン ご提案（見積書）`, html);
 }
 
+export async function sendOwnerTransferEmail(opts: {
+  toEmail:      string;
+  fromUserName: string | null;
+  resourceType: "workspace" | "storyboard" | "project";
+  resourceName: string;
+  token:        string;
+}): Promise<void> {
+  const { toEmail, fromUserName, resourceType, resourceName, token } = opts;
+  const link = `${baseUrl()}/transfer/${token}`;
+  const typeLabel =
+    resourceType === "workspace"  ? "ワークスペース" :
+    resourceType === "storyboard" ? "コンテ" : "動画プロジェクト";
+  const sender = fromUserName ?? "ユーザー";
+  await send(
+    toEmail,
+    `【Hisui AI】${typeLabel}「${resourceName}」の管理ユーザー変更依頼`,
+    wrap(`
+      <p><strong>${sender}</strong> さんから、${typeLabel}「<strong>${resourceName}</strong>」の管理権限の移譲依頼が届いています。</p>
+      <p>承認すると、ファイルを含む全てのデータがあなたのアカウントに移行されます。</p>
+      <a href="${link}" class="btn">承認ページへ</a>
+      <p class="note">リンクの有効期限は <strong>72時間</strong> です。<br>このメールに心当たりがない場合は無視してください。</p>
+      <p class="note">ボタンが機能しない場合は以下の URL をブラウザに貼り付けてください：<br>${link}</p>
+    `),
+  );
+}
+
 export async function sendEmailChangeEmail(to: string, token: string): Promise<void> {
   const link = `${baseUrl()}/api/auth/change-email/confirm?token=${token}`;
   await send(

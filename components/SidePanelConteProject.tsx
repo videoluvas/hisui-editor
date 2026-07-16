@@ -8,6 +8,7 @@ import { getProjects, createProject, deleteProject } from "@/lib/project.api";
 import type { StoryboardListItem } from "@/lib/storyboard.api";
 import type { Project } from "@/lib/project.api";
 import SidePanelProjectCreateModal from "@/components/SidePanelProjectCreateModal";
+import { TransferOwnerSection } from "@/components/TransferOwnerSection";
 
 const CONTE_COLOR = "#169385";
 const SEQ_COLOR   = "#7F5AF0";
@@ -333,6 +334,14 @@ function SettingsModal({ item, onClose, onSaved, onDelete }: SettingsModalProps)
               <span style={{ color:"#94a3b8", fontSize:10, fontFamily:"monospace", userSelect:"all" }}>{item.id}</span>
             </div>
           </div>
+
+          {/* ── 管理ユーザーの移譲 ── */}
+          <div style={SEC}>管理ユーザーの移譲</div>
+          <TransferOwnerSection
+            resourceType={isConte ? "storyboard" : "project"}
+            resourceId={item.id}
+            resourceName={title.trim() || item.title || ""}
+          />
 
           {saveError && (
             <div style={{ background:"#fef2f2", border:"1px solid #fecaca", borderRadius:8, padding:"8px 12px", fontSize:12, color:"#dc2626", marginBottom:12 }}>

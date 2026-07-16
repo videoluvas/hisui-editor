@@ -23,6 +23,7 @@ import { loadBgmSettings, saveBgmSettings, DEFAULT_BGM_SETTINGS } from "@/lib/bg
 import type { BgmSettings, BgmVocal, BgmModel } from "@/lib/bgmSettings";
 import { loadVideoExportSettings, saveVideoExportSettings, resetVideoExportToSequence } from "@/lib/videoExportSettings";
 import type { VideoExportSettings } from "@/lib/videoExportSettings";
+import { TransferOwnerSection } from "@/components/TransferOwnerSection";
 
 export type WsSettingsTab = "general" | "script" | "telop" | "image" | "video" | "narration" | "bgm" | "render" | "export";
 
@@ -457,6 +458,13 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                     style={INPUT}
                   />
                 </div>
+
+                <div style={{ ...SEC, marginTop: 24 }}>管理ユーザーの移譲</div>
+                <TransferOwnerSection
+                  resourceType="workspace"
+                  resourceId={workspaceId}
+                  resourceName={wsName}
+                />
               </>
             )}
 
