@@ -27,14 +27,7 @@ type AdminUser = {
 };
 
 type PageState = "loading" | "unauthorized" | "forbidden" | "loaded";
-type Tab = "logs" | "users" | "invite" | "samples" | "plans";
-
-type PlanConfig = {
-  id: string; label: string; price_jpy: number;
-  credit_img_max: number; credit_script_max: number; credit_video_max: number;
-  credit_audio_max: number; credit_bgm_max: number;
-  free_model_img: string; free_model_video: string; max_workspaces: number;
-};
+type Tab = "logs" | "users" | "invite" | "samples";
 
 type SampleStoryboard = {
   id: string; title: string | null; isDefaultSample: boolean; createdAt: string;
@@ -373,10 +366,6 @@ export default function AdminPage() {
   const [samplesError, setSamplesError]           = useState<string | null>(null);
   const [samplesLoading, setSamplesLoading]       = useState(false);
 
-  // plan configs
-  const [planConfigs, setPlanConfigs]       = useState<PlanConfig[]>([]);
-  const [planConfigsSaving, setPlanConfigsSaving] = useState<string | null>(null);
-
   // login
   const [loginEmail, setLoginEmail]       = useState("");
   const [loginPassword, setLoginPassword] = useState("");
@@ -427,27 +416,6 @@ export default function AdminPage() {
     } catch { /* ignore */ }
   }, []);
 
-  const fetchPlanConfigs = useCallback(async () => {
-    try {
-      const res  = await fetch("/api/admin/plan-config");
-      const data = await res.json();
-      if (data.ok) setPlanConfigs(data.configs);
-    } catch { /* ignore */ }
-  }, []);
-
-  const patchPlanConfig = async (id: string, field: string, value: string | number) => {
-    const key = `${id}.${field}`;
-    setPlanConfigsSaving(key);
-    try {
-      const res  = await fetch("/api/admin/plan-config", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, field, value }),
-      });
-      const data = await res.json();
-      if (data.ok) setPlanConfigs(data.configs);
-    } finally { setPlanConfigsSaving(null); }
-  };
 
   const fetchSamples = useCallback(async () => {
     setSamplesLoading(true);
@@ -474,7 +442,7 @@ export default function AdminPage() {
   }, []);
 
   useEffect(() => { fetchStats(); }, [fetchStats]);
-  useEffect(() => { if (pageState === "loaded") { fetchLogs(); fetchUsers(); fetchSamples(); fetchPlanConfigs(); } }, [pageState, fetchLogs, fetchUsers, fetchSamples, fetchPlanConfigs]);
+  useEffect(() => { if (pageState === "loaded") { fetchLogs(); fetchUsers(); fetchSamples(); } }, [pageState, fetchLogs, fetchUsers, fetchSamples]);
   useEffect(() => {
     if (pageState !== "loaded") return;
     const id = setInterval(() => { fetchStats(); fetchLogs(); }, 30_000);
@@ -594,7 +562,6 @@ export default function AdminPage() {
             { id: "users" as Tab,   label: `ユーザー管理（${users.length}）` },
             { id: "invite" as Tab,  label: "ユーザー招待" },
             { id: "samples" as Tab, label: "サンプル管理" },
-            { id: "plans" as Tab,   label: "プラン設定" },
           ] as const).map((t) => (
             <button key={t.id} onClick={() => setTab(t.id)}
               style={{ padding: "6px 20px", fontSize: 12, fontWeight: 600, borderRadius: 8, border: "none", cursor: "pointer", fontFamily: FONT,
@@ -932,81 +899,6 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* ── プラン設定タブ ── */}
-        {tab === "plans" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-            <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, overflow: "hidden" }}>
-              <div style={{ padding: "14px 20px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", gap: 12 }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: "#334155" }}>プラン設定</span>
-                <span style={{ fontSize: 12, color: "#94a3b8" }}>値を編集してフォーカスを外すと自動保存されます</span>
-                <button onClick={fetchPlanConfigs} style={{ marginLeft: "auto", fontSize: 11, padding: "3px 10px", borderRadius: 6, border: "1px solid #e2e8f0", background: "#f8fafc", color: "#64748b", cursor: "pointer" }}>🔄 更新</button>
-              </div>
-              {planConfigs.length === 0 ? (
-                <div style={{ padding: "40px", textAlign: "center", color: "#94a3b8", fontSize: 13 }}>読み込み中...</div>
-              ) : (
-                <div style={{ overflowX: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                    <thead>
-                      <tr style={{ background: "#f8fafc" }}>
-                        <th style={{ padding: "10px 16px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "#94a3b8", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>設定項目</th>
-                        {planConfigs.map((cfg) => (
-                          <th key={cfg.id} style={{ padding: "10px 16px", textAlign: "center", fontSize: 12, fontWeight: 700, borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap", color: cfg.id === "Pro" ? TEAL : "#64748b", background: cfg.id === "Pro" ? `${TEAL}08` : undefined }}>
-                            {cfg.label}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {([
-                        { field: "price_jpy",        label: "月額料金（円・税抜）",    type: "number" },
-                        { field: "credit_img_max",    label: "画像生成クレジット/月",   type: "number" },
-                        { field: "credit_script_max", label: "台本生成クレジット/月",   type: "number" },
-                        { field: "credit_video_max",  label: "動画生成クレジット/月",   type: "number" },
-                        { field: "credit_audio_max",  label: "ナレーション生成/月",     type: "number" },
-                        { field: "credit_bgm_max",    label: "BGM生成クレジット/月",    type: "number" },
-                        { field: "max_workspaces",    label: "ワークスペース上限",       type: "number" },
-                        { field: "free_model_img",    label: "画像モデル（無料枠）",    type: "text"   },
-                        { field: "free_model_video",  label: "動画モデル（無料枠）",    type: "text"   },
-                      ] as { field: keyof PlanConfig; label: string; type: string }[]).map(({ field, label, type }) => (
-                        <tr key={field} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                          <td style={{ padding: "10px 16px", color: "#475569", fontWeight: 500, whiteSpace: "nowrap" }}>{label}</td>
-                          {planConfigs.map((cfg) => {
-                            const key = `${cfg.id}.${field}`;
-                            const saving = planConfigsSaving === key;
-                            return (
-                              <td key={cfg.id} style={{ padding: "8px 16px", textAlign: "center", background: cfg.id === "Pro" ? `${TEAL}05` : undefined }}>
-                                <input
-                                  type={type}
-                                  defaultValue={String(cfg[field])}
-                                  disabled={saving}
-                                  onBlur={(e) => {
-                                    const raw = e.target.value;
-                                    const val = type === "number" ? Number(raw) : raw;
-                                    if (String(val) !== String(cfg[field])) patchPlanConfig(cfg.id, field, val);
-                                  }}
-                                  onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-                                  style={{
-                                    width: type === "number" ? 80 : 180, fontSize: 12, padding: "5px 8px",
-                                    border: `1px solid ${saving ? TEAL : "#e2e8f0"}`, borderRadius: 6, outline: "none",
-                                    textAlign: type === "number" ? "right" : "left",
-                                    background: saving ? `${TEAL}10` : "#fff", color: "#334155",
-                                  }}
-                                />
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-            <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 10, padding: "12px 16px", fontSize: 13, color: "#1e40af", lineHeight: 1.7 }}>
-              💡 プラン変更時（Free → Pro）にこの設定が適用されます。既存ユーザーのクレジットには即時反映されません。
-            </div>
-          </div>
-        )}
 
       </div>
     </div>
