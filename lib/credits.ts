@@ -106,7 +106,7 @@ export async function consumeCredits(
   try {
     const newBalance = await prisma.$transaction(async (tx) => {
       const rows = await tx.$queryRaw<Array<{ credits: number }>>`
-        SELECT credits FROM users WHERE id = ${userId}::uuid FOR UPDATE
+        SELECT credits FROM users WHERE id = ${userId} FOR UPDATE
       `;
       if (!rows[0]) throw new Error("USER_NOT_FOUND");
 
@@ -114,7 +114,7 @@ export async function consumeCredits(
       if (current < cost) throw new Error(`INSUFFICIENT:${current}:${cost}`);
 
       const balance = current - cost;
-      await tx.$executeRaw`UPDATE users SET credits = ${balance} WHERE id = ${userId}::uuid`;
+      await tx.$executeRaw`UPDATE users SET credits = ${balance} WHERE id = ${userId}`;
       await tx.logCredit.create({
         data: {
           userId,
@@ -152,9 +152,9 @@ export async function refundCredits(
   if (cost === 0) return;
   try {
     await prisma.$transaction(async (tx) => {
-      await tx.$executeRaw`UPDATE users SET credits = credits + ${cost} WHERE id = ${userId}::uuid`;
+      await tx.$executeRaw`UPDATE users SET credits = credits + ${cost} WHERE id = ${userId}`;
       const rows = await tx.$queryRaw<Array<{ credits: number }>>`
-        SELECT credits FROM users WHERE id = ${userId}::uuid
+        SELECT credits FROM users WHERE id = ${userId}
       `;
       await tx.logCredit.create({
         data: {
@@ -178,9 +178,9 @@ export async function grantCredits(
   reason: string = "manual_grant",
 ): Promise<{ ok: boolean; creditsRemaining?: number }> {
   try {
-    await prisma.$executeRaw`UPDATE users SET credits = credits + ${amount} WHERE id = ${userId}::uuid`;
+    await prisma.$executeRaw`UPDATE users SET credits = credits + ${amount} WHERE id = ${userId}`;
     const rows = await prisma.$queryRaw<Array<{ credits: number }>>`
-      SELECT credits FROM users WHERE id = ${userId}::uuid
+      SELECT credits FROM users WHERE id = ${userId}
     `;
     const balance = rows[0]?.credits ?? 0;
     prisma.logCredit.create({
