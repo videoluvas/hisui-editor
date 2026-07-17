@@ -18,11 +18,9 @@ const VEO_MODEL_IDS: Record<string, string> = {
 };
 
 // Veo constraints
-const VEO_LITE_MAX_DURATION = 8;
-const VEO_LITE_RESOLUTIONS  = new Set(["720p", "1080p"]);   // Lite は 4k 非対応
-const VEO_FULL_RESOLUTIONS  = new Set(["720p", "1080p", "4k"]);
-const VEO_LITE_RATIOS       = new Set(["16:9", "9:16"]);
-const VEO_HIGH_RES_DURATION = 8;                             // 1080p/4k は8秒固定
+const VEO_LITE_RESOLUTIONS = new Set(["720p", "1080p"]);        // Lite は 4K 非対応
+const VEO_FULL_RESOLUTIONS = new Set(["720p", "1080p", "4k"]);
+const VEO_VALID_RATIOS     = new Set(["16:9", "9:16"]);         // 両モデル共通: 16:9 / 9:16 のみ有効
 
 export async function POST(
   request: NextRequest,
@@ -59,20 +57,19 @@ export async function POST(
 
   const videoModel = body.videoModel ?? "veo-3-lite";
   const workspaceId = sb.workspaceId ?? null;
-  const credit = await consumeCredits(session.userId, videoModelToAction(videoModel, body.generateAudio ?? false), workspaceId);
+  const isVeoModel = videoModel === "veo-3" || videoModel === "veo-3-lite";
+  const credit = await consumeCredits(session.userId, videoModelToAction(videoModel, isVeoModel ? false : (body.generateAudio ?? false)), workspaceId);
   if (!credit.ok) return NextResponse.json({ ok: false, message: credit.message }, { status: 402 });
 
   const {
-    resolution       = "720p",
-    ratio            = "16:9",
-    duration         = 5,
-    generateAudio    = false,
-    cameraFixed      = false,
-    watermark        = false,
-    enhancePrompt    = true,
-    seed             = 0,
-    personGeneration = "allow_adult",
-    compressionQuality = "optimized",
+    resolution    = "720p",
+    ratio         = "16:9",
+    duration      = 5,
+    generateAudio = false,
+    cameraFixed   = false,
+    watermark     = false,
+    enhancePrompt = true,
+    seed          = 0,
   } = body;
 
   // ルール・ネガティブプロンプトをインストラクションに結合
@@ -92,14 +89,22 @@ export async function POST(
     // Veo constraints
     const allowedRes = videoModel === "veo-3-lite" ? VEO_LITE_RESOLUTIONS : VEO_FULL_RESOLUTIONS;
     const clampedResolution = allowedRes.has(resolution) ? resolution : "720p";
-    const clampedRatio = videoModel === "veo-3-lite" && !VEO_LITE_RATIOS.has(ratio) ? "16:9" : (ratio === "adaptive" ? "16:9" : ratio);
-    // 1080p/4k は8秒固定、それ以外は 4/6/8 に丸める
+    const hasRefImage = !!scene.imgUrl;
+
+    // aspectRatio: 16:9 / 9:16 のみ有効。"adaptive" その他は省略（API デフォルトに任せる）
+    const validRatio = VEO_VALID_RATIOS.has(ratio) ? ratio : null;
+
+    // durationSeconds: -1（auto）は省略。1080p/4k は8秒固定。それ以外は 4/6/8 に最近傍
     const needsMaxDuration = clampedResolution === "1080p" || clampedResolution === "4k";
-    const rawDuration = needsMaxDuration ? VEO_HIGH_RES_DURATION : (duration === -1 ? 8 : Math.min(duration, VEO_LITE_MAX_DURATION));
-    const allowedDurations = [4, 6, 8] as const;
-    const clampedDuration = needsMaxDuration ? 8 : allowedDurations.reduce((prev, curr) =>
-      Math.abs(curr - rawDuration) < Math.abs(prev - rawDuration) ? curr : prev
-    );
+    const veoAllowedDurations = [4, 6, 8] as const;
+    const clampedDuration: number | null = duration === -1 ? null :
+      needsMaxDuration ? 8 :
+      veoAllowedDurations.reduce((prev, curr) =>
+        Math.abs(curr - duration) < Math.abs(prev - duration) ? curr : prev
+      );
+
+    // personGeneration: I2V=allow_adult, T2V=allow_all（ユーザー選択なし）
+    const veoPersonGeneration = hasRefImage ? "allow_adult" : "allow_all";
 
     const prompt = instructions.trim() || "動画を生成してください";
 
@@ -120,15 +125,14 @@ export async function POST(
       return NextResponse.json({ ok: false, message: "プロンプトまたは画像が必要です" }, { status: 400 });
 
     const veoParams: Record<string, unknown> = {
-      aspectRatio:      clampedRatio,
       resolution:       clampedResolution,
-      durationSeconds:  clampedDuration,
       sampleCount:      1,
       enhancePrompt:    enhancePrompt !== false,
-      personGeneration: personGeneration,
+      personGeneration: veoPersonGeneration,
     };
-    if (videoModel === "veo-3") veoParams.generateAudio = generateAudio === true;
-    if (seed && seed > 0) veoParams.seed = seed;
+    if (validRatio !== null)       veoParams.aspectRatio    = validRatio;
+    if (clampedDuration !== null)  veoParams.durationSeconds = clampedDuration;
+    if (seed && seed > 0)          veoParams.seed           = seed;
 
     const veoBody = { instances: [instance], parameters: veoParams };
 
@@ -165,7 +169,7 @@ export async function POST(
         userId: session.userId,
         detail: { storyboardId: params.id, sceneId: params.sceneId },
       });
-      await refundCredits(session.userId, videoModelToAction(videoModel, body.generateAudio ?? false), workspaceId);
+      await refundCredits(session.userId, videoModelToAction(videoModel, false), workspaceId);
       return NextResponse.json({ ok: false, message: `動画生成タスクの作成に失敗しました: ${e}` }, { status: 500 });
     }
   }

@@ -1211,8 +1211,8 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
               const vidColor  = currentVidModel.color;
 
               const availableResolutions = isVeo ? (isVeoLite ? (["720p", "1080p"] as const) : (["720p", "1080p", "4k"] as const)) : (["720p", "1080p"] as const);
-              const availableRatios      = isVeoLite ? (["16:9", "9:16"] as const) : (["16:9", "4:3", "1:1", "3:4", "9:16", "21:9", "adaptive"] as const);
-              const maxDuration          = isVeoLite ? 8 : 12;
+              const availableRatios      = isVeo ? (["16:9", "9:16", "adaptive"] as const) : (["16:9", "4:3", "1:1", "3:4", "9:16", "21:9", "adaptive"] as const);
+              const availableDurations   = isVeo ? [4, 6, 8] : [4, 5, 6, 7, 8, 9, 10, 11, 12];
               const highResSelected      = vid.resolution === "1080p" || vid.resolution === "4k";
 
               return (
@@ -1225,19 +1225,19 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                     onChange={(id) => {
                       const m = VIDEO_MODELS.find((x) => x.id === id);
                       let nextVid = { ...vid, videoModel: id };
-                      if (m?.veoLite) {
-                        if (!["16:9", "9:16"].includes(nextVid.ratio)) nextVid.ratio = "16:9";
-                        if (nextVid.duration > 8 || nextVid.duration === -1) nextVid.duration = 8;
-                        if (nextVid.resolution === "4k") nextVid.resolution = "720p";
-                        if (nextVid.resolution === "1080p") nextVid.duration = 8;
+                      if (m?.id === "veo-3" || m?.id === "veo-3-lite") {
+                        if (!["16:9", "9:16", "adaptive"].includes(nextVid.ratio)) nextVid.ratio = "16:9";
+                        if (!([4, 6, 8] as number[]).includes(nextVid.duration)) nextVid.duration = 8;
+                        if (m.veoLite && nextVid.resolution === "4k") nextVid.resolution = "720p";
+                        if (nextVid.resolution === "1080p" || nextVid.resolution === "4k") nextVid.duration = 8;
                       }
                       setVid(nextVid as VideoSettings);
                     }}
                     lockedIds={isFree ? ["veo-3", "seedance-1-5-pro"] : []}
                   />
-                  {isVeoLite && (
+                  {isVeo && (
                     <div style={{ marginTop: 6, fontSize: 10, color: "#94a3b8", fontFamily: FONT }}>
-                      Veo 3.1 Lite：最大8秒・16:9 / 9:16のみ（1080p は8秒固定）
+                      {isVeoLite ? "Veo 3.1 Lite：720p / 1080p・4/6/8秒・16:9 / 9:16" : "Veo 3.1：720p / 1080p / 4K・4/6/8秒・16:9 / 9:16"}（1080p / 4K は8秒固定）
                     </div>
                   )}
                 </div>
@@ -1288,31 +1288,29 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                 <div style={FIELD}>
                   <label style={LBL}>アスペクト比</label>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                    {(["16:9", "4:3", "1:1", "3:4", "9:16", "21:9", "adaptive"] as const).map((r) => {
-                      const disabled = !availableRatios.includes(r as any);
-                      const active   = vid.ratio === r && !disabled;
+                    {availableRatios.map((r) => {
+                      const active = vid.ratio === r;
                       return (
                         <button key={r}
-                          onClick={() => !disabled && setVid((s) => ({ ...s, ratio: r }))}
+                          onClick={() => setVid((s) => ({ ...s, ratio: r }))}
                           style={{ fontSize: 11, padding: "4px 9px", borderRadius: 6, fontFamily: FONT,
-                            cursor: disabled ? "not-allowed" : "pointer",
+                            cursor: "pointer",
                             border: `1.5px solid ${active ? vidColor : "#e2e8f0"}`,
-                            background: active ? `${vidColor}18` : disabled ? "#f1f5f9" : "#fff",
-                            color: active ? vidColor : disabled ? "#cbd5e1" : "#64748b",
+                            background: active ? `${vidColor}18` : "#fff",
+                            color: active ? vidColor : "#64748b",
                             fontWeight: active ? 700 : 400,
                           }}
                         >{r}</button>
                       );
                     })}
                   </div>
-                  {isVeoLite && <div style={{ marginTop: 5, fontSize: 10, color: "#94a3b8", fontFamily: FONT }}>Veo 3.1 Lite は 16:9 / 9:16 のみ対応</div>}
                 </div>
 
                 <div style={FIELD}>
                   <label style={LBL}>尺（秒）{isVeo && highResSelected && <span style={{ marginLeft: 6, fontSize: 10, color: "#d97706", fontWeight: 400 }}>1080p/4K は8秒固定</span>}</label>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                    {[4, 5, 6, 7, 8, 9, 10, 11, 12].map((d) => {
-                      const disabled = d > maxDuration || (isVeo && highResSelected && d !== 8);
+                    {availableDurations.map((d) => {
+                      const disabled = isVeo && highResSelected && d !== 8;
                       const active   = vid.duration === d && !disabled;
                       return (
                         <button key={d}
@@ -1327,46 +1325,33 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                         >{d}s</button>
                       );
                     })}
-                    {!isVeoLite && (
+                    {!isVeo && (
                       <button onClick={() => setVid((s) => ({ ...s, duration: -1 }))}
                         style={{ fontSize: 11, padding: "4px 10px", borderRadius: 6, cursor: "pointer", fontFamily: FONT, border: `1.5px solid ${vid.duration === -1 ? vidColor : "#e2e8f0"}`, background: vid.duration === -1 ? `${vidColor}18` : "#fff", color: vid.duration === -1 ? vidColor : "#64748b", fontWeight: vid.duration === -1 ? 700 : 400 }}
                       >自動</button>
                     )}
                   </div>
-                  {isVeoLite && <div style={{ marginTop: 5, fontSize: 10, color: "#94a3b8", fontFamily: FONT }}>Veo 3.1 Lite は最大 8 秒</div>}
                 </div>
 
-                <div style={FIELD}>
-                  <label style={LBL}>オプション</label>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, color: "#475569", fontFamily: FONT }}>
-                      <input type="checkbox" checked={vid.generateAudio} onChange={(e) => setVid((s) => ({ ...s, generateAudio: e.target.checked }))} style={{ accentColor: vidColor, width: 14, height: 14 }} />
-                      音声を生成（デフォルトはオフ）
-                    </label>
-                    {isVeo && (
-                      <div style={{ fontSize: 10, color: "#d97706", fontFamily: FONT, lineHeight: 1.6, padding: "4px 8px", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 6 }}>
-                        ⚠ 日本語プロンプトで音声生成をオンにすると、Googleのコンテンツフィルタに引っかかり動画が生成されない場合があります。オフのまま使用することを推奨します。
-                      </div>
-                    )}
-                    {!isVeo && (
-                      <>
-                        <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, color: "#475569", fontFamily: FONT }}>
-                          <input type="checkbox" checked={vid.cameraFixed} onChange={(e) => setVid((s) => ({ ...s, cameraFixed: e.target.checked }))} style={{ accentColor: vidColor, width: 14, height: 14 }} />
-                          カメラ固定
-                        </label>
-                        <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, color: "#475569", fontFamily: FONT }}>
-                          <input type="checkbox" checked={vid.watermark} onChange={(e) => setVid((s) => ({ ...s, watermark: e.target.checked }))} style={{ accentColor: vidColor, width: 14, height: 14 }} />
-                          透かし（AI Generated を表示）
-                        </label>
-                      </>
-                    )}
-                    {isVeo && (
-                      <div style={{ fontSize: 11, color: "#94a3b8", fontFamily: FONT, lineHeight: 1.6 }}>
-                        カメラ固定・透かしは Veo モデルでは未対応です
-                      </div>
-                    )}
+                {!isVeo && (
+                  <div style={FIELD}>
+                    <label style={LBL}>オプション</label>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, color: "#475569", fontFamily: FONT }}>
+                        <input type="checkbox" checked={vid.generateAudio} onChange={(e) => setVid((s) => ({ ...s, generateAudio: e.target.checked }))} style={{ accentColor: vidColor, width: 14, height: 14 }} />
+                        音声を生成（デフォルトはオフ）
+                      </label>
+                      <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, color: "#475569", fontFamily: FONT }}>
+                        <input type="checkbox" checked={vid.cameraFixed} onChange={(e) => setVid((s) => ({ ...s, cameraFixed: e.target.checked }))} style={{ accentColor: vidColor, width: 14, height: 14 }} />
+                        カメラ固定
+                      </label>
+                      <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, color: "#475569", fontFamily: FONT }}>
+                        <input type="checkbox" checked={vid.watermark} onChange={(e) => setVid((s) => ({ ...s, watermark: e.target.checked }))} style={{ accentColor: vidColor, width: 14, height: 14 }} />
+                        透かし（AI Generated を表示）
+                      </label>
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {isVeo && (
                   <>
@@ -1388,23 +1373,9 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                     </div>
 
                     <div style={FIELD}>
-                      <label style={LBL}>人物生成</label>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                        {([
-                          { value: "allow_adult", label: "成人のみ（デフォルト）" },
-                          { value: "allow_all",   label: "全年齢（T2Vのみ）" },
-                          { value: "dont_allow",  label: "人物なし" },
-                        ]).map((p) => (
-                          <button key={p.value} onClick={() => setVid((s) => ({ ...s, personGeneration: p.value as "allow_adult" | "allow_all" | "dont_allow" }))}
-                            style={{
-                              fontSize: 11, padding: "4px 9px", borderRadius: 6, cursor: "pointer", fontFamily: FONT,
-                              border: `1.5px solid ${vid.personGeneration === p.value ? vidColor : "#e2e8f0"}`,
-                              background: vid.personGeneration === p.value ? `${vidColor}18` : "#fff",
-                              color: vid.personGeneration === p.value ? vidColor : "#64748b",
-                              fontWeight: vid.personGeneration === p.value ? 700 : 400,
-                            }}
-                          >{p.label}</button>
-                        ))}
+                      <label style={LBL}>音声</label>
+                      <div style={{ fontSize: 11, color: "#475569", fontFamily: FONT, lineHeight: 1.6 }}>
+                        音声は自動的に生成されます。日本語の会話や音声指示を含む場合、コンテンツフィルタで生成が停止する場合があります。
                       </div>
                     </div>
 
@@ -2374,7 +2345,8 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
               const cost = img.imageModel === "google-image-lite" ? 100 : img.imageModel === "gpt-image-2-high" ? 2_000 : img.imageModel === "gpt-image-1-5" ? 1_500 : 400;
               items = [{ label: "1枚あたり", cost: `${cost.toLocaleString()} cr` }];
             } else if (activeTab === "video") {
-              const cost = vid.videoModel === "veo-3-lite" ? 1_000 : (vid.generateAudio ? 5_000 : 2_500);
+              const isVeoModel = vid.videoModel === "veo-3" || vid.videoModel === "veo-3-lite";
+              const cost = vid.videoModel === "veo-3-lite" ? 1_000 : ((!isVeoModel && vid.generateAudio) ? 5_000 : 2_500);
               items = [{ label: "1本あたり", cost: `${cost.toLocaleString()} cr` }];
             } else if (activeTab === "narration") {
               items = [{ label: "200文字あたり", cost: "10 cr" }];
