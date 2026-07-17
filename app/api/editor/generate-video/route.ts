@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getEditorSessionFromCookie } from "@/lib/auth.backend";
 import { logError } from "@/lib/log.error";
 import { consumeCredits, refundCredits, videoModelToAction } from "@/lib/credits";
-
+import { checkModelAccess } from "@/lib/model-config";
 
 const ARK_API_BASE   = "https://ark.ap-southeast.bytepluses.com/api/v3";
 const SEEDANCE_MODEL = "seedance-1-5-pro-251215";
@@ -16,9 +16,9 @@ const VEO_MODEL_IDS: Record<string, string> = {
   "veo-3-lite": process.env.VEO_LITE_MODEL ?? "veo-3.1-lite-generate-preview",
 };
 
-const VEO_LITE_MAX_DURATION = 8;
-const VEO_LITE_RESOLUTIONS  = new Set(["720p", "1080p"]);
-const VEO_LITE_RATIOS       = new Set(["16:9", "9:16"]);
+const VEO_LITE_RESOLUTIONS = new Set(["720p", "1080p"]);
+const VEO_FULL_RESOLUTIONS = new Set(["720p", "1080p", "4k"]);
+const VEO_VALID_RATIOS     = new Set(["16:9", "9:16"]);
 
 export async function POST(request: NextRequest) {
   const session = await getEditorSessionFromCookie();
@@ -33,52 +33,66 @@ export async function POST(request: NextRequest) {
     generateAudio?: boolean;
     watermark?: boolean;
     cameraFixed?: boolean;
+    seed?: number;
     vidCommonRules?: string;
     vidNegativePrompt?: string;
   };
 
   const basePrompt = (body.prompt ?? "").trim();
   if (!basePrompt) return NextResponse.json({ ok: false, message: "プロンプトを入力してください" }, { status: 400 });
+
   const rules = body.vidCommonRules?.trim();
   const neg   = body.vidNegativePrompt?.trim();
   const prompt = [basePrompt, rules, neg ? `以下の要素は含めないでください: ${neg}` : ""].filter(Boolean).join(" ");
 
   const videoModel = body.videoModel ?? "veo-3-lite";
-  const credit = await consumeCredits(session.userId, videoModelToAction(videoModel, body.generateAudio ?? false));
+  const isVeoModel = videoModel === "veo-3" || videoModel === "veo-3-lite";
+
+  const access = await checkModelAccess(videoModel, session.user.plan ?? null);
+  if (!access.ok) return NextResponse.json({ ok: false, message: access.message }, { status: access.status ?? 403 });
+
+  const credit = await consumeCredits(session.userId, videoModelToAction(videoModel, isVeoModel ? false : (body.generateAudio ?? false)));
   if (!credit.ok) return NextResponse.json({ ok: false, message: credit.message }, { status: 402 });
 
   const {
     resolution    = "720p",
     ratio         = "16:9",
-    duration      = 5,
+    duration      = 8,
     generateAudio = false,
     watermark     = false,
     cameraFixed   = false,
+    seed          = 0,
   } = body;
 
   const userId = session.userId;
 
   // ── Google Veo ───────────────────────────────────────────────────────────────
-  if (videoModel === "veo-3" || videoModel === "veo-3-lite") {
+  if (isVeoModel) {
     const googleApiKey = process.env.GOOGLE_AI_API_KEY;
     if (!googleApiKey) return NextResponse.json({ ok: false, message: "GOOGLE_AI_API_KEY が設定されていません" }, { status: 500 });
 
     const modelId = VEO_MODEL_IDS[videoModel];
-    const clampedResolution = videoModel === "veo-3-lite" && !VEO_LITE_RESOLUTIONS.has(resolution) ? "720p" : resolution;
-    const clampedRatio      = videoModel === "veo-3-lite" && !VEO_LITE_RATIOS.has(ratio) ? "16:9" : ratio;
-    const rawDuration = videoModel === "veo-3-lite" ? Math.min(duration, VEO_LITE_MAX_DURATION) : Math.max(4, Math.min(8, duration));
-    const allowedDurations = [4, 6, 8] as const;
-    const clampedDuration  = allowedDurations.reduce((prev, curr) =>
-      Math.abs(curr - rawDuration) < Math.abs(prev - rawDuration) ? curr : prev
-    );
+    const allowedRes = videoModel === "veo-3-lite" ? VEO_LITE_RESOLUTIONS : VEO_FULL_RESOLUTIONS;
+    const clampedResolution = allowedRes.has(resolution) ? resolution : "720p";
+
+    const validRatio = VEO_VALID_RATIOS.has(ratio) ? ratio : null;
+
+    const needsMaxDuration = clampedResolution === "1080p" || clampedResolution === "4k";
+    const veoAllowedDurations = [4, 6, 8] as const;
+    const clampedDuration: number | null = duration === -1 ? null :
+      needsMaxDuration ? 8 :
+      veoAllowedDurations.reduce((prev, curr) =>
+        Math.abs(curr - duration) < Math.abs(prev - duration) ? curr : prev
+      );
 
     const veoParams: Record<string, unknown> = {
-      aspectRatio: clampedRatio,
-      resolution: clampedResolution,
-      durationSeconds: clampedDuration,
-      sampleCount: 1,
+      resolution:       clampedResolution,
+      sampleCount:      1,
+      personGeneration: "allow_all",
     };
-    if (videoModel === "veo-3") veoParams.generateAudio = generateAudio === true;
+    if (validRatio !== null)      veoParams.aspectRatio     = validRatio;
+    if (clampedDuration !== null) veoParams.durationSeconds = clampedDuration;
+    if (seed && seed > 0)         veoParams.seed            = seed;
 
     const veoBody = { instances: [{ prompt }], parameters: veoParams };
 
@@ -88,14 +102,14 @@ export async function POST(request: NextRequest) {
         headers: { "Content-Type": "application/json", "x-goog-api-key": googleApiKey },
         body: JSON.stringify(veoBody),
       });
-      if (!resp.ok) throw new Error(`Google Veo ${resp.status}: ${await resp.text()}`);
+      if (!resp.ok) throw new Error(`Google Veo ${resp.status} (model: ${modelId}): ${await resp.text()}`);
       const data = await resp.json() as { name?: string; error?: { message: string } };
       if (!data.name) throw new Error(data.error?.message ?? "オペレーション名が返されませんでした");
 
       return NextResponse.json({ ok: true, taskId: `veo:${data.name}`, provider: videoModel });
     } catch (e) {
       await logError("editor-generate-video", `Veo create error: ${e}`, { userId, detail: {} });
-      await refundCredits(userId, videoModelToAction(videoModel, body.generateAudio ?? false));
+      await refundCredits(userId, videoModelToAction(videoModel, false));
       return NextResponse.json({ ok: false, message: `動画生成タスクの作成に失敗しました: ${e}` }, { status: 500 });
     }
   }
@@ -109,7 +123,7 @@ export async function POST(request: NextRequest) {
     content: [{ type: "text", text: prompt }],
     resolution,
     ratio,
-    duration: Math.max(4, Math.min(12, Number(duration))),
+    duration: duration === -1 ? -1 : Math.max(4, Math.min(12, Number(duration))),
     generate_audio: generateAudio,
     watermark,
     camera_fixed: cameraFixed,

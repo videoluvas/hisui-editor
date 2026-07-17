@@ -335,6 +335,22 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
   const { user } = useAuthUser();
   const isFree = !user?.plan || user.plan === "Free";
 
+  const [availMap, setAvailMap] = useState<Record<string, string>>({});
+  useEffect(() => {
+    fetch("/api/model-config", { credentials: "include" })
+      .then((r) => r.ok ? r.json() : {})
+      .then((d) => setAvailMap(d as Record<string, string>))
+      .catch(() => {});
+  }, []);
+
+  const lockedIds = (ids: readonly string[]): string[] =>
+    ids.filter((id) => {
+      const avail = availMap[id] ?? "paid";
+      if (avail === "suspended") return true;
+      if (avail === "paid" && isFree) return true;
+      return false;
+    });
+
   const visibleTabs = workspaceId ? TABS : TABS.filter((t) => t.id !== "general");
 
   const INPUT: React.CSSProperties = {
@@ -601,7 +617,7 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                     models={IMAGE_MODELS}
                     value={img.imageModel}
                     onChange={(id) => setImg((s) => ({ ...s, imageModel: id as ImageSettings["imageModel"] }))}
-                    lockedIds={isFree ? ["google-image-pro", "reve-1", "seedream-5-0-pro", "gpt-image-1-5", "gpt-image-2-high"] : []}
+                    lockedIds={lockedIds(IMAGE_MODELS.map((m) => m.id))}
                   />
                 </div>
 
@@ -1233,7 +1249,7 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                       }
                       setVid(nextVid as VideoSettings);
                     }}
-                    lockedIds={isFree ? ["veo-3", "seedance-1-5-pro"] : []}
+                    lockedIds={lockedIds(VIDEO_MODELS.map((m) => m.id))}
                   />
                   {isVeo && (
                     <div style={{ marginTop: 6, fontSize: 10, color: "#94a3b8", fontFamily: FONT }}>
@@ -1437,7 +1453,7 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                         setTts((s) => ({ ...s, provider: "google-gemini", model: id as typeof tts.model }));
                       }
                     }}
-                    lockedIds={isFree ? ["elevenlabs"] : []}
+                    lockedIds={lockedIds(TTS_MODELS.map((m) => m.id))}
                   />
                   {tts.provider === "elevenlabs" && (
                     <div style={{ marginTop: 6, fontSize: 10, color: "#94a3b8", fontFamily: FONT }}>
@@ -1686,7 +1702,7 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                     models={BGM_MODEL_ENTRIES}
                     value={bgm.model}
                     onChange={(id) => setBgm((s) => ({ ...s, model: id as BgmModel }))}
-                    lockedIds={isFree ? ["lyria-3-pro-preview"] : []}
+                    lockedIds={lockedIds(BGM_MODEL_ENTRIES.map((m) => m.id))}
                   />
                 </div>
 

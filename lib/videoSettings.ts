@@ -18,7 +18,7 @@ export const DEFAULT_VIDEO_SETTINGS: VideoSettings = {
   videoModel: "veo-3-lite",
   resolution: "720p",
   ratio: "16:9",
-  duration: 5,
+  duration: 8,
   generateAudio: false,
   cameraFixed: false,
   watermark: false,

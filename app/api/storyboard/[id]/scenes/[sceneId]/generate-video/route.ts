@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { getEditorSessionFromCookie } from "@/lib/auth.backend";
 import { logError } from "@/lib/log.error";
 import { consumeCredits, refundCredits, videoModelToAction } from "@/lib/credits";
+import { checkModelAccess } from "@/lib/model-config";
 
 
 const ARK_API_BASE   = "https://ark.ap-southeast.bytepluses.com/api/v3";
@@ -55,6 +56,10 @@ export async function POST(
   const videoModel = body.videoModel ?? "veo-3-lite";
   const workspaceId = sb.workspaceId ?? null;
   const isVeoModel = videoModel === "veo-3" || videoModel === "veo-3-lite";
+
+  const access = await checkModelAccess(videoModel, session.user.plan ?? null);
+  if (!access.ok) return NextResponse.json({ ok: false, message: access.message }, { status: access.status ?? 403 });
+
   const credit = await consumeCredits(session.userId, videoModelToAction(videoModel, isVeoModel ? false : (body.generateAudio ?? false)), workspaceId);
   if (!credit.ok) return NextResponse.json({ ok: false, message: credit.message }, { status: 402 });
 
