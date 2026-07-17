@@ -328,7 +328,7 @@ export async function POST(
 
     const gptBody: Record<string, unknown> = {
       model: openaiModel, prompt, size: gptSize, quality: gptQuality,
-      output_format: gptOutputFormat, response_format: "b64_json", n: 1,
+      output_format: gptOutputFormat, n: 1,
       moderation: gptModeration,
     };
     if (gptBackground !== "auto") gptBody.background = gptBackground;
