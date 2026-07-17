@@ -12,8 +12,18 @@ export async function GET(req: NextRequest) {
     const renderId = req.nextUrl.searchParams.get("renderId");
     if (!renderId) return NextResponse.json({ ok: false, message: "renderIdが必要です" }, { status: 400 });
 
-    const res = await fetch(`${process.env.SHOTSTACK_API_URL}/render/${renderId}`, {
-      headers: { "x-api-key": process.env.SHOTSTACK_API_KEY! },
+    // sandbox=false のときのみ本番APIを使う（デフォルトはサンドボックス）
+    const useSandbox = req.nextUrl.searchParams.get("sandbox") !== "false";
+
+    const apiKey = useSandbox
+      ? process.env.SHOTSTACK_API_KEY!
+      : (process.env.SHOTSTACK_PROD_API_KEY ?? process.env.SHOTSTACK_API_KEY!);
+    const apiUrl = useSandbox
+      ? process.env.SHOTSTACK_API_URL!
+      : (process.env.SHOTSTACK_PROD_API_URL ?? process.env.SHOTSTACK_API_URL!);
+
+    const res = await fetch(`${apiUrl}/render/${renderId}`, {
+      headers: { "x-api-key": apiKey },
     });
 
     const data = await res.json();

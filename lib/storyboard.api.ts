@@ -1,3 +1,15 @@
+async function safeJson<T>(res: Response): Promise<T> {
+  const text = await res.text();
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    if (res.status === 524 || res.status === 504 || res.status === 502) {
+      return { ok: false, message: "生成に時間がかかっています。バックグラウンドで処理中のため、しばらく待ってからページをリロードしてください。" } as unknown as T;
+    }
+    return { ok: false, message: `サーバーエラー (${res.status})` } as unknown as T;
+  }
+}
+
 // ─── 型定義 ───────────────────────────────────────────────────────────────────
 
 export type AudioSettings = {
@@ -85,7 +97,7 @@ export type StoryboardListItem = {
 export async function listStoryboards(workspaceId?: string | null): Promise<{ ok: boolean; items: StoryboardListItem[]; message?: string }> {
   const url = workspaceId ? `/api/storyboard?workspaceId=${workspaceId}` : "/api/storyboard";
   const res = await fetch(url, { credentials: "include", cache: "no-store" });
-  return res.json();
+  return safeJson(res);
 }
 
 export async function createStoryboard(data: { title?: string; workspaceId?: string | null }): Promise<{ ok: boolean; storyboard?: StoryboardMainData; message?: string }> {
@@ -95,12 +107,12 @@ export async function createStoryboard(data: { title?: string; workspaceId?: str
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
-  return res.json();
+  return safeJson(res);
 }
 
 export async function getStoryboard(id: string): Promise<{ ok: boolean; storyboard?: StoryboardMainData; message?: string }> {
   const res = await fetch(`/api/storyboard/${id}`, { credentials: "include", cache: "no-store" });
-  return res.json();
+  return safeJson(res);
 }
 
 export async function updateStoryboard(id: string, data: Partial<Omit<StoryboardMainData, "id" | "userId" | "scenes" | "createdAt" | "updatedAt">>): Promise<{ ok: boolean; message?: string }> {
@@ -110,12 +122,12 @@ export async function updateStoryboard(id: string, data: Partial<Omit<Storyboard
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
-  return res.json();
+  return safeJson(res);
 }
 
 export async function deleteStoryboard(id: string): Promise<{ ok: boolean; message?: string }> {
   const res = await fetch(`/api/storyboard/${id}`, { method: "DELETE", credentials: "include" });
-  return res.json();
+  return safeJson(res);
 }
 
 export async function createScene(mainId: string, data: Partial<Omit<StoryboardSceneData, "id" | "mainId" | "createdAt" | "updatedAt">>): Promise<{ ok: boolean; scene?: StoryboardSceneData; message?: string }> {
@@ -125,7 +137,7 @@ export async function createScene(mainId: string, data: Partial<Omit<StoryboardS
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
-  return res.json();
+  return safeJson(res);
 }
 
 export async function updateScene(mainId: string, sceneId: string, data: Partial<Omit<StoryboardSceneData, "id" | "mainId" | "createdAt" | "updatedAt">>): Promise<{ ok: boolean; message?: string }> {
@@ -135,12 +147,12 @@ export async function updateScene(mainId: string, sceneId: string, data: Partial
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
-  return res.json();
+  return safeJson(res);
 }
 
 export async function deleteScene(mainId: string, sceneId: string): Promise<{ ok: boolean; message?: string }> {
   const res = await fetch(`/api/storyboard/${mainId}/scenes/${sceneId}`, { method: "DELETE", credentials: "include" });
-  return res.json();
+  return safeJson(res);
 }
 
 export async function generateSceneScript(
@@ -154,7 +166,7 @@ export async function generateSceneScript(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
-  return res.json();
+  return safeJson(res);
 }
 
 export async function generateSceneTelopText(
@@ -168,7 +180,7 @@ export async function generateSceneTelopText(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
-  return res.json();
+  return safeJson(res);
 }
 
 export async function generateSceneImage(
@@ -218,7 +230,7 @@ export async function generateSceneImage(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
-  return res.json();
+  return safeJson(res);
 }
 
 export async function generateSceneVideo(
@@ -246,7 +258,7 @@ export async function generateSceneVideo(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
-  return res.json();
+  return safeJson(res);
 }
 
 export async function pollVideoStatus(
@@ -256,7 +268,7 @@ export async function pollVideoStatus(
   const res = await fetch(`/api/storyboard/${mainId}/scenes/${sceneId}/generate-video/status`, {
     credentials: "include",
   });
-  return res.json();
+  return safeJson(res);
 }
 
 export async function generateSceneNarration(
@@ -284,7 +296,7 @@ export async function generateSceneNarration(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
-  return res.json();
+  return safeJson(res);
 }
 
 export async function generateStoryboard(
@@ -297,7 +309,7 @@ export async function generateStoryboard(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
-  return res.json();
+  return safeJson(res);
 }
 
 export async function convertStoryboardToProject(
@@ -310,5 +322,5 @@ export async function convertStoryboardToProject(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(settings ?? {}),
   });
-  return res.json();
+  return safeJson(res);
 }

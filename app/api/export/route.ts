@@ -134,7 +134,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, message: data?.response?.message ?? "書き出しAPIエラー" }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true, renderId: data.response.id });
+    return NextResponse.json({ ok: true, renderId: data.response.id, sandbox: useSandbox });
   } catch (error) {
     console.error("POST /api/export error:", error);
     return NextResponse.json({ ok: false, message: "サーバーエラーが発生しました" }, { status: 500 });

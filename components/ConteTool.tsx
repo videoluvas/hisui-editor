@@ -32,7 +32,9 @@ const GRAD_NOMAL   = "linear-gradient(to bottom, #f8fafd, #f8fafd)";
 
 async function downloadUrl(url: string, filename: string) {
   try {
-    const res = await fetch(url);
+    const proxyUrl = `/api/download?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(filename)}`;
+    const res = await fetch(proxyUrl);
+    if (!res.ok) throw new Error("proxy failed");
     const blob = await res.blob();
     const blobUrl = URL.createObjectURL(blob);
     const a = document.createElement("a");

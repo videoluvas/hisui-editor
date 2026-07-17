@@ -279,13 +279,13 @@ export default function Home() {
     const data = await res.json();
     if (!data.ok) throw new Error(data.message ?? "書き出し開始に失敗しました");
 
-    const { renderId } = data;
+    const { renderId, sandbox } = data as { renderId: string; sandbox: boolean };
     onProgress({ phase: "queued" });
 
     // ポーリング（最大5分 / 5秒間隔 / 60回）
     for (let i = 0; i < 60; i++) {
       await new Promise((r) => setTimeout(r, 5000));
-      const statusRes  = await fetch(`/api/export/status?renderId=${renderId}`);
+      const statusRes  = await fetch(`/api/export/status?renderId=${renderId}&sandbox=${sandbox ?? true}`);
       const statusData = await statusRes.json() as { status: string; url?: string };
       const { status, url } = statusData;
 
