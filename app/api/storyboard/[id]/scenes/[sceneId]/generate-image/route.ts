@@ -12,10 +12,11 @@ import { resolveSeedreamSize } from "@/lib/imageSettings";
 import { consumeCredits, refundCredits, imageModelToAction } from "@/lib/credits";
 import { checkModelAccess } from "@/lib/model-config";
 
-const REVE_API_URL    = "https://api.reve.com/v1/image/edit";
-const ARK_API_URL     = "https://ark.ap-southeast.bytepluses.com/api/v3/images/generations";
-const GOOGLE_AI_BASE  = "https://generativelanguage.googleapis.com/v1beta";
-const OPENAI_IMG_URL  = "https://api.openai.com/v1/images/generations";
+const REVE_API_URL        = "https://api.reve.com/v1/image/edit";
+const ARK_API_URL         = "https://ark.ap-southeast.bytepluses.com/api/v3/images/generations";
+const GOOGLE_AI_BASE      = "https://generativelanguage.googleapis.com/v1beta";
+const OPENAI_IMG_URL      = "https://api.openai.com/v1/images/generations";
+const OPENAI_IMG_EDIT_URL = "https://api.openai.com/v1/images/edits";
 
 // ── 白紙PNG生成 ──────────────────────────────────────────────────────────────
 
@@ -326,25 +327,57 @@ export async function POST(
     const ext = gptOutputFormat === "jpeg" ? "jpg" : gptOutputFormat;
     const contentType = gptOutputFormat === "jpeg" ? "image/jpeg" : gptOutputFormat === "webp" ? "image/webp" : "image/png";
 
-    const gptBody: Record<string, unknown> = {
-      model: openaiModel, prompt, size: gptSize, quality: gptQuality,
-      output_format: gptOutputFormat, n: 1,
-      moderation: gptModeration,
-    };
-    if (gptBackground !== "auto") gptBody.background = gptBackground;
-    if ((gptOutputFormat === "jpeg" || gptOutputFormat === "webp") && gptCompression < 100) gptBody.output_compression = gptCompression;
-
     try {
-      const resp = await fetch(OPENAI_IMG_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${openaiApiKey}` },
-        body: JSON.stringify(gptBody),
-      });
-      if (!resp.ok) {
-        const errText = await resp.text();
-        throw new Error(`OpenAI ${resp.status}: ${errText}`);
+      let openaiResp: Response;
+
+      if (imgUrl) {
+        // 参照画像あり → /v1/images/edits（参照画像ベース生成）
+        const refRes = await fetch(imgUrl);
+        if (!refRes.ok) throw new Error(`参照画像の取得に失敗しました: ${refRes.status}`);
+        const refBuffer = Buffer.from(await refRes.arrayBuffer());
+        const refMime = refRes.headers.get("content-type")?.split(";")[0] ?? "image/jpeg";
+        const refExt  = refMime.includes("png") ? "png" : refMime.includes("webp") ? "webp" : "jpg";
+
+        const formData = new FormData();
+        formData.append("image",          new Blob([refBuffer], { type: refMime }), `ref.${refExt}`);
+        formData.append("prompt",         prompt);
+        formData.append("model",          openaiModel);
+        formData.append("size",           gptSize);
+        formData.append("quality",        gptQuality);
+        formData.append("n",              "1");
+        formData.append("output_format",  gptOutputFormat);
+        formData.append("moderation",     gptModeration);
+        if (gptBackground !== "auto") formData.append("background", gptBackground);
+        if ((gptOutputFormat === "jpeg" || gptOutputFormat === "webp") && gptCompression < 100)
+          formData.append("output_compression", String(gptCompression));
+
+        openaiResp = await fetch(OPENAI_IMG_EDIT_URL, {
+          method:  "POST",
+          headers: { "Authorization": `Bearer ${openaiApiKey}` },
+          body:    formData,
+        });
+      } else {
+        // テキストのみ → /v1/images/generations
+        const gptBody: Record<string, unknown> = {
+          model: openaiModel, prompt, size: gptSize, quality: gptQuality,
+          output_format: gptOutputFormat, n: 1, moderation: gptModeration,
+        };
+        if (gptBackground !== "auto") gptBody.background = gptBackground;
+        if ((gptOutputFormat === "jpeg" || gptOutputFormat === "webp") && gptCompression < 100)
+          gptBody.output_compression = gptCompression;
+
+        openaiResp = await fetch(OPENAI_IMG_URL, {
+          method:  "POST",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${openaiApiKey}` },
+          body:    JSON.stringify(gptBody),
+        });
       }
-      const data = await resp.json() as { data?: Array<{ b64_json?: string }>; error?: { message: string } };
+
+      if (!openaiResp.ok) {
+        const errText = await openaiResp.text();
+        throw new Error(`OpenAI ${openaiResp.status}: ${errText}`);
+      }
+      const data = await openaiResp.json() as { data?: Array<{ b64_json?: string }>; error?: { message: string } };
       if (data.error) throw new Error((data.error as { message: string }).message);
       if (!data.data?.[0]?.b64_json) throw new Error("画像データが返されませんでした");
       imageB64 = data.data[0].b64_json;
