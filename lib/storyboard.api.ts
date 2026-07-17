@@ -233,7 +233,6 @@ export async function generateSceneVideo(
     generateAudio?: boolean;
     cameraFixed?: boolean;
     watermark?: boolean;
-    enhancePrompt?: boolean;
     seed?: number;
     personGeneration?: string;
     compressionQuality?: string;

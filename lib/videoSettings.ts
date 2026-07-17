@@ -7,7 +7,6 @@ export type VideoSettings = {
   cameraFixed: boolean;
   watermark: boolean;
   // Veo 専用
-  enhancePrompt: boolean;
   seed: number;           // 0 = 未設定
   personGeneration: "allow_adult" | "allow_all" | "dont_allow";
   compressionQuality: "optimized" | "lossless";
@@ -23,7 +22,6 @@ export const DEFAULT_VIDEO_SETTINGS: VideoSettings = {
   generateAudio: false,
   cameraFixed: false,
   watermark: false,
-  enhancePrompt: true,
   seed: 0,
   personGeneration: "allow_adult",
   compressionQuality: "optimized",

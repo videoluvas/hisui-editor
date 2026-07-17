@@ -47,10 +47,7 @@ export async function POST(
     cameraFixed?: boolean;
     watermark?: boolean;
     // Veo 専用
-    enhancePrompt?: boolean;
     seed?: number;
-    personGeneration?: string;
-    compressionQuality?: string;
     vidCommonRules?: string;
     vidNegativePrompt?: string;
   };
@@ -68,7 +65,6 @@ export async function POST(
     generateAudio = false,
     cameraFixed   = false,
     watermark     = false,
-    enhancePrompt = true,
     seed          = 0,
   } = body;
 
@@ -127,7 +123,6 @@ export async function POST(
     const veoParams: Record<string, unknown> = {
       resolution:       clampedResolution,
       sampleCount:      1,
-      enhancePrompt:    enhancePrompt !== false,
       personGeneration: veoPersonGeneration,
     };
     if (validRatio !== null)       veoParams.aspectRatio    = validRatio;

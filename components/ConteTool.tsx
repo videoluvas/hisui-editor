@@ -566,7 +566,6 @@ export default function ConteTool({
         generateAudio:    vidSettings.generateAudio,
         cameraFixed:        vidSettings.cameraFixed,
         watermark:          vidSettings.watermark,
-        enhancePrompt:      vidSettings.enhancePrompt,
         seed:               vidSettings.seed,
         personGeneration:   vidSettings.personGeneration,
         compressionQuality: vidSettings.compressionQuality,

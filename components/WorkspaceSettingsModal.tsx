@@ -1356,23 +1356,6 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                 {isVeo && (
                   <>
                     <div style={FIELD}>
-                      <label style={LBL}>プロンプト自動強化</label>
-                      <div style={{ display: "flex", gap: 4 }}>
-                        {([{ v: true, label: "オン（推奨）" }, { v: false, label: "オフ（プロンプトをそのまま使用）" }]).map(({ v, label }) => (
-                          <button key={String(v)} onClick={() => setVid((s) => ({ ...s, enhancePrompt: v }))}
-                            style={{
-                              fontSize: 11, padding: "4px 9px", borderRadius: 6, cursor: "pointer", fontFamily: FONT,
-                              border: `1.5px solid ${vid.enhancePrompt === v ? vidColor : "#e2e8f0"}`,
-                              background: vid.enhancePrompt === v ? `${vidColor}18` : "#fff",
-                              color: vid.enhancePrompt === v ? vidColor : "#64748b",
-                              fontWeight: vid.enhancePrompt === v ? 700 : 400,
-                            }}
-                          >{label}</button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div style={FIELD}>
                       <label style={LBL}>音声</label>
                       <div style={{ fontSize: 11, color: "#475569", fontFamily: FONT, lineHeight: 1.6 }}>
                         音声は自動的に生成されます。日本語の会話や音声指示を含む場合、コンテンツフィルタで生成が停止する場合があります。
@@ -1387,7 +1370,7 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                         onChange={(e) => setVid((s) => ({ ...s, seed: Math.max(0, Math.floor(Number(e.target.value))) }))}
                         style={{ width: "100%", padding: "5px 8px", borderRadius: 6, border: "1.5px solid #e2e8f0", fontSize: 12, fontFamily: FONT, boxSizing: "border-box" }}
                       />
-                      <div style={{ marginTop: 4, fontSize: 10, color: "#94a3b8", fontFamily: FONT }}>再現性向上のためのシード。プロンプト自動強化をオフにするとより効果的です。</div>
+                      <div style={{ marginTop: 4, fontSize: 10, color: "#94a3b8", fontFamily: FONT }}>同じシード値を指定すると近似した結果が得られます。0 は未設定（ランダム）。</div>
                     </div>
                   </>
                 )}
