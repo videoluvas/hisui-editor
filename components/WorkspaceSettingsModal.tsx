@@ -1409,26 +1409,6 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                     </div>
 
                     <div style={FIELD}>
-                      <label style={LBL}>圧縮品質</label>
-                      <div style={{ display: "flex", gap: 4 }}>
-                        {([
-                          { value: "optimized" as const, label: "最適化（デフォルト）" },
-                          { value: "lossless"  as const, label: "ロスレス" },
-                        ]).map((c) => (
-                          <button key={c.value} onClick={() => setVid((s) => ({ ...s, compressionQuality: c.value }))}
-                            style={{
-                              fontSize: 11, padding: "4px 9px", borderRadius: 6, cursor: "pointer", fontFamily: FONT,
-                              border: `1.5px solid ${vid.compressionQuality === c.value ? vidColor : "#e2e8f0"}`,
-                              background: vid.compressionQuality === c.value ? `${vidColor}18` : "#fff",
-                              color: vid.compressionQuality === c.value ? vidColor : "#64748b",
-                              fontWeight: vid.compressionQuality === c.value ? 700 : 400,
-                            }}
-                          >{c.label}</button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div style={FIELD}>
                       <label style={LBL}>シード値（0 = 未設定）</label>
                       <input
                         type="number" min={0} max={4294967295} step={1}

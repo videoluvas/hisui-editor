@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { loadVideoSettings } from "@/lib/videoSettings";
+import { videoTimeEstimate } from "@/lib/genTimeEstimate";
 import { saveGenMeta } from "@/lib/gen.meta";
 import type { GenMetaVideo } from "@/lib/gen.meta";
 
@@ -98,7 +99,7 @@ export default function EditorAIVideoModal({ open, workspaceId, playbackTime, on
       if (!taskId) throw new Error("タスクIDが返されませんでした");
 
       setStatus("polling");
-      setPollMsg("生成中（完了まで1〜5分かかる場合があります）...");
+      setPollMsg(`生成中（完了まで${videoTimeEstimate(model)}かかる場合があります）...`);
 
       for (let i = 0; i < 180; i++) {
         await new Promise((r) => setTimeout(r, 5000));

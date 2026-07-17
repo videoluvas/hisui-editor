@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { loadImageSettings } from "@/lib/imageSettings";
+import { imageTimeEstimate } from "@/lib/genTimeEstimate";
 import { saveGenMeta } from "@/lib/gen.meta";
 import type { GenMetaImage } from "@/lib/gen.meta";
 
@@ -210,7 +211,7 @@ export default function EditorAIImageModal({ open, workspaceId, playbackTime, on
             disabled={status === "generating"}
             style={{ background: status === "generating" ? "#cbd5e1" : GRAD, color: "#fff", border: "none", borderRadius: 10, padding: "13px 0", fontWeight: 700, fontSize: 14, cursor: status === "generating" ? "not-allowed" : "pointer", fontFamily: FONT, transition: "background 0.2s" }}
           >
-            {status === "generating" ? "生成中…（30秒〜数分かかります）" : "AI画像を生成"}
+            {status === "generating" ? `生成中…（${imageTimeEstimate(model, imgSettings.testTimeScaling)}）` : "AI画像を生成"}
           </button>
         )}
       </div>

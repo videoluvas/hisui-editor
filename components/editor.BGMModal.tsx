@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { loadBgmSettings } from "@/lib/bgmSettings";
+import { bgmTimeEstimate } from "@/lib/genTimeEstimate";
 
 const GRAD = "linear-gradient(45deg, #5184F0, #169385)";
 const FONT = "'Noto Sans JP', sans-serif";
@@ -207,7 +208,7 @@ export default function EditorBGMModal({ open, timelineDuration, workspaceId, on
               fontFamily: FONT, transition: "background 0.2s",
             }}
           >
-            {status === "generating" ? "生成中…" : status === "error" ? "再試行" : "BGMを生成"}
+            {status === "generating" ? `生成中…（${bgmTimeEstimate(defaults.model ?? "lyria-3-pro-preview")}）` : status === "error" ? "再試行" : "BGMを生成"}
           </button>
         )}
       </div>

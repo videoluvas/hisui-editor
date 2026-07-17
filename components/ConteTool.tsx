@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { getStoryboard, createScene, updateScene, deleteScene, generateSceneScript, generateSceneTelopText, generateSceneImage, generateSceneVideo, pollVideoStatus, generateSceneNarration } from "@/lib/storyboard.api";
 import type { StoryboardSceneData } from "@/lib/storyboard.api";
 import { loadImageSettings } from "@/lib/imageSettings";
+import { imageTimeEstimate, videoTimeEstimate } from "@/lib/genTimeEstimate";
 import { loadVideoSettings } from "@/lib/videoSettings";
 import { loadTtsSettings, GEMINI_TTS_MODELS, GEMINI_VOICES, TTS_PACING_OPTIONS, TTS_TONE_OPTIONS } from "@/lib/ttsSettings";
 import { loadScriptSettings } from "@/lib/scriptSettings";
@@ -1544,7 +1545,7 @@ function SceneCol({ scene, index, allScenes, stepOpen, promptOpen, onToggleStep,
               onClick={onGenerateImage}
             />
             {generatingImage && (
-              <GenStatusBadge label="AI が画像を生成中... しばらくお待ちください" state="processing" color={CYAN} />
+              <GenStatusBadge label={`AI が画像を生成中（${imageTimeEstimate(imgSettings.imageModel, imgSettings.testTimeScaling)}）...`} state="processing" color={CYAN} />
             )}
             {!generatingImage && genErrors.image && <ErrorBanner message={genErrors.image} />}
 
@@ -1663,7 +1664,7 @@ function SceneCol({ scene, index, allScenes, stepOpen, promptOpen, onToggleStep,
               <GenStatusBadge
                 label={
                   videoStatus === "queued"  ? "サーバーにリクエスト送信中..." :
-                  videoStatus === "running" ? "動画を生成中（数分かかる場合があります）" :
+                  videoStatus === "running" ? `動画を生成中（${videoTimeEstimate(vidSettings.videoModel ?? "veo-3-lite")}）` :
                   "生成結果を確認中..."
                 }
                 state={

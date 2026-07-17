@@ -120,13 +120,12 @@ export async function POST(
       return NextResponse.json({ ok: false, message: "プロンプトまたは画像が必要です" }, { status: 400 });
 
     const veoParams: Record<string, unknown> = {
-      aspectRatio:        clampedRatio,
-      resolution:         clampedResolution,
-      durationSeconds:    clampedDuration,
-      sampleCount:        1,
-      enhancePrompt:      enhancePrompt !== false,
-      personGeneration:   personGeneration,
-      compressionQuality: compressionQuality,
+      aspectRatio:      clampedRatio,
+      resolution:       clampedResolution,
+      durationSeconds:  clampedDuration,
+      sampleCount:      1,
+      enhancePrompt:    enhancePrompt !== false,
+      personGeneration: personGeneration,
     };
     if (videoModel === "veo-3") veoParams.generateAudio = generateAudio === true;
     if (seed && seed > 0) veoParams.seed = seed;
