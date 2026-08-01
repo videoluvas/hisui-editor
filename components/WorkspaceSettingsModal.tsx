@@ -708,26 +708,6 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                     <div style={SEC}>生成設定</div>
 
                     <div style={FIELD}>
-                      <label style={LBL}>解像度</label>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                        {(img.imageModel === "google-image-lite"
-                          ? [{ value: "0.5K", label: "0.5K (~512px)" }, { value: "1K", label: "1K (~1024px)" }, { value: "2K", label: "2K (~2048px)" }, { value: "4K", label: "4K (~3840px)" }]
-                          : [{ value: "1K", label: "1K (~1024px)" }, { value: "2K", label: "2K (~2048px)" }, { value: "4K", label: "4K (~3840px)" }]
-                        ).map((s) => (
-                          <button key={s.value} onClick={() => setImg((p) => ({ ...p, googleImageSize: s.value as "0.5K" | "1K" | "2K" | "4K" }))}
-                            style={{
-                              fontSize: 11, padding: "4px 9px", borderRadius: 6, cursor: "pointer", fontFamily: FONT,
-                              border: `1.5px solid ${img.googleImageSize === s.value ? currentModelDef.color : "#e2e8f0"}`,
-                              background: img.googleImageSize === s.value ? `${currentModelDef.color}12` : "#fff",
-                              color: img.googleImageSize === s.value ? currentModelDef.color : "#64748b",
-                              fontWeight: img.googleImageSize === s.value ? 700 : 400,
-                            }}
-                          >{s.label}</button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div style={FIELD}>
                       <label style={LBL}>アスペクト比</label>
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                         {(["16:9", "9:16", "1:1", "4:3", "3:4", "3:2", "2:3", "21:9", "4:5", "5:4"]).map((ar) => (

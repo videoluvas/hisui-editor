@@ -175,7 +175,6 @@ export async function POST(
     googleAspectRatio?: string;
     googleOutputFormat?: string;
     googleQualityHint?: string;
-    googleImageSize?: string;
     googleThinkingLevel?: string;
     // GPT Image 2 (high) / GPT Image 1.5 (high)
     gptSize?: string;
@@ -416,7 +415,6 @@ export async function POST(
     const {
       googleAspectRatio = "16:9",
       googleQualityHint = "",
-      googleImageSize = "1K",
       googleThinkingLevel = "minimal",
     } = body;
 
@@ -439,12 +437,6 @@ export async function POST(
 
     const generationConfig: Record<string, unknown> = {
       responseModalities: ["IMAGE"],
-      responseFormat: {
-        image: {
-          ...(googleAspectRatio && googleAspectRatio !== "auto" ? { aspectRatio: googleAspectRatio } : {}),
-          imageSize: googleImageSize,
-        },
-      },
     };
     if (imageModel === "google-image-lite" && googleThinkingLevel === "high") {
       generationConfig.thinkingConfig = { thinkingLevel: "High" };

@@ -80,7 +80,6 @@ export default function EditorAIImageModal({ open, workspaceId, playbackTime, on
           aspectRatio,
           googleAspectRatio: aspectRatio,
           sdAspectRatio: aspectRatio,
-          googleImageSize: imgSettings.googleImageSize,
           googleThinkingLevel: imgSettings.googleThinkingLevel,
           gptSize: imgSettings.gptSize,
           gptQuality: imgSettings.gptQuality,

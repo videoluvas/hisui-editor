@@ -24,7 +24,6 @@ export type ImageSettings = {
   googleAspectRatio: string;
   googleOutputFormat: "jpeg" | "png";
   googleQualityHint: "" | "detail" | "cinematic" | "commercial";
-  googleImageSize: "0.5K" | "1K" | "2K" | "4K";
   googleThinkingLevel: "minimal" | "high";
   // GPT Image 2 (high) 専用
   gptSize: string;
@@ -57,7 +56,6 @@ export const DEFAULT_IMAGE_SETTINGS: ImageSettings = {
   googleAspectRatio: "16:9",
   googleOutputFormat: "jpeg",
   googleQualityHint: "",
-  googleImageSize: "1K",
   googleThinkingLevel: "minimal",
   gptSize: "1536x1024",
   gptQuality: "high",

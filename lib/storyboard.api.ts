@@ -212,8 +212,6 @@ export async function generateSceneImage(
     googleAspectRatio?: string;
     googleOutputFormat?: string;
     googleQualityHint?: string;
-    // Google AI - imageSize / thinking
-    googleImageSize?: string;
     googleThinkingLevel?: string;
     // GPT Image 2 (high) / GPT Image 1.5 (high)
     gptSize?: string;

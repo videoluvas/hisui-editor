@@ -68,7 +68,6 @@ export default function EditorRegenImageModal({ open, fileUrl, meta, workspaceId
           aspectRatio: meta.aspectRatio,
           googleAspectRatio: meta.aspectRatio,
           sdAspectRatio: meta.aspectRatio,
-          googleImageSize: imgSettings.googleImageSize,
           googleThinkingLevel: imgSettings.googleThinkingLevel,
           gptSize: imgSettings.gptSize,
           gptQuality: imgSettings.gptQuality,

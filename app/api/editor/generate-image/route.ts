@@ -73,7 +73,6 @@ export async function POST(request: NextRequest) {
     // Google
     googleAspectRatio?: string;
     googleQualityHint?: string;
-    googleImageSize?: string;
     googleThinkingLevel?: string;
     // GPT Image 2 / GPT Image 1.5
     gptSize?: string;
@@ -199,18 +198,12 @@ export async function POST(request: NextRequest) {
     if (!googleApiKey) return NextResponse.json({ ok: false, message: "GOOGLE_AI_API_KEY が設定されていません" }, { status: 500 });
 
     const googleModelId = imageModel === "google-image-lite" ? "gemini-3.1-flash-image" : "gemini-3-pro-image";
-    const { googleAspectRatio = "16:9", googleImageSize = "1K", googleThinkingLevel = "minimal" } = body;
+    const { googleAspectRatio = "16:9", googleThinkingLevel = "minimal" } = body;
     const arHint = googleAspectRatio && googleAspectRatio !== "auto" ? ` 横縦比は${googleAspectRatio}で出力してください。` : "";
     const fullPrompt = prompt + arHint;
 
     const generationConfig: Record<string, unknown> = {
       responseModalities: ["IMAGE"],
-      responseFormat: {
-        image: {
-          ...(googleAspectRatio && googleAspectRatio !== "auto" ? { aspectRatio: googleAspectRatio } : {}),
-          imageSize: googleImageSize,
-        },
-      },
     };
     if (imageModel === "google-image-lite" && googleThinkingLevel === "high") {
       generationConfig.thinkingConfig = { thinkingLevel: "High" };

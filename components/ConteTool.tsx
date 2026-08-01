@@ -454,7 +454,6 @@ export default function ConteTool({
         googleAspectRatio: imgSettings.googleAspectRatio,
         googleOutputFormat: imgSettings.googleOutputFormat,
         googleQualityHint: imgSettings.googleQualityHint,
-        googleImageSize: imgSettings.googleImageSize,
         googleThinkingLevel: imgSettings.googleThinkingLevel,
         gptSize: imgSettings.gptSize,
         gptQuality: imgSettings.gptQuality,
