@@ -202,6 +202,16 @@ export async function POST(
   const credit = await consumeCredits(session.userId, imageModelToAction(imageModel), workspaceId);
   if (!credit.ok) return NextResponse.json({ ok: false, message: credit.message }, { status: 402 });
 
+  // 生成開始フラグをセット（リロード後の状態復元用）
+  await prisma.storyboardScene.update({
+    where: { id: params.sceneId },
+    data: { imgGeneratingAt: new Date() },
+  }).catch(() => {});
+  const clearGenerating = () => prisma.storyboardScene.update({
+    where: { id: params.sceneId },
+    data: { imgGeneratingAt: null },
+  }).catch(() => {});
+
   // ── Seedream 5.0 Pro ─────────────────────────────────────────────────────────
   if (imageModel === "seedream-5-0-pro") {
     const arkApiKey = process.env.ARK_API_KEY;
@@ -273,6 +283,7 @@ export async function POST(
     } catch (e) {
       await logError("generate-image", `ARK API error: ${e}`, { userId: session.userId, detail: { storyboardId: params.id, sceneId: params.sceneId } });
       await refundCredits(session.userId, imageModelToAction(imageModel), workspaceId);
+      await clearGenerating();
       return NextResponse.json({ ok: false, message: `画像生成に失敗しました: ${e}` }, { status: 500 });
     }
 
@@ -288,13 +299,14 @@ export async function POST(
       }));
     } catch (e) {
       await logError("generate-image", `R2 upload error: ${e}`, { userId: session.userId, detail: { key } });
+      await clearGenerating();
       return NextResponse.json({ ok: false, message: `R2アップロードに失敗しました: ${e}` }, { status: 500 });
     }
 
     const publicUrl = `${R2_PUBLIC_URL}/${key}`;
     await prisma.storyboardScene.update({
       where: { id: params.sceneId },
-      data: { imgUrl: publicUrl, imgStatusYn: true },
+      data: { imgUrl: publicUrl, imgStatusYn: true, imgGeneratingAt: null },
     });
     await prisma.file.create({
       data: {
@@ -384,6 +396,7 @@ export async function POST(
     } catch (e) {
       await logError("generate-image", `OpenAI API error: ${e}`, { userId: session.userId, detail: { storyboardId: params.id, sceneId: params.sceneId } });
       await refundCredits(session.userId, imageModelToAction(imageModel), workspaceId);
+      await clearGenerating();
       return NextResponse.json({ ok: false, message: `画像生成に失敗しました: ${e}` }, { status: 500 });
     }
 
@@ -394,10 +407,11 @@ export async function POST(
       await r2Client.send(new PutObjectCommand({ Bucket: R2_BUCKET_NAME, Key: key, Body: imgBuffer, ContentType: contentType }));
     } catch (e) {
       await logError("generate-image", `R2 upload error: ${e}`, { userId: session.userId, detail: { key } });
+      await clearGenerating();
       return NextResponse.json({ ok: false, message: `R2アップロードに失敗しました: ${e}` }, { status: 500 });
     }
     const publicUrl = `${R2_PUBLIC_URL}/${key}`;
-    await prisma.storyboardScene.update({ where: { id: params.sceneId }, data: { imgUrl: publicUrl, imgStatusYn: true } });
+    await prisma.storyboardScene.update({ where: { id: params.sceneId }, data: { imgUrl: publicUrl, imgStatusYn: true, imgGeneratingAt: null } });
     await prisma.file.create({
       data: { userId: session.userId, workspaceId: (sb as any).workspaceId ?? null, storageKey: key, fileUrl: publicUrl, fileName: key.split("/").pop() ?? "generated-image", fileType: "image", mimeType: contentType, sizeBytes: BigInt(imgBuffer.length) },
     }).catch(() => {});
@@ -474,6 +488,7 @@ export async function POST(
     } catch (e) {
       await logError("generate-image", `Google API error: ${e}`, { userId: session.userId, detail: { storyboardId: params.id, sceneId: params.sceneId } });
       await refundCredits(session.userId, imageModelToAction(imageModel), workspaceId);
+      await clearGenerating();
       return NextResponse.json({ ok: false, message: `画像生成に失敗しました: ${e}` }, { status: 500 });
     }
 
@@ -485,11 +500,12 @@ export async function POST(
       await r2Client.send(new PutObjectCommand({ Bucket: R2_BUCKET_NAME, Key: key, Body: imgBuffer, ContentType: mimeType }));
     } catch (e) {
       await logError("generate-image", `R2 upload error: ${e}`, { userId: session.userId, detail: { key } });
+      await clearGenerating();
       return NextResponse.json({ ok: false, message: `R2アップロードに失敗しました: ${e}` }, { status: 500 });
     }
 
     const publicUrl = `${R2_PUBLIC_URL}/${key}`;
-    await prisma.storyboardScene.update({ where: { id: params.sceneId }, data: { imgUrl: publicUrl, imgStatusYn: true } });
+    await prisma.storyboardScene.update({ where: { id: params.sceneId }, data: { imgUrl: publicUrl, imgStatusYn: true, imgGeneratingAt: null } });
     await prisma.file.create({
       data: {
         userId:      session.userId,
@@ -573,6 +589,7 @@ export async function POST(
   } catch (e) {
     await logError("generate-image", `Reve API error: ${e}`, { userId: session.userId, detail: { storyboardId: params.id, sceneId: params.sceneId } });
     await refundCredits(session.userId, imageModelToAction(imageModel), workspaceId);
+    await clearGenerating();
     return NextResponse.json({ ok: false, message: `画像生成に失敗しました: ${e}` }, { status: 500 });
   }
 
@@ -589,6 +606,7 @@ export async function POST(
     }));
   } catch (e) {
     await logError("generate-image", `R2 upload error: ${e}`, { userId: session.userId, detail: { key } });
+    await clearGenerating();
     return NextResponse.json({ ok: false, message: `R2アップロードに失敗しました: ${e}` }, { status: 500 });
   }
 
@@ -596,7 +614,7 @@ export async function POST(
 
   await prisma.storyboardScene.update({
     where: { id: params.sceneId },
-    data: { imgUrl: publicUrl, imgStatusYn: true },
+    data: { imgUrl: publicUrl, imgStatusYn: true, imgGeneratingAt: null },
   });
   await prisma.file.create({
     data: {

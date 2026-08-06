@@ -217,6 +217,7 @@ model StoryboardScene {
   imgPrompt        String?  @map("img_prompt")          // 04_IMG_prompt (結合済みプロンプト)
   imgPromptAngle   String?  @map("img_prompt_angle")    // 04_IMG_prompt_angle (構図)
   imgPromptContent String?  @map("img_prompt_content")  // 04_IMG_prompt_content (シーン内容)
+  imgGeneratingAt  DateTime? @map("img_generating_at")             // 04_IMG_generating_at（生成中フラグ）
   imgStatusYn      Boolean  @default(false) @map("img_status_yn") // 04_IMG_status_YN
   imgStyle         String   @default("photo") @map("img_style")   // 04_IMG_Style (photo/anime/illustration...)
   imgStyleIllust   String?  @map("img_style_illust")   // 04_IMG_Style_Illust

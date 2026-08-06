@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getStoryboard, createScene, updateScene, deleteScene, generateSceneScript, generateSceneTelopText, generateSceneImage, generateSceneVideo, pollVideoStatus, generateSceneNarration } from "@/lib/storyboard.api";
+import { getStoryboard, createScene, updateScene, deleteScene, generateSceneScript, generateSceneTelopText, generateSceneImage, generateSceneVideo, pollVideoStatus, pollImageStatus, generateSceneNarration } from "@/lib/storyboard.api";
 import type { StoryboardSceneData } from "@/lib/storyboard.api";
 import { loadImageSettings } from "@/lib/imageSettings";
 import { imageTimeEstimate, videoTimeEstimate } from "@/lib/genTimeEstimate";
@@ -236,6 +236,8 @@ export default function ConteTool({
   const pollTimers         = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map());
   const pollCounters       = useRef<Map<string, number>>(new Map());
   const pollErrCounts      = useRef<Map<string, number>>(new Map());
+  const imgPollTimers      = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map());
+  const imgPollCounters    = useRef<Map<string, number>>(new Map());
   const videoPendingMeta   = useRef<Map<string, GenMetaVideo>>(new Map());
 
   useEffect(() => {
@@ -245,11 +247,30 @@ export default function ConteTool({
     setLoading(true);
     getStoryboard(storyboardId).then((res) => {
       if (res.ok && res.storyboard) {
-        setScenes(res.storyboard.scenes.map((s, i) => dbSceneToLocal(s, i)));
+        const rawScenes = res.storyboard.scenes;
+        setScenes(rawScenes.map((s, i) => dbSceneToLocal(s, i)));
+
+        // リロード後の生成中ステータスを復元
+        rawScenes.forEach((s) => {
+          // 動画: queued/running かつ taskId があればポーリング再開
+          if ((s.videoStatus === "queued" || s.videoStatus === "running") && s.videoId) {
+            setGeneratingVideoIds((prev) => new Set(prev).add(s.id));
+            setVideoStatusMap((m) => ({ ...m, [s.id]: s.videoStatus }));
+            startVideoPolling(s.id);
+          }
+          // 画像: imgGeneratingAt がセットされていて imgUrl がない場合はポーリング開始
+          if (s.imgGeneratingAt && !s.imgUrl && !s.imgErrorYn) {
+            const age = Date.now() - new Date(s.imgGeneratingAt).getTime();
+            if (age < 15 * 60 * 1000) {
+              setGeneratingImageIds((prev) => new Set(prev).add(s.id));
+              startImagePolling(s.id);
+            }
+          }
+        });
       }
       setLoading(false);
     });
-  }, [storyboardId]);
+  }, [storyboardId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const scheduleSave = useCallback((sceneId: string, patch: object) => {
     if (!storyboardId) return;
@@ -462,6 +483,7 @@ export default function ConteTool({
         gptModeration: imgSettings.gptModeration,
         gptOutputFormat: imgSettings.gptOutputFormat,
       });
+      let startedPolling = false;
       if (res.ok && res.imgUrl) {
         const m = imgSettings.imageModel ?? "reve-1";
         const ar = m === "seedream-5-0-pro" ? (imgSettings.sdAspectRatio ?? "16:9")
@@ -477,14 +499,58 @@ export default function ConteTool({
         if (t) { clearTimeout(t); saveTimers.current.delete(sceneId); }
         setScenes((prev) => prev.map((s) => s.id === sceneId ? { ...s, imageUrl: res.imgUrl! } : s));
       } else if (!res.ok) {
-        setGenError(sceneId, "image", res.message ?? "画像生成に失敗しました");
+        if (res._timeout) {
+          // 524/タイムアウト: サーバーはバックグラウンドで処理継続中 → ポーリングへ切替
+          startedPolling = true;
+          startImagePolling(sceneId);
+        } else {
+          setGenError(sceneId, "image", res.message ?? "画像生成に失敗しました");
+        }
+      }
+      if (!startedPolling) {
+        setGeneratingImageIds((prev) => { const next = new Set(prev); next.delete(sceneId); return next; });
       }
     } catch (e) {
       setGenError(sceneId, "image", `画像生成に失敗しました: ${e instanceof Error ? e.message : e}`);
-    } finally {
       setGeneratingImageIds((prev) => { const next = new Set(prev); next.delete(sceneId); return next; });
     }
   };
+
+  const stopImagePolling = useCallback((sceneId: string) => {
+    const iv = imgPollTimers.current.get(sceneId);
+    if (iv) { clearInterval(iv); imgPollTimers.current.delete(sceneId); }
+    imgPollCounters.current.delete(sceneId);
+    setGeneratingImageIds((prev) => { const n = new Set(prev); n.delete(sceneId); return n; });
+  }, []);
+
+  const startImagePolling = useCallback((sceneId: string) => {
+    if (imgPollTimers.current.has(sceneId)) return;
+    imgPollCounters.current.set(sceneId, 0);
+    const iv = setInterval(async () => {
+      if (!storyboardId) return;
+      const count = (imgPollCounters.current.get(sceneId) ?? 0) + 1;
+      imgPollCounters.current.set(sceneId, count);
+      if (count > 40) {
+        stopImagePolling(sceneId);
+        setGenError(sceneId, "image", "画像生成がタイムアウトしました。再試行してください。");
+        return;
+      }
+      try {
+        const res = await pollImageStatus(storyboardId, sceneId);
+        if (!res.generating) {
+          stopImagePolling(sceneId);
+          if (res.imgUrl) {
+            setScenes((prev) => prev.map((s) => s.id === sceneId ? { ...s, imageUrl: res.imgUrl! } : s));
+          } else if (res.error) {
+            setGenError(sceneId, "image", res.error);
+          }
+        }
+      } catch {
+        // ポーリングエラーは無視
+      }
+    }, 6000);
+    imgPollTimers.current.set(sceneId, iv);
+  }, [storyboardId, stopImagePolling]);
 
   const stopVideoPolling = useCallback((sceneId: string) => {
     const iv = pollTimers.current.get(sceneId);

@@ -1,12 +1,12 @@
-async function safeJson<T>(res: Response): Promise<T> {
+async function safeJson<T>(res: Response): Promise<T & { _timeout?: boolean }> {
   const text = await res.text();
   try {
-    return JSON.parse(text) as T;
+    return JSON.parse(text) as T & { _timeout?: boolean };
   } catch {
     if (res.status === 524 || res.status === 504 || res.status === 502) {
-      return { ok: false, message: "生成に時間がかかっています。バックグラウンドで処理中のため、しばらく待ってからページをリロードしてください。" } as unknown as T;
+      return { ok: false, message: "生成に時間がかかっています。バックグラウンドで処理中のため、しばらく待ってからページをリロードしてください。", _timeout: true } as unknown as T & { _timeout?: boolean };
     }
-    return { ok: false, message: `サーバーエラー (${res.status})` } as unknown as T;
+    return { ok: false, message: `サーバーエラー (${res.status})` } as unknown as T & { _timeout?: boolean };
   }
 }
 
@@ -38,6 +38,7 @@ export type StoryboardSceneData = {
   telopText: string | null;
   imgError: string | null;
   imgErrorYn: boolean;
+  imgGeneratingAt: string | null;
   imgPrompt: string | null;
   imgPromptAngle: string | null;
   imgPromptContent: string | null;
@@ -221,7 +222,7 @@ export async function generateSceneImage(
     gptModeration?: string;
     gptOutputFormat?: string;
   },
-): Promise<{ ok: boolean; imgUrl?: string; message?: string }> {
+): Promise<{ ok: boolean; imgUrl?: string; message?: string; _timeout?: boolean }> {
   const res = await fetch(`/api/storyboard/${mainId}/scenes/${sceneId}/generate-image`, {
     method: "POST",
     credentials: "include",
@@ -264,6 +265,16 @@ export async function pollVideoStatus(
   sceneId: string,
 ): Promise<{ ok: boolean; status?: string; videoUrl?: string; message?: string }> {
   const res = await fetch(`/api/storyboard/${mainId}/scenes/${sceneId}/generate-video/status`, {
+    credentials: "include",
+  });
+  return safeJson(res);
+}
+
+export async function pollImageStatus(
+  mainId: string,
+  sceneId: string,
+): Promise<{ generating: boolean; imgUrl: string | null; error: string | null }> {
+  const res = await fetch(`/api/storyboard/${mainId}/scenes/${sceneId}/image-status`, {
     credentials: "include",
   });
   return safeJson(res);

@@ -52,6 +52,7 @@ export default function SidePanelFiles({ selectedProjectId, workspaceId, onFileD
   const [fileCtx,   setFileCtx]   = useState<FileCtxMenu   | null>(null);
   const [folderCtx, setFolderCtx] = useState<FolderCtxMenu | null>(null);
   const [selectedFileIds, setSelectedFileIds] = useState<Set<string>>(new Set());
+  const [isDragOver, setIsDragOver]           = useState(false);
 
   const inputRef          = useRef<HTMLInputElement>(null);
   const newFolderInputRef = useRef<HTMLInputElement>(null);
@@ -160,9 +161,7 @@ export default function SidePanelFiles({ selectedProjectId, workspaceId, onFileD
   };
 
   // ── アップロード ──────────────────────────────────────────────────────────
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const uploadFile = async (file: File) => {
     setUploading(true); setUploadProgress(0);
     try {
       const data = await getPresignedUrl(file, selectedProjectId ?? undefined, workspaceId);
@@ -178,7 +177,14 @@ export default function SidePanelFiles({ selectedProjectId, workspaceId, onFileD
       });
       await fetchFiles();
     } catch { alert("アップロードに失敗しました"); }
-    finally { setUploading(false); setUploadProgress(null); e.target.value = ""; }
+    finally { setUploading(false); setUploadProgress(null); }
+  };
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await uploadFile(file);
+    e.target.value = "";
   };
 
   // ── フォルダ操作 ──────────────────────────────────────────────────────────
@@ -437,13 +443,26 @@ export default function SidePanelFiles({ selectedProjectId, workspaceId, onFileD
       onClick={() => setSelectedFileIds(new Set())}
     >
       {/* アップロードボタン */}
-      <button onClick={(e) => { e.stopPropagation(); inputRef.current?.click(); }} disabled={uploading}
-        style={{ width: "100%", padding: "8px 0", fontSize: 13, fontWeight: 600, borderRadius: 8, border: "1px solid #e2e8f0",
-          background: uploading ? `linear-gradient(to right, #e2e8f033 ${uploadProgress ?? 0}%, #f8fafd ${uploadProgress ?? 0}%)` : "#f8fafd",
-          color: uploading ? "#94a3b8" : "#334155", cursor: uploading ? "not-allowed" : "pointer",
-          display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontFamily: FONT, transition: "background 0.1s ease", flexShrink: 0 }}
+      <button
+        onClick={(e) => { e.stopPropagation(); inputRef.current?.click(); }}
+        disabled={uploading}
+        onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); if (!uploading && e.dataTransfer.types.includes("Files")) setIsDragOver(true); }}
+        onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragOver(false); }}
+        onDrop={(e) => {
+          e.preventDefault(); e.stopPropagation(); setIsDragOver(false);
+          if (uploading) return;
+          const file = e.dataTransfer.files?.[0];
+          if (file) uploadFile(file);
+        }}
+        style={{ width: "100%", padding: "8px 0", fontSize: 13, fontWeight: 600, borderRadius: 8,
+          border: isDragOver ? `1.5px dashed ${TEAL}` : "1px solid #e2e8f0",
+          background: isDragOver ? "#f0fdfc"
+            : uploading ? `linear-gradient(to right, #e2e8f033 ${uploadProgress ?? 0}%, #f8fafd ${uploadProgress ?? 0}%)` : "#f8fafd",
+          color: isDragOver ? TEAL : uploading ? "#94a3b8" : "#334155",
+          cursor: uploading ? "not-allowed" : "pointer",
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontFamily: FONT, transition: "background 0.1s ease, border 0.1s ease", flexShrink: 0 }}
       >
-        {uploading ? `アップロード中... ${uploadProgress ?? 0}%` : (
+        {uploading ? `アップロード中... ${uploadProgress ?? 0}%` : isDragOver ? "ここにドロップ" : (
           <><svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M7 2v10M2 7h10"/></svg>ファイルを追加</>
         )}
       </button>
