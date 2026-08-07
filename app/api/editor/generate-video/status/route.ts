@@ -11,13 +11,18 @@ import type { CreditAction } from "@/lib/credits";
 import { r2Client, R2_BUCKET_NAME, R2_PUBLIC_URL } from "@/lib/fileupload.r2";
 
 function providerToAction(provider: string): CreditAction {
-  if (provider === "veo-3-lite") return "video_lite";
-  if (provider === "veo-3")      return "video_premium_audio";
+  if (provider === "veo-3-lite")      return "video_lite";
+  if (provider === "veo-3")           return "video_premium_audio";
+  if (provider === "kling-v2")        return "video_lite";
+  if (provider === "kling-v2-master") return "video_premium_no_audio";
+  if (provider === "kling-v3")        return "video_kling_v3";       // 実際の音声有無は消費済み、ログのみ
+  if (provider === "kling-v3-turbo")  return "video_kling_turbo";
   return "video_lite";
 }
 
 const ARK_API_BASE   = "https://ark.ap-southeast.bytepluses.com/api/v3";
 const GOOGLE_AI_BASE = "https://generativelanguage.googleapis.com/v1beta";
+const KLING_API_BASE = "https://api-singapore.klingai.com";
 
 function extractSeedanceUrl(data: Record<string, unknown>): string | null {
   const contentRaw = data.content;
@@ -111,6 +116,74 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ ok: true, status: "running" });
     } catch (e) {
       await logError("editor-generate-video-status", `Veo poll error: ${e}`, { userId, detail: { operationName } });
+      return NextResponse.json({ ok: false, status: "running", message: `ステータス取得に失敗: ${e}` }, { status: 500 });
+    }
+  }
+
+  // ── Kling AI ─────────────────────────────────────────────────────────────────
+  if (taskId.startsWith("kling:") || taskId.startsWith("kling-t2v:") || taskId.startsWith("kling-i2v:")) {
+    const klingApiKey = process.env.KLING_API_KEY;
+    if (!klingApiKey) return NextResponse.json({ ok: false, message: "KLING_API_KEY が設定されていません" }, { status: 500 });
+
+    const klingTaskId = taskId.startsWith("kling:")
+      ? taskId.slice("kling:".length)
+      : taskId.startsWith("kling-t2v:")
+        ? taskId.slice("kling-t2v:".length)
+        : taskId.slice("kling-i2v:".length);
+
+    try {
+      const resp = await fetch(`${KLING_API_BASE}/tasks?task_ids=${klingTaskId}`, {
+        headers: { "Authorization": `Bearer ${klingApiKey}` },
+      });
+      if (!resp.ok) throw new Error(`Kling ${resp.status}: ${await resp.text()}`);
+
+      const data = await resp.json() as {
+        code: number;
+        message: string;
+        data?: Array<{
+          id: string;
+          status: string;
+          message?: string;
+          outputs?: Array<{ type: string; url: string; duration?: string }>;
+        }>;
+      };
+
+      if (data.code !== 0) return NextResponse.json({ ok: false, status: "failed", message: data.message });
+
+      const task = data.data?.[0];
+      if (!task) return NextResponse.json({ ok: true, status: "running" });
+
+      if (task.status === "succeeded") {
+        const videoExtUrl = task.outputs?.find(o => o.type === "video")?.url;
+        if (!videoExtUrl) return NextResponse.json({ ok: false, status: "failed", message: "動画URLが返されませんでした" });
+
+        try {
+          const dlResp = await fetch(videoExtUrl);
+          if (!dlResp.ok) throw new Error(`Kling download ${dlResp.status}`);
+          const videoBuffer = Buffer.from(await dlResp.arrayBuffer());
+          const key = `user/${userId}/editor/videos/${Date.now()}.mp4`;
+          await r2Client.send(new PutObjectCommand({ Bucket: R2_BUCKET_NAME, Key: key, Body: videoBuffer, ContentType: "video/mp4" }));
+          const videoUrl = `${R2_PUBLIC_URL}/${key}`;
+          await prisma.file.create({
+            data: { userId, workspaceId, storageKey: key, fileUrl: videoUrl, fileName: key.split("/").pop() ?? "video.mp4", fileType: "video", mimeType: "video/mp4", sizeBytes: BigInt(videoBuffer.length) },
+          }).catch(() => {});
+          await logGeneration(userId, providerToAction(provider));
+          return NextResponse.json({ ok: true, status: "succeeded", videoUrl });
+        } catch {
+          await logGeneration(userId, providerToAction(provider));
+          return NextResponse.json({ ok: true, status: "succeeded", videoUrl: videoExtUrl });
+        }
+      }
+
+      if (task.status === "failed") {
+        const errMsg = task.message ?? "生成に失敗しました";
+        await logError("editor-generate-video-status", `Kling task failed: ${errMsg}`, { userId, detail: { klingTaskId } });
+        return NextResponse.json({ ok: false, status: "failed", message: errMsg });
+      }
+
+      return NextResponse.json({ ok: true, status: "running" });
+    } catch (e) {
+      await logError("editor-generate-video-status", `Kling poll error: ${e}`, { userId, detail: { klingTaskId } });
       return NextResponse.json({ ok: false, status: "running", message: `ステータス取得に失敗: ${e}` }, { status: 500 });
     }
   }

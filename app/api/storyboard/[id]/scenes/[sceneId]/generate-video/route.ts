@@ -12,6 +12,7 @@ import { checkModelAccess } from "@/lib/model-config";
 const ARK_API_BASE   = "https://ark.ap-southeast.bytepluses.com/api/v3";
 const SEEDANCE_MODEL = "seedance-1-5-pro-251215";
 const GOOGLE_AI_BASE = "https://generativelanguage.googleapis.com/v1beta";
+const KLING_API_BASE = "https://api-singapore.klingai.com";
 
 const VEO_MODEL_IDS: Record<string, string> = {
   "veo-3":      process.env.VEO_MODEL      ?? "veo-3.1-generate-preview",
@@ -53,14 +54,18 @@ export async function POST(
     vidNegativePrompt?: string;
   };
 
-  const videoModel = body.videoModel ?? "veo-3-lite";
-  const workspaceId = sb.workspaceId ?? null;
-  const isVeoModel = videoModel === "veo-3" || videoModel === "veo-3-lite";
+  const videoModel    = body.videoModel ?? "veo-3-lite";
+  const workspaceId   = sb.workspaceId ?? null;
+  const isVeoModel    = videoModel === "veo-3" || videoModel === "veo-3-lite";
+  const isKlingModel  = videoModel.startsWith("kling-");
+  const isKlingV3     = videoModel === "kling-v3" || videoModel === "kling-v3-turbo";
 
   const access = await checkModelAccess(videoModel, session.user.plan ?? null);
   if (!access.ok) return NextResponse.json({ ok: false, message: access.message }, { status: access.status ?? 403 });
 
-  const credit = await consumeCredits(session.userId, videoModelToAction(videoModel, isVeoModel ? false : (body.generateAudio ?? false)), workspaceId);
+  const klingV3Duration = isKlingV3 ? (body.duration && body.duration >= 8 ? 10 : 5) : 1;
+  const creditAction    = videoModelToAction(videoModel, (isVeoModel || (isKlingModel && !isKlingV3)) ? false : (body.generateAudio ?? false));
+  const credit = await consumeCredits(session.userId, creditAction, workspaceId, klingV3Duration);
   if (!credit.ok) return NextResponse.json({ ok: false, message: credit.message }, { status: 402 });
 
   const {
@@ -170,6 +175,60 @@ export async function POST(
         detail: { storyboardId: params.id, sceneId: params.sceneId },
       });
       await refundCredits(session.userId, videoModelToAction(videoModel, false), workspaceId);
+      return NextResponse.json({ ok: false, message: `動画生成タスクの作成に失敗しました: ${e}` }, { status: 500 });
+    }
+  }
+
+  // ── Kling AI ─────────────────────────────────────────────────────────────────
+  if (isKlingModel) {
+    const klingApiKey = process.env.KLING_API_KEY;
+    if (!klingApiKey)
+      return NextResponse.json({ ok: false, message: "KLING_API_KEY が設定されていません" }, { status: 500 });
+
+    const KLING_MODEL_PATHS: Record<string, string> = {
+      "kling-v2":        "kling-v2",
+      "kling-v2-master": "kling-v2-master",
+      "kling-v3":        "kling-3.0",
+      "kling-v3-turbo":  "kling-3.0-turbo",
+    };
+    const modelPath   = KLING_MODEL_PATHS[videoModel] ?? "kling-3.0";
+    const hasRefImage = !!scene.imgUrl;
+
+    const contents: Record<string, unknown>[] = [
+      { type: "prompt", text: instructions.trim() || "動画を生成してください" },
+    ];
+    if (hasRefImage) contents.push({ type: "first_frame", url: scene.imgUrl });
+
+    const settings: Record<string, unknown> = { duration: duration >= 8 ? 10 : 5 };
+    if (!hasRefImage && ["16:9", "9:16", "1:1"].includes(ratio)) settings.aspect_ratio = ratio;
+    if (videoModel === "kling-v3") settings.audio = generateAudio ? "native" : "off";
+
+    const klingBody: Record<string, unknown> = { contents, settings };
+    const klingEndpoint = hasRefImage ? "image-to-video" : "text-to-video";
+
+    try {
+      const resp = await fetch(`${KLING_API_BASE}/${klingEndpoint}/${modelPath}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${klingApiKey}` },
+        body: JSON.stringify(klingBody),
+      });
+      if (!resp.ok) throw new Error(`Kling ${resp.status}: ${await resp.text()}`);
+      const data = await resp.json() as { code: number; message: string; data?: { id?: string } };
+      if (data.code !== 0 || !data.data?.id) throw new Error(data.message ?? "タスクIDが返されませんでした");
+
+      const taskIdStored = `kling:${data.data.id}`;
+      await prisma.storyboardScene.update({
+        where: { id: params.sceneId },
+        data: { videoId: taskIdStored, videoStatus: "queued", videoStatusYn: false, videoStartTime: new Date() },
+      });
+
+      return NextResponse.json({ ok: true, taskId: taskIdStored });
+    } catch (e) {
+      await logError("generate-video", `Kling create error: ${e}`, {
+        userId: session.userId,
+        detail: { storyboardId: params.id, sceneId: params.sceneId },
+      });
+      await refundCredits(session.userId, creditAction, workspaceId, klingV3Duration);
       return NextResponse.json({ ok: false, message: `動画生成タスクの作成に失敗しました: ${e}` }, { status: 500 });
     }
   }

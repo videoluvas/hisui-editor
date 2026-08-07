@@ -21,6 +21,10 @@ export function videoTimeEstimate(modelId: string): string {
     case "veo-3-lite":       return "約2〜5分";
     case "veo-3":            return "約3〜8分";
     case "seedance-1-5-pro": return "約1〜3分";
+    case "kling-v2":         return "約2〜5分";
+    case "kling-v2-master":  return "約3〜8分";
+    case "kling-v3":         return "約2〜5分";
+    case "kling-v3-turbo":   return "約1〜3分";
     default: return "約1〜5分";
   }
 }

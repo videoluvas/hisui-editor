@@ -12,6 +12,9 @@ export type CreditAction =
   | "video_lite"              // AI動画生成・Lite
   | "video_premium_no_audio"  // AI動画生成・上位（音声なし）
   | "video_premium_audio"     // AI動画生成・上位（音声あり）
+  | "video_kling_v3"          // Kling 3.0（音声なし）× 秒数
+  | "video_kling_v3_audio"    // Kling 3.0（音声あり）× 秒数
+  | "video_kling_turbo"       // Kling 3.0 Turbo × 秒数
   | "narration"               // AIナレーション（200文字単位）
   | "bgm_lyria2"              // AI BGM・Lyria 2
   | "bgm_lyria3pro"           // AI BGM・Lyria 3 Pro
@@ -29,6 +32,9 @@ export const CREDIT_COST: Record<CreditAction, number> = {
   video_lite:          1_000,
   video_premium_no_audio: 2_500,
   video_premium_audio:  5_000,
+  video_kling_v3:        840,  // × 秒数（720p 0.6 Units/s 相当）
+  video_kling_v3_audio: 1_260, // × 秒数（720p 0.9 Units/s 相当）
+  video_kling_turbo:    1_120, // × 秒数（720p 0.8 Units/s 相当）
   narration:              10,   // × Math.ceil(chars/200)
   bgm_lyria2:             50,
   bgm_lyria3pro:         150,
@@ -47,6 +53,9 @@ export const CREDIT_ACTION_LABEL: Record<CreditAction, string> = {
   video_lite:             "AI動画生成・Lite",
   video_premium_no_audio: "AI動画生成・上位",
   video_premium_audio:    "AI動画生成・上位（音声あり）",
+  video_kling_v3:         "AI動画生成・Kling 3.0",
+  video_kling_v3_audio:   "AI動画生成・Kling 3.0（音声あり）",
+  video_kling_turbo:      "AI動画生成・Kling 3.0 Turbo",
   narration:              "AIナレーション生成",
   bgm_lyria2:             "AI BGM生成",
   bgm_lyria3pro:          "AI BGM生成（Pro）",
@@ -68,10 +77,12 @@ export function imageModelToAction(model: string): CreditAction {
   return "image_premium";
 }
 
-const VIDEO_LITE_MODELS = new Set(["veo-3-lite"]);
+const VIDEO_LITE_MODELS = new Set(["veo-3-lite", "kling-v2"]);
 
 export function videoModelToAction(model: string, generateAudio: boolean): CreditAction {
-  if (VIDEO_LITE_MODELS.has(model)) return "video_lite";
+  if (VIDEO_LITE_MODELS.has(model))   return "video_lite";
+  if (model === "kling-v3")           return generateAudio ? "video_kling_v3_audio" : "video_kling_v3";
+  if (model === "kling-v3-turbo")     return "video_kling_turbo";
   return generateAudio ? "video_premium_audio" : "video_premium_no_audio";
 }
 

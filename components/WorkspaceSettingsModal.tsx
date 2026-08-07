@@ -115,7 +115,7 @@ function RenderTabIcon() {
 
 // ─── Provider logos ───────────────────────────────────────────────────────────
 
-function ProviderLogo({ provider, size = 20 }: { provider: "google" | "byteplus" | "reve" | "elevenlabs" | "anthropic" | "openai"; size?: number }) {
+function ProviderLogo({ provider, size = 20 }: { provider: "google" | "byteplus" | "reve" | "elevenlabs" | "anthropic" | "openai" | "kling"; size?: number }) {
   if (provider === "google") {
     return (
       <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" style={{ flexShrink: 0 }}>
@@ -145,7 +145,7 @@ function ProviderLogo({ provider, size = 20 }: { provider: "google" | "byteplus"
 
 // ─── Model dropdown ────────────────────────────────────────────────────────────
 
-type ModelEntry = { id: string; label: string; sub: string; color: string; provider: "google" | "byteplus" | "reve" | "elevenlabs" | "anthropic" | "openai" };
+type ModelEntry = { id: string; label: string; sub: string; color: string; provider: "google" | "byteplus" | "reve" | "elevenlabs" | "anthropic" | "openai" | "kling" };
 
 function ModelDropdown({ models, value, onChange, lockedIds }: {
   models: readonly ModelEntry[];
@@ -263,9 +263,13 @@ const IMAGE_MODELS = [
 ] as const;
 
 const VIDEO_MODELS = [
-  { id: "veo-3-lite",       label: "Google AI",         sub: "Veo 3.1 Lite",     color: "#4285F4", provider: "google"   as const, veoLite: true  },
-  { id: "veo-3",            label: "Google AI",         sub: "Veo 3.1",          color: "#1A73E8", provider: "google"   as const, veoLite: false },
-  { id: "seedance-1-5-pro", label: "BytePlus ModelArk", sub: "Seedance 1.5 Pro", color: "#E67D30", provider: "byteplus" as const, veoLite: false },
+  { id: "veo-3-lite",       label: "Google AI",         sub: "Veo 3.1 Lite",      color: "#4285F4", provider: "google"   as const, veoLite: true  },
+  { id: "veo-3",            label: "Google AI",         sub: "Veo 3.1",           color: "#1A73E8", provider: "google"   as const, veoLite: false },
+  { id: "seedance-1-5-pro", label: "BytePlus ModelArk", sub: "Seedance 1.5 Pro",  color: "#E67D30", provider: "byteplus" as const, veoLite: false },
+  { id: "kling-v2",         label: "Kling AI",          sub: "Kling 2.0",         color: "#7C3AED", provider: "kling"    as const, veoLite: false },
+  { id: "kling-v2-master",  label: "Kling AI",          sub: "Kling 2.0 Master",  color: "#5B21B6", provider: "kling"    as const, veoLite: false },
+  { id: "kling-v3",         label: "Kling AI",          sub: "Kling 3.0",         color: "#0EA5E9", provider: "kling"    as const, veoLite: false },
+  { id: "kling-v3-turbo",   label: "Kling AI",          sub: "Kling 3.0 Turbo",   color: "#0284C7", provider: "kling"    as const, veoLite: false },
 ] as const;
 
 const TTS_MODELS = [
@@ -1202,13 +1206,15 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
             {/* ── AI動画生成 ── */}
             {activeTab === "video" && (() => {
               const currentVidModel = VIDEO_MODELS.find((m) => m.id === vid.videoModel) ?? VIDEO_MODELS[0];
-              const isVeoLite = currentVidModel.veoLite;
-              const isVeo     = currentVidModel.id === "veo-3" || currentVidModel.id === "veo-3-lite";
-              const vidColor  = currentVidModel.color;
+              const isVeoLite  = currentVidModel.veoLite;
+              const isVeo      = currentVidModel.id === "veo-3" || currentVidModel.id === "veo-3-lite";
+              const isKling    = currentVidModel.provider === "kling";
+              const isKlingV3  = vid.videoModel === "kling-v3" || vid.videoModel === "kling-v3-turbo";
+              const vidColor   = currentVidModel.color;
 
               const availableResolutions = isVeo ? (isVeoLite ? (["720p", "1080p"] as const) : (["720p", "1080p", "4k"] as const)) : (["720p", "1080p"] as const);
-              const availableRatios      = isVeo ? (["16:9", "9:16", "adaptive"] as const) : (["16:9", "4:3", "1:1", "3:4", "9:16", "21:9", "adaptive"] as const);
-              const availableDurations   = isVeo ? [4, 6, 8] : [4, 5, 6, 7, 8, 9, 10, 11, 12];
+              const availableRatios      = isVeo ? (["16:9", "9:16", "adaptive"] as const) : isKling ? (["16:9", "9:16", "1:1"] as const) : (["16:9", "4:3", "1:1", "3:4", "9:16", "21:9", "adaptive"] as const);
+              const availableDurations   = isVeo ? [4, 6, 8] : isKling ? [5, 10] : [4, 5, 6, 7, 8, 9, 10, 11, 12];
               const highResSelected      = vid.resolution === "1080p" || vid.resolution === "4k";
 
               return (
@@ -1226,6 +1232,11 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                         if (!([4, 6, 8] as number[]).includes(nextVid.duration)) nextVid.duration = 8;
                         if (m.veoLite && nextVid.resolution === "4k") nextVid.resolution = "720p";
                         if (nextVid.resolution === "1080p" || nextVid.resolution === "4k") nextVid.duration = 8;
+                      } else if (m?.provider === "kling") {
+                        if (!["16:9", "9:16", "1:1"].includes(nextVid.ratio)) nextVid.ratio = "16:9";
+                        if (!([5, 10] as number[]).includes(nextVid.duration)) nextVid.duration = 5;
+                        if (nextVid.resolution === "4k") nextVid.resolution = "720p";
+                        if (m.id === "kling-v3-turbo") nextVid.generateAudio = true;
                       }
                       setVid(nextVid as VideoSettings);
                     }}
@@ -1234,6 +1245,14 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                   {isVeo && (
                     <div style={{ marginTop: 6, fontSize: 10, color: "#94a3b8", fontFamily: FONT }}>
                       {isVeoLite ? "Veo 3.1 Lite：720p / 1080p・4/6/8秒・16:9 / 9:16" : "Veo 3.1：720p / 1080p / 4K・4/6/8秒・16:9 / 9:16"}（1080p / 4K は8秒固定）
+                    </div>
+                  )}
+                  {isKling && (
+                    <div style={{ marginTop: 6, fontSize: 10, color: "#94a3b8", fontFamily: FONT }}>
+                      {currentVidModel.id === "kling-v2"       && "Kling 2.0：720p / 1080p・5秒 / 10秒・16:9 / 9:16 / 1:1"}
+                      {currentVidModel.id === "kling-v2-master" && "Kling 2.0 Master（高品質）：720p / 1080p・5秒 / 10秒・16:9 / 9:16 / 1:1"}
+                      {currentVidModel.id === "kling-v3"        && "Kling 3.0：720p / 1080p・5秒 / 10秒・秒課金・音声オプションあり"}
+                      {currentVidModel.id === "kling-v3-turbo"  && "Kling 3.0 Turbo：720p / 1080p・5秒 / 10秒・秒課金・音声あり（固定）"}
                     </div>
                   )}
                 </div>
@@ -1321,7 +1340,7 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                         >{d}s</button>
                       );
                     })}
-                    {!isVeo && (
+                    {!isVeo && !isKling && (
                       <button onClick={() => setVid((s) => ({ ...s, duration: -1 }))}
                         style={{ fontSize: 11, padding: "4px 10px", borderRadius: 6, cursor: "pointer", fontFamily: FONT, border: `1.5px solid ${vid.duration === -1 ? vidColor : "#e2e8f0"}`, background: vid.duration === -1 ? `${vidColor}18` : "#fff", color: vid.duration === -1 ? vidColor : "#64748b", fontWeight: vid.duration === -1 ? 700 : 400 }}
                       >自動</button>
@@ -1333,18 +1352,29 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                   <div style={FIELD}>
                     <label style={LBL}>オプション</label>
                     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                      <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, color: "#475569", fontFamily: FONT }}>
-                        <input type="checkbox" checked={vid.generateAudio} onChange={(e) => setVid((s) => ({ ...s, generateAudio: e.target.checked }))} style={{ accentColor: vidColor, width: 14, height: 14 }} />
-                        音声を生成（デフォルトはオフ）
-                      </label>
-                      <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, color: "#475569", fontFamily: FONT }}>
-                        <input type="checkbox" checked={vid.cameraFixed} onChange={(e) => setVid((s) => ({ ...s, cameraFixed: e.target.checked }))} style={{ accentColor: vidColor, width: 14, height: 14 }} />
-                        カメラ固定
-                      </label>
-                      <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, color: "#475569", fontFamily: FONT }}>
-                        <input type="checkbox" checked={vid.watermark} onChange={(e) => setVid((s) => ({ ...s, watermark: e.target.checked }))} style={{ accentColor: vidColor, width: 14, height: 14 }} />
-                        透かし（AI Generated を表示）
-                      </label>
+                      {/* 音声：Seedance・Kling v3 は選択可、Turbo は常時オン表示 */}
+                      {(!isKling || vid.videoModel === "kling-v3") && (
+                        <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, color: "#475569", fontFamily: FONT }}>
+                          <input type="checkbox" checked={vid.generateAudio} onChange={(e) => setVid((s) => ({ ...s, generateAudio: e.target.checked }))} style={{ accentColor: vidColor, width: 14, height: 14 }} />
+                          音声を生成（デフォルトはオフ）
+                        </label>
+                      )}
+                      {vid.videoModel === "kling-v3-turbo" && (
+                        <div style={{ fontSize: 11, color: "#94a3b8", fontFamily: FONT }}>音声は自動的に生成されます（Turbo 固定）</div>
+                      )}
+                      {/* カメラ固定・透かし：Seedance のみ */}
+                      {!isKling && (
+                        <>
+                          <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, color: "#475569", fontFamily: FONT }}>
+                            <input type="checkbox" checked={vid.cameraFixed} onChange={(e) => setVid((s) => ({ ...s, cameraFixed: e.target.checked }))} style={{ accentColor: vidColor, width: 14, height: 14 }} />
+                            カメラ固定
+                          </label>
+                          <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, color: "#475569", fontFamily: FONT }}>
+                            <input type="checkbox" checked={vid.watermark} onChange={(e) => setVid((s) => ({ ...s, watermark: e.target.checked }))} style={{ accentColor: vidColor, width: 14, height: 14 }} />
+                            透かし（AI Generated を表示）
+                          </label>
+                        </>
+                      )}
                     </div>
                   </div>
                 )}
@@ -2324,9 +2354,17 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
               const cost = img.imageModel === "google-image-lite" ? 100 : img.imageModel === "gpt-image-2-high" ? 2_000 : img.imageModel === "gpt-image-1-5" ? 1_500 : 400;
               items = [{ label: "1枚あたり", cost: `${cost.toLocaleString()} cr` }];
             } else if (activeTab === "video") {
-              const isVeoModel = vid.videoModel === "veo-3" || vid.videoModel === "veo-3-lite";
-              const cost = vid.videoModel === "veo-3-lite" ? 1_000 : ((!isVeoModel && vid.generateAudio) ? 5_000 : 2_500);
-              items = [{ label: "1本あたり", cost: `${cost.toLocaleString()} cr` }];
+              const isVeoModel   = vid.videoModel === "veo-3" || vid.videoModel === "veo-3-lite";
+              const isKlingModel = vid.videoModel.startsWith("kling-");
+              const isKlingV3M   = vid.videoModel === "kling-v3" || vid.videoModel === "kling-v3-turbo";
+              const dur          = [5, 10].includes(vid.duration) ? vid.duration : 5;
+              let cost: number;
+              if (vid.videoModel === "kling-v3")        cost = (vid.generateAudio ? 1_260 : 840) * dur;
+              else if (vid.videoModel === "kling-v3-turbo") cost = 1_120 * dur;
+              else if (vid.videoModel === "veo-3-lite" || vid.videoModel === "kling-v2") cost = 1_000;
+              else if (!isVeoModel && !isKlingModel && vid.generateAudio) cost = 5_000;
+              else cost = 2_500;
+              items = [{ label: isKlingV3M ? `1本あたり（${dur}秒）` : "1本あたり", cost: `${cost.toLocaleString()} cr` }];
             } else if (activeTab === "narration") {
               items = [{ label: "200文字あたり", cost: "10 cr" }];
             } else if (activeTab === "bgm") {

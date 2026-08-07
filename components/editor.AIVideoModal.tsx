@@ -13,11 +13,16 @@ const VIDEO_MODELS = [
   { value: "seedance-1-5-pro", label: "Seedance 1.5 Pro" },
   { value: "veo-3-lite",       label: "Google Veo 3 Lite" },
   { value: "veo-3",            label: "Google Veo 3" },
+  { value: "kling-v2",         label: "Kling 2.0" },
+  { value: "kling-v2-master",  label: "Kling 2.0 Master" },
+  { value: "kling-v3",         label: "Kling 3.0" },
+  { value: "kling-v3-turbo",   label: "Kling 3.0 Turbo" },
 ] as const;
 
 const RATIOS              = ["16:9", "9:16"] as const;
 const SEEDANCE_DURATIONS  = [4, 5, 6, 8, 10, 12] as const;
 const VEO_DURATIONS       = [4, 6, 8] as const;
+const KLING_DURATIONS     = [5, 10] as const;
 
 type Props = {
   open: boolean;
@@ -62,10 +67,13 @@ export default function EditorAIVideoModal({ open, workspaceId, playbackTime, on
 
   if (!open) return null;
 
-  const isVeo = model === "veo-3" || model === "veo-3-lite";
-  const durations = isVeo ? VEO_DURATIONS : SEEDANCE_DURATIONS;
+  const isVeo   = model === "veo-3" || model === "veo-3-lite";
+  const isKling = model.startsWith("kling-");
+  const durations = isVeo ? VEO_DURATIONS : isKling ? KLING_DURATIONS : SEEDANCE_DURATIONS;
   const clampedDuration = isVeo
     ? ([4, 6, 8] as number[]).includes(duration) ? duration : 8
+    : isKling
+    ? ([5, 10] as number[]).includes(duration) ? duration : 5
     : duration;
   const hasWsRules = !!(vidCommonRules.trim() || vidNegativePrompt.trim());
 
