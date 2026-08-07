@@ -48,12 +48,6 @@ export async function POST(
     generateAudio?: boolean;
     klingMultiShot?: boolean;
     klingElements?: string[];
-    klingCamHorizontal?: number;
-    klingCamVertical?: number;
-    klingCamPan?: number;
-    klingCamTilt?: number;
-    klingCamRoll?: number;
-    klingCamZoom?: number;
     cameraFixed?: boolean;
     watermark?: boolean;
     // Veo 専用
@@ -83,12 +77,6 @@ export async function POST(
     generateAudio  = false,
     klingMultiShot = false,
     klingElements  = [],
-    klingCamHorizontal = 0,
-    klingCamVertical   = 0,
-    klingCamPan        = 0,
-    klingCamTilt       = 0,
-    klingCamRoll       = 0,
-    klingCamZoom       = 0,
     cameraFixed        = false,
     watermark      = false,
     seed           = 0,

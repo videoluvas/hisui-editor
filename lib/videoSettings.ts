@@ -6,13 +6,6 @@ export type VideoSettings = {
   generateAudio: boolean;
   klingMultiShot: boolean; // Kling v3/turbo/omni: マルチショット（自動カット割り）
   klingElements: string[]; // Kling 3.0/omni: 参照Elementの画像URL（最大3件/7件）
-  // Kling camera_control（3.0 / Omni のみ）各軸 -10 〜 +10、0 = 指定なし
-  klingCamHorizontal: number;
-  klingCamVertical: number;
-  klingCamPan: number;
-  klingCamTilt: number;
-  klingCamRoll: number;
-  klingCamZoom: number;
   cameraFixed: boolean;
   watermark: boolean;
   // Veo 専用
@@ -31,12 +24,6 @@ export const DEFAULT_VIDEO_SETTINGS: VideoSettings = {
   generateAudio: false,
   klingMultiShot: false,
   klingElements: [],
-  klingCamHorizontal: 0,
-  klingCamVertical: 0,
-  klingCamPan: 0,
-  klingCamTilt: 0,
-  klingCamRoll: 0,
-  klingCamZoom: 0,
   cameraFixed: false,
   watermark: false,
   seed: 0,

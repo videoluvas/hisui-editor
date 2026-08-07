@@ -34,12 +34,6 @@ export async function POST(request: NextRequest) {
     generateAudio?: boolean;
     klingMultiShot?: boolean;
     klingElements?: string[];
-    klingCamHorizontal?: number;
-    klingCamVertical?: number;
-    klingCamPan?: number;
-    klingCamTilt?: number;
-    klingCamRoll?: number;
-    klingCamZoom?: number;
     watermark?: boolean;
     cameraFixed?: boolean;
     seed?: number;
@@ -74,12 +68,6 @@ export async function POST(request: NextRequest) {
     generateAudio  = false,
     klingMultiShot = false,
     klingElements  = [],
-    klingCamHorizontal = 0,
-    klingCamVertical   = 0,
-    klingCamPan        = 0,
-    klingCamTilt       = 0,
-    klingCamRoll       = 0,
-    klingCamZoom       = 0,
     watermark          = false,
     cameraFixed    = false,
     seed           = 0,

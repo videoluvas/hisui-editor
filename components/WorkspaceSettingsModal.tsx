@@ -1473,56 +1473,6 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                   );
                 })()}
 
-                {/* ── Camera Config（Kling 3.0 / Omni のみ） ── */}
-                {(vid.videoModel === "kling-v3" || isKlingOmni) && (
-                  <>
-                    <div style={{ ...SEC, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                      <span>カメラ設定（camera_control）</span>
-                      <button
-                        type="button"
-                        onClick={() => setVid((s) => ({ ...s, klingCamHorizontal: 0, klingCamVertical: 0, klingCamPan: 0, klingCamTilt: 0, klingCamRoll: 0, klingCamZoom: 0 }))}
-                        style={{ fontSize: 10, fontWeight: 600, color: vidColor, background: "none", border: `1px solid ${vidColor}55`, borderRadius: 5, cursor: "pointer", padding: "1px 7px", fontFamily: FONT }}
-                      >すべてリセット</button>
-                    </div>
-                    <div style={{ fontSize: 11, color: "#94a3b8", fontFamily: FONT, marginBottom: 4 }}>各軸 -10 〜 +10（0 = 指定なし、すべて 0 の場合は送信しません）</div>
-                    {(["klingCamHorizontal", "klingCamVertical", "klingCamPan", "klingCamTilt", "klingCamRoll", "klingCamZoom"] as const).map((key) => {
-                      const axisInfo: Record<string, { label: string; neg: string; pos: string }> = {
-                        klingCamHorizontal: { label: "Horizontal（水平移動）", neg: "← Left（左）", pos: "Right（右）→" },
-                        klingCamVertical:   { label: "Vertical（垂直移動）",   neg: "↓ Down（下）", pos: "Up（上）↑" },
-                        klingCamPan:        { label: "Pan（パン）",             neg: "← Left（左）", pos: "Right（右）→" },
-                        klingCamTilt:       { label: "Tilt（チルト）",          neg: "↓ Down（下）", pos: "Up（上）↑" },
-                        klingCamRoll:       { label: "Roll（ロール）",           neg: "↺ CCW（反時計）", pos: "CW（時計）↻" },
-                        klingCamZoom:       { label: "Zoom（ズーム）",           neg: "Out（引き）↔", pos: "↔ In（寄り）" },
-                      };
-                      const { label, neg, pos } = axisInfo[key];
-                      const val = (vid[key] as number) ?? 0;
-                      return (
-                        <div key={key} style={FIELD}>
-                          <label style={LBL}>{label}</label>
-                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#94a3b8", fontFamily: FONT, marginBottom: 2 }}>
-                            <span>{neg}</span>
-                            <span>{pos}</span>
-                          </div>
-                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                            <input
-                              type="range" min={-10} max={10} step={1}
-                              value={val}
-                              onChange={(e) => setVid((s) => ({ ...s, [key]: Number(e.target.value) }))}
-                              style={{ flex: 1, accentColor: vidColor }}
-                            />
-                            <input
-                              type="number" min={-10} max={10} step={1}
-                              value={val}
-                              onChange={(e) => setVid((s) => ({ ...s, [key]: Math.max(-10, Math.min(10, Number(e.target.value))) }))}
-                              style={{ width: 52, padding: "4px 6px", border: "1.5px solid #e2e8f0", borderRadius: 6, fontSize: 12, fontFamily: FONT, textAlign: "center" as const }}
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </>
-                )}
-
                 {/* ── ①と② の区切りライン ── */}
                 <div style={{ margin: "8px 0 4px", borderTop: "2px solid #e2e8f0", position: "relative" }}>
                   <span style={{ position: "absolute", top: -9, left: "50%", transform: "translateX(-50%)", background: "#fff", padding: "0 10px", fontSize: 10, color: "#cbd5e1", fontFamily: FONT, letterSpacing: "0.1em" }}>
