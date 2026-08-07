@@ -243,6 +243,13 @@ export async function generateSceneVideo(
     duration?: number;
     generateAudio?: boolean;
     klingMultiShot?: boolean;
+    klingElements?: string[];
+    klingCamHorizontal?: number;
+    klingCamVertical?: number;
+    klingCamPan?: number;
+    klingCamTilt?: number;
+    klingCamRoll?: number;
+    klingCamZoom?: number;
     cameraFixed?: boolean;
     watermark?: boolean;
     seed?: number;

@@ -1431,6 +1431,94 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                   </>
                 )}
 
+                {/* ── Elements（Kling 3.0 / Omni のみ） ── */}
+                {(vid.videoModel === "kling-v3" || isKlingOmni) && (() => {
+                  const maxEl = isKlingOmni ? 7 : 3;
+                  const els   = vid.klingElements ?? [];
+                  const updateEl = (idx: number, val: string) => {
+                    const next = [...els]; next[idx] = val; setVid((s) => ({ ...s, klingElements: next }));
+                  };
+                  const removeEl = (idx: number) => {
+                    setVid((s) => ({ ...s, klingElements: (s.klingElements ?? []).filter((_, i) => i !== idx) }));
+                  };
+                  return (
+                    <>
+                      <div style={SEC}>Element 参照（画像 URL）</div>
+                      <div style={FIELD}>
+                        <div style={{ fontSize: 11, color: "#94a3b8", fontFamily: FONT, marginBottom: 8, lineHeight: 1.6 }}>
+                          人物・製品・小物などの参照画像 URL を入力。プロンプト内で <code style={{ background: "#f1f5f9", padding: "1px 4px", borderRadius: 3, fontFamily: "monospace" }}>@Element1</code> のように参照できます（最大 {maxEl} 件）。
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                          {els.map((url, idx) => (
+                            <div key={idx} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                              <span style={{ fontSize: 10, color: "#94a3b8", fontFamily: "monospace", width: 68, flexShrink: 0 }}>@Element{idx + 1}</span>
+                              <input
+                                type="url"
+                                value={url}
+                                onChange={(e) => updateEl(idx, e.target.value)}
+                                placeholder="https://..."
+                                style={{ ...INPUT, flex: 1 }}
+                              />
+                              <button onClick={() => removeEl(idx)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "#94a3b8", padding: "0 2px", lineHeight: 1, flexShrink: 0 }}>×</button>
+                            </div>
+                          ))}
+                          {els.length < maxEl && (
+                            <button
+                              onClick={() => setVid((s) => ({ ...s, klingElements: [...(s.klingElements ?? []), ""] }))}
+                              style={{ alignSelf: "flex-start", fontSize: 11, color: vidColor, background: "none", border: `1px dashed ${vidColor}88`, borderRadius: 6, cursor: "pointer", padding: "4px 12px", fontFamily: FONT }}
+                            >＋ Element を追加</button>
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
+
+                {/* ── Camera Config（Kling 3.0 / Omni のみ） ── */}
+                {(vid.videoModel === "kling-v3" || isKlingOmni) && (
+                  <>
+                    <div style={{ ...SEC, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <span>カメラ設定（camera_control）</span>
+                      <button
+                        type="button"
+                        onClick={() => setVid((s) => ({ ...s, klingCamHorizontal: 0, klingCamVertical: 0, klingCamPan: 0, klingCamTilt: 0, klingCamRoll: 0, klingCamZoom: 0 }))}
+                        style={{ fontSize: 10, fontWeight: 600, color: vidColor, background: "none", border: `1px solid ${vidColor}55`, borderRadius: 5, cursor: "pointer", padding: "1px 7px", fontFamily: FONT }}
+                      >すべてリセット</button>
+                    </div>
+                    <div style={{ fontSize: 11, color: "#94a3b8", fontFamily: FONT, marginBottom: 4 }}>各軸 -10 〜 +10（0 = 指定なし、すべて 0 の場合は送信しません）</div>
+                    {(["klingCamHorizontal", "klingCamVertical", "klingCamPan", "klingCamTilt", "klingCamRoll", "klingCamZoom"] as const).map((key) => {
+                      const axisLabels: Record<string, string> = {
+                        klingCamHorizontal: "Horizontal（水平移動）",
+                        klingCamVertical:   "Vertical（垂直移動）",
+                        klingCamPan:        "Pan（パン）",
+                        klingCamTilt:       "Tilt（チルト）",
+                        klingCamRoll:       "Roll（ロール）",
+                        klingCamZoom:       "Zoom（ズーム）",
+                      };
+                      const val = (vid[key] as number) ?? 0;
+                      return (
+                        <div key={key} style={FIELD}>
+                          <label style={LBL}>{axisLabels[key]}</label>
+                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                            <input
+                              type="range" min={-10} max={10} step={1}
+                              value={val}
+                              onChange={(e) => setVid((s) => ({ ...s, [key]: Number(e.target.value) }))}
+                              style={{ flex: 1, accentColor: vidColor }}
+                            />
+                            <input
+                              type="number" min={-10} max={10} step={1}
+                              value={val}
+                              onChange={(e) => setVid((s) => ({ ...s, [key]: Math.max(-10, Math.min(10, Number(e.target.value))) }))}
+                              style={{ width: 52, padding: "4px 6px", border: "1.5px solid #e2e8f0", borderRadius: 6, fontSize: 12, fontFamily: FONT, textAlign: "center" as const }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </>
+                )}
+
                 {/* ── ①と② の区切りライン ── */}
                 <div style={{ margin: "8px 0 4px", borderTop: "2px solid #e2e8f0", position: "relative" }}>
                   <span style={{ position: "absolute", top: -9, left: "50%", transform: "translateX(-50%)", background: "#fff", padding: "0 10px", fontSize: 10, color: "#cbd5e1", fontFamily: FONT, letterSpacing: "0.1em" }}>

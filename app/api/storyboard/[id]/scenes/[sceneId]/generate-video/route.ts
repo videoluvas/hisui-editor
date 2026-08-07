@@ -47,6 +47,13 @@ export async function POST(
     duration?: number;
     generateAudio?: boolean;
     klingMultiShot?: boolean;
+    klingElements?: string[];
+    klingCamHorizontal?: number;
+    klingCamVertical?: number;
+    klingCamPan?: number;
+    klingCamTilt?: number;
+    klingCamRoll?: number;
+    klingCamZoom?: number;
     cameraFixed?: boolean;
     watermark?: boolean;
     // Veo 専用
@@ -70,14 +77,21 @@ export async function POST(
   if (!credit.ok) return NextResponse.json({ ok: false, message: credit.message }, { status: 402 });
 
   const {
-    resolution    = "720p",
-    ratio         = "16:9",
-    duration      = 5,
-    generateAudio = false,
+    resolution     = "720p",
+    ratio          = "16:9",
+    duration       = 5,
+    generateAudio  = false,
     klingMultiShot = false,
-    cameraFixed   = false,
-    watermark     = false,
-    seed          = 0,
+    klingElements  = [],
+    klingCamHorizontal = 0,
+    klingCamVertical   = 0,
+    klingCamPan        = 0,
+    klingCamTilt       = 0,
+    klingCamRoll       = 0,
+    klingCamZoom       = 0,
+    cameraFixed        = false,
+    watermark      = false,
+    seed           = 0,
   } = body;
 
   // ルール・ネガティブプロンプトをインストラクションに結合
@@ -207,6 +221,12 @@ export async function POST(
       { type: "prompt", text: instructions.trim() || "動画を生成してください" },
     ];
     if (hasRefImage) contents.push({ type: "first_frame", url: scene.imgUrl });
+    // 3.0 / Omni: Element 参照
+    const maxElements = isKlingOmni ? 7 : 3;
+    const validElements = (klingElements ?? []).filter((u) => u.trim().startsWith("http")).slice(0, maxElements);
+    for (const url of validElements) {
+      contents.push({ type: "element", url: url.trim() });
+    }
 
     const settings: Record<string, unknown> = { duration: klingDuration };
     if (!hasRefImage && ["16:9", "9:16", "1:1"].includes(ratio)) settings.aspect_ratio = ratio;
@@ -214,7 +234,23 @@ export async function POST(
     if (videoModel === "kling-v3" || isKlingOmni) settings.audio = generateAudio ? "native" : "off";
     if (isKlingV3 && klingMultiShot) settings.mode = "multi_shot";
 
+    // カメラ config（3.0 / Omni のみ）: camera_control はトップレベルフィールド
+    const isKlingNonTurbo = videoModel === "kling-v3" || isKlingOmni;
+
     const klingBody: Record<string, unknown> = { contents, settings };
+    if (isKlingNonTurbo) {
+      const camCfg = {
+        horizontal: Math.max(-10, Math.min(10, klingCamHorizontal)),
+        vertical:   Math.max(-10, Math.min(10, klingCamVertical)),
+        pan:        Math.max(-10, Math.min(10, klingCamPan)),
+        tilt:       Math.max(-10, Math.min(10, klingCamTilt)),
+        roll:       Math.max(-10, Math.min(10, klingCamRoll)),
+        zoom:       Math.max(-10, Math.min(10, klingCamZoom)),
+      };
+      if (Object.values(camCfg).some(v => v !== 0)) {
+        klingBody.camera_control = { type: "simple", config: camCfg };
+      }
+    }
     const klingEndpoint = isKlingOmni ? "omni-video" : (hasRefImage ? "image-to-video" : "text-to-video");
 
     try {

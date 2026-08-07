@@ -44,6 +44,13 @@ export default function EditorAIVideoModal({ open, workspaceId, playbackTime, on
   const [duration,          setDuration]          = useState(5);
   const [resolution,        setResolution]        = useState<string>("720p");
   const [klingMultiShot,    setKlingMultiShot]    = useState(false);
+  const [klingElements,     setKlingElements]     = useState<string[]>([]);
+  const [klingCamHorizontal, setKlingCamHorizontal] = useState(0);
+  const [klingCamVertical,   setKlingCamVertical]   = useState(0);
+  const [klingCamPan,        setKlingCamPan]        = useState(0);
+  const [klingCamTilt,       setKlingCamTilt]       = useState(0);
+  const [klingCamRoll,       setKlingCamRoll]       = useState(0);
+  const [klingCamZoom,       setKlingCamZoom]       = useState(0);
   const [vidCommonRules,    setVidCommonRules]    = useState("");
   const [vidNegativePrompt, setVidNegativePrompt] = useState("");
   const [status,            setStatus]            = useState<"idle" | "generating" | "polling" | "done" | "error">("idle");
@@ -57,6 +64,13 @@ export default function EditorAIVideoModal({ open, workspaceId, playbackTime, on
     const s = loadVideoSettings();
     setResolution(s.resolution);
     setKlingMultiShot(s.klingMultiShot);
+    setKlingElements(s.klingElements ?? []);
+    setKlingCamHorizontal(s.klingCamHorizontal ?? 0);
+    setKlingCamVertical(s.klingCamVertical ?? 0);
+    setKlingCamPan(s.klingCamPan ?? 0);
+    setKlingCamTilt(s.klingCamTilt ?? 0);
+    setKlingCamRoll(s.klingCamRoll ?? 0);
+    setKlingCamZoom(s.klingCamZoom ?? 0);
     setVidCommonRules(s.vidCommonRules);
     setVidNegativePrompt(s.vidNegativePrompt);
     if (initialData) {
@@ -105,6 +119,13 @@ export default function EditorAIVideoModal({ open, workspaceId, playbackTime, on
           duration: clampedDuration,
           resolution,
           klingMultiShot,
+          klingElements,
+          klingCamHorizontal,
+          klingCamVertical,
+          klingCamPan,
+          klingCamTilt,
+          klingCamRoll,
+          klingCamZoom,
           vidCommonRules,
           vidNegativePrompt,
           workspaceId: workspaceId ?? undefined,
