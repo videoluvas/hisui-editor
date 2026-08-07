@@ -631,6 +631,7 @@ export default function ConteTool({
         ratio:            vidSettings.ratio,
         duration:         vidSettings.duration,
         generateAudio:    vidSettings.generateAudio,
+        klingMultiShot:   vidSettings.klingMultiShot,
         cameraFixed:        vidSettings.cameraFixed,
         watermark:          vidSettings.watermark,
         seed:               vidSettings.seed,

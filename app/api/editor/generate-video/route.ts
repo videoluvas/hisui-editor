@@ -32,6 +32,7 @@ export async function POST(request: NextRequest) {
     ratio?: string;
     duration?: number;
     generateAudio?: boolean;
+    klingMultiShot?: boolean;
     watermark?: boolean;
     cameraFixed?: boolean;
     seed?: number;
@@ -49,12 +50,12 @@ export async function POST(request: NextRequest) {
   const videoModel    = body.videoModel ?? "veo-3-lite";
   const isVeoModel    = videoModel === "veo-3" || videoModel === "veo-3-lite";
   const isKlingModel  = videoModel.startsWith("kling-");
-  const isKlingV3     = videoModel === "kling-v3" || videoModel === "kling-v3-turbo";
+  const isKlingV3     = videoModel === "kling-v3" || videoModel === "kling-v3-turbo" || videoModel === "kling-v3-omni";
 
   const access = await checkModelAccess(videoModel, session.user.plan ?? null);
   if (!access.ok) return NextResponse.json({ ok: false, message: access.message }, { status: access.status ?? 403 });
 
-  const klingV3Duration = isKlingV3 ? (body.duration && body.duration >= 8 ? 10 : 5) : 1;
+  const klingV3Duration = isKlingV3 ? Math.max(3, Math.min(15, Math.round(body.duration ?? 5))) : 1;
   const creditAction    = videoModelToAction(videoModel, (isVeoModel || (isKlingModel && !isKlingV3)) ? false : (body.generateAudio ?? false));
   const credit = await consumeCredits(session.userId, creditAction, null, klingV3Duration);
   if (!credit.ok) return NextResponse.json({ ok: false, message: credit.message }, { status: 402 });
@@ -64,6 +65,7 @@ export async function POST(request: NextRequest) {
     ratio         = "16:9",
     duration      = 8,
     generateAudio = false,
+    klingMultiShot = false,
     watermark     = false,
     cameraFixed   = false,
     seed          = 0,
@@ -129,19 +131,28 @@ export async function POST(request: NextRequest) {
       "kling-v2-master": "kling-v2-master",
       "kling-v3":        "kling-3.0",
       "kling-v3-turbo":  "kling-3.0-turbo",
+      "kling-v3-omni":   "kling-3.0-omni",
     };
     const modelPath = KLING_MODEL_PATHS[videoModel] ?? "kling-3.0";
 
+    const isKlingOmni = videoModel === "kling-v3-omni";
+
+    const klingDuration = isKlingV3
+      ? Math.max(3, Math.min(15, Math.round(duration)))
+      : (duration >= 8 ? 10 : 5);
+
     const contents: Record<string, unknown>[] = [{ type: "prompt", text: prompt }];
-    const settings: Record<string, unknown> = { duration: duration >= 8 ? 10 : 5 };
+    const settings: Record<string, unknown> = { duration: klingDuration };
     if (["16:9", "9:16", "1:1"].includes(ratio)) settings.aspect_ratio = ratio;
-    if (isKlingV3 && resolution === "1080p") settings.resolution = "1080p";
-    if (videoModel === "kling-v3") settings.audio = generateAudio ? "native" : "off";
+    if (isKlingV3 && (resolution === "1080p" || resolution === "4k")) settings.resolution = resolution;
+    if (videoModel === "kling-v3" || isKlingOmni) settings.audio = generateAudio ? "native" : "off";
+    if (isKlingV3 && klingMultiShot) settings.mode = "multi_shot";
 
     const klingBody: Record<string, unknown> = { contents, settings };
+    const klingEndpoint = isKlingOmni ? "omni-video" : "text-to-video";
 
     try {
-      const resp = await fetch(`${KLING_API_BASE}/text-to-video/${modelPath}`, {
+      const resp = await fetch(`${KLING_API_BASE}/${klingEndpoint}/${modelPath}`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${klingApiKey}` },
         body: JSON.stringify(klingBody),

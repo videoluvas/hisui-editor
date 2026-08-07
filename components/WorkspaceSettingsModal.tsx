@@ -270,6 +270,7 @@ const VIDEO_MODELS = [
   { id: "kling-v2-master",  label: "Kling AI",          sub: "Kling 2.0 Master",  color: "#5B21B6", provider: "kling"    as const, veoLite: false },
   { id: "kling-v3",         label: "Kling AI",          sub: "Kling 3.0",         color: "#0EA5E9", provider: "kling"    as const, veoLite: false },
   { id: "kling-v3-turbo",   label: "Kling AI",          sub: "Kling 3.0 Turbo",   color: "#0284C7", provider: "kling"    as const, veoLite: false },
+  { id: "kling-v3-omni",    label: "Kling AI",          sub: "Kling 3.0 Omni",    color: "#0369A1", provider: "kling"    as const, veoLite: false },
 ] as const;
 
 const TTS_MODELS = [
@@ -1206,16 +1207,29 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
             {/* ── AI動画生成 ── */}
             {activeTab === "video" && (() => {
               const currentVidModel = VIDEO_MODELS.find((m) => m.id === vid.videoModel) ?? VIDEO_MODELS[0];
-              const isVeoLite  = currentVidModel.veoLite;
-              const isVeo      = currentVidModel.id === "veo-3" || currentVidModel.id === "veo-3-lite";
-              const isKling    = currentVidModel.provider === "kling";
-              const isKlingV3  = vid.videoModel === "kling-v3" || vid.videoModel === "kling-v3-turbo";
-              const vidColor   = currentVidModel.color;
+              const isVeoLite    = currentVidModel.veoLite;
+              const isVeo        = currentVidModel.id === "veo-3" || currentVidModel.id === "veo-3-lite";
+              const isKling      = currentVidModel.provider === "kling";
+              const isKlingV3    = ["kling-v3", "kling-v3-turbo", "kling-v3-omni"].includes(vid.videoModel);
+              const isKlingTurbo = vid.videoModel === "kling-v3-turbo";
+              const isKlingOmni  = vid.videoModel === "kling-v3-omni";
+              const vidColor     = currentVidModel.color;
 
-              const availableResolutions = isVeo ? (isVeoLite ? (["720p", "1080p"] as const) : (["720p", "1080p", "4k"] as const)) : (["720p", "1080p"] as const);
-              const availableRatios      = isVeo ? (["16:9", "9:16", "adaptive"] as const) : isKling ? (["16:9", "9:16", "1:1"] as const) : (["16:9", "4:3", "1:1", "3:4", "9:16", "21:9", "adaptive"] as const);
-              const availableDurations   = isVeo ? [4, 6, 8] : isKling ? [5, 10] : [4, 5, 6, 7, 8, 9, 10, 11, 12];
-              const highResSelected      = vid.resolution === "1080p" || vid.resolution === "4k";
+              // Turbo は 4K 非対応
+              const availableResolutions = isVeo
+                ? (isVeoLite ? ["720p", "1080p"] as const : ["720p", "1080p", "4k"] as const)
+                : (isKling && !isKlingTurbo && isKlingV3) ? ["720p", "1080p", "4k"] as const
+                : ["720p", "1080p"] as const;
+              const availableRatios = isVeo
+                ? ["16:9", "9:16", "adaptive"] as const
+                : isKling ? ["16:9", "9:16", "1:1"] as const
+                : ["16:9", "4:3", "1:1", "3:4", "9:16", "21:9", "adaptive"] as const;
+              // v3 系は 3~15 秒、v2 系は 5/10 秒固定
+              const availableDurations = isVeo ? [4, 6, 8]
+                : isKlingV3 ? [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+                : isKling   ? [5, 10]
+                : [4, 5, 6, 7, 8, 9, 10, 11, 12];
+              const highResSelected = vid.resolution === "1080p" || vid.resolution === "4k";
 
               return (
               <>
@@ -1234,9 +1248,17 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                         if (nextVid.resolution === "1080p" || nextVid.resolution === "4k") nextVid.duration = 8;
                       } else if (m?.provider === "kling") {
                         if (!["16:9", "9:16", "1:1"].includes(nextVid.ratio)) nextVid.ratio = "16:9";
-                        if (!([5, 10] as number[]).includes(nextVid.duration)) nextVid.duration = 5;
-                        if (nextVid.resolution === "4k") nextVid.resolution = "720p";
-                        if (m.id === "kling-v3-turbo") nextVid.generateAudio = true;
+                        const isV3type = ["kling-v3", "kling-v3-turbo", "kling-v3-omni"].includes(m.id);
+                        if (isV3type) {
+                          if (nextVid.duration < 3 || nextVid.duration > 15) nextVid.duration = 5;
+                          // Turbo は 4K 非対応
+                          if (m.id === "kling-v3-turbo" && nextVid.resolution === "4k") nextVid.resolution = "1080p";
+                          if (m.id === "kling-v3-turbo") nextVid.generateAudio = true;
+                        } else {
+                          // v2 系: 5 or 10 のみ
+                          if (!([5, 10] as number[]).includes(nextVid.duration)) nextVid.duration = 5;
+                          if (nextVid.resolution === "4k") nextVid.resolution = "720p";
+                        }
                       }
                       setVid(nextVid as VideoSettings);
                     }}
@@ -1249,10 +1271,11 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                   )}
                   {isKling && (
                     <div style={{ marginTop: 6, fontSize: 10, color: "#94a3b8", fontFamily: FONT }}>
-                      {currentVidModel.id === "kling-v2"       && "Kling 2.0：720p / 1080p・5秒 / 10秒・16:9 / 9:16 / 1:1"}
+                      {currentVidModel.id === "kling-v2"        && "Kling 2.0：720p / 1080p・5秒 / 10秒・16:9 / 9:16 / 1:1"}
                       {currentVidModel.id === "kling-v2-master" && "Kling 2.0 Master（高品質）：720p / 1080p・5秒 / 10秒・16:9 / 9:16 / 1:1"}
-                      {currentVidModel.id === "kling-v3"        && "Kling 3.0：720p / 1080p・5秒 / 10秒・秒課金・音声オプションあり"}
-                      {currentVidModel.id === "kling-v3-turbo"  && "Kling 3.0 Turbo：720p / 1080p・5秒 / 10秒・秒課金・音声あり（固定）"}
+                      {currentVidModel.id === "kling-v3"        && "Kling 3.0：720p / 1080p / 4K・3〜15秒・秒課金・音声ON/OFF・マルチショット対応"}
+                      {currentVidModel.id === "kling-v3-turbo"  && "Kling 3.0 Turbo：720p / 1080p・3〜15秒・秒課金・音声あり（固定）・マルチショット対応"}
+                      {currentVidModel.id === "kling-v3-omni"   && "Kling 3.0 Omni：720p / 1080p / 4K・3〜15秒・秒課金・音声ON/OFF・I2V / 動画参照・マルチショット対応"}
                     </div>
                   )}
                 </div>
@@ -1352,15 +1375,22 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                   <div style={FIELD}>
                     <label style={LBL}>オプション</label>
                     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                      {/* 音声：Seedance・Kling v3 は選択可、Turbo は常時オン表示 */}
-                      {(!isKling || vid.videoModel === "kling-v3") && (
+                      {/* 音声：Seedance・Kling v3・Omni は選択可、Turbo は常時オン表示 */}
+                      {(!isKling || vid.videoModel === "kling-v3" || isKlingOmni) && (
                         <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, color: "#475569", fontFamily: FONT }}>
                           <input type="checkbox" checked={vid.generateAudio} onChange={(e) => setVid((s) => ({ ...s, generateAudio: e.target.checked }))} style={{ accentColor: vidColor, width: 14, height: 14 }} />
                           音声を生成（デフォルトはオフ）
                         </label>
                       )}
-                      {vid.videoModel === "kling-v3-turbo" && (
+                      {isKlingTurbo && (
                         <div style={{ fontSize: 11, color: "#94a3b8", fontFamily: FONT }}>音声は自動的に生成されます（Turbo 固定）</div>
+                      )}
+                      {/* マルチショット：Kling v3 系のみ */}
+                      {isKlingV3 && (
+                        <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, color: "#475569", fontFamily: FONT }}>
+                          <input type="checkbox" checked={vid.klingMultiShot} onChange={(e) => setVid((s) => ({ ...s, klingMultiShot: e.target.checked }))} style={{ accentColor: vidColor, width: 14, height: 14 }} />
+                          マルチショット（自動カット割り）
+                        </label>
                       )}
                       {/* カメラ固定・透かし：Seedance のみ */}
                       {!isKling && (
@@ -2354,17 +2384,21 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
               const cost = img.imageModel === "google-image-lite" ? 100 : img.imageModel === "gpt-image-2-high" ? 2_000 : img.imageModel === "gpt-image-1-5" ? 1_500 : 400;
               items = [{ label: "1枚あたり", cost: `${cost.toLocaleString()} cr` }];
             } else if (activeTab === "video") {
-              const isVeoModel   = vid.videoModel === "veo-3" || vid.videoModel === "veo-3-lite";
-              const isKlingModel = vid.videoModel.startsWith("kling-");
-              const isKlingV3M   = vid.videoModel === "kling-v3" || vid.videoModel === "kling-v3-turbo";
-              const dur          = [5, 10].includes(vid.duration) ? vid.duration : 5;
+              const isVeoModel    = vid.videoModel === "veo-3" || vid.videoModel === "veo-3-lite";
+              const isKlingModel  = vid.videoModel.startsWith("kling-");
+              const isKlingV3sec  = ["kling-v3", "kling-v3-turbo", "kling-v3-omni"].includes(vid.videoModel);
+              // v3 系は実際の秒数を使用、v2 系は 5/10 のみ
+              const dur = isKlingV3sec
+                ? Math.max(3, Math.min(15, vid.duration || 5))
+                : [5, 10].includes(vid.duration) ? vid.duration : 5;
               let cost: number;
-              if (vid.videoModel === "kling-v3")        cost = (vid.generateAudio ? 1_260 : 840) * dur;
+              if (vid.videoModel === "kling-v3")          cost = (vid.generateAudio ? 1_260 : 840) * dur;
               else if (vid.videoModel === "kling-v3-turbo") cost = 1_120 * dur;
+              else if (vid.videoModel === "kling-v3-omni")  cost = (vid.generateAudio ? 2_100 : 1_400) * dur;
               else if (vid.videoModel === "veo-3-lite" || vid.videoModel === "kling-v2") cost = 1_000;
               else if (!isVeoModel && !isKlingModel && vid.generateAudio) cost = 5_000;
               else cost = 2_500;
-              items = [{ label: isKlingV3M ? `1本あたり（${dur}秒）` : "1本あたり", cost: `${cost.toLocaleString()} cr` }];
+              items = [{ label: isKlingV3sec ? `1本あたり（${dur}秒）` : "1本あたり", cost: `${cost.toLocaleString()} cr` }];
             } else if (activeTab === "narration") {
               items = [{ label: "200文字あたり", cost: "10 cr" }];
             } else if (activeTab === "bgm") {

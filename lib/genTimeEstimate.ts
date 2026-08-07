@@ -25,6 +25,7 @@ export function videoTimeEstimate(modelId: string): string {
     case "kling-v2-master":  return "約3〜8分";
     case "kling-v3":         return "約2〜5分";
     case "kling-v3-turbo":   return "約1〜3分";
+    case "kling-v3-omni":    return "約2〜5分";
     default: return "約1〜5分";
   }
 }

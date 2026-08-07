@@ -2,8 +2,9 @@ export type VideoSettings = {
   videoModel: string;
   resolution: "720p" | "1080p" | "4k";
   ratio: "16:9" | "4:3" | "1:1" | "3:4" | "9:16" | "21:9" | "adaptive";
-  duration: number;       // 4–12 の整数、または -1（AI自動）
+  duration: number;       // 4–15 の整数（Kling v3 は 3–15）、または -1（AI自動）
   generateAudio: boolean;
+  klingMultiShot: boolean; // Kling v3/turbo/omni: マルチショット（自動カット割り）
   cameraFixed: boolean;
   watermark: boolean;
   // Veo 専用
@@ -20,6 +21,7 @@ export const DEFAULT_VIDEO_SETTINGS: VideoSettings = {
   ratio: "16:9",
   duration: 8,
   generateAudio: false,
+  klingMultiShot: false,
   cameraFixed: false,
   watermark: false,
   seed: 0,

@@ -17,12 +17,14 @@ const VIDEO_MODELS = [
   { value: "kling-v2-master",  label: "Kling 2.0 Master" },
   { value: "kling-v3",         label: "Kling 3.0" },
   { value: "kling-v3-turbo",   label: "Kling 3.0 Turbo" },
+  { value: "kling-v3-omni",    label: "Kling 3.0 Omni" },
 ] as const;
 
 const RATIOS              = ["16:9", "9:16"] as const;
 const SEEDANCE_DURATIONS  = [4, 5, 6, 8, 10, 12] as const;
 const VEO_DURATIONS       = [4, 6, 8] as const;
-const KLING_DURATIONS     = [5, 10] as const;
+const KLING_V2_DURATIONS  = [5, 10] as const;
+const KLING_V3_DURATIONS  = [3, 5, 8, 10, 15] as const;
 
 type Props = {
   open: boolean;
@@ -41,6 +43,7 @@ export default function EditorAIVideoModal({ open, workspaceId, playbackTime, on
   const [ratio,             setRatio]             = useState("16:9");
   const [duration,          setDuration]          = useState(5);
   const [resolution,        setResolution]        = useState<string>("720p");
+  const [klingMultiShot,    setKlingMultiShot]    = useState(false);
   const [vidCommonRules,    setVidCommonRules]    = useState("");
   const [vidNegativePrompt, setVidNegativePrompt] = useState("");
   const [status,            setStatus]            = useState<"idle" | "generating" | "polling" | "done" | "error">("idle");
@@ -53,6 +56,7 @@ export default function EditorAIVideoModal({ open, workspaceId, playbackTime, on
     if (!open) return;
     const s = loadVideoSettings();
     setResolution(s.resolution);
+    setKlingMultiShot(s.klingMultiShot);
     setVidCommonRules(s.vidCommonRules);
     setVidNegativePrompt(s.vidNegativePrompt);
     if (initialData) {
@@ -69,11 +73,14 @@ export default function EditorAIVideoModal({ open, workspaceId, playbackTime, on
 
   if (!open) return null;
 
-  const isVeo   = model === "veo-3" || model === "veo-3-lite";
-  const isKling = model.startsWith("kling-");
-  const durations = isVeo ? VEO_DURATIONS : isKling ? KLING_DURATIONS : SEEDANCE_DURATIONS;
+  const isVeo     = model === "veo-3" || model === "veo-3-lite";
+  const isKling   = model.startsWith("kling-");
+  const isKlingV3 = model === "kling-v3" || model === "kling-v3-turbo" || model === "kling-v3-omni";
+  const durations = isVeo ? VEO_DURATIONS : isKlingV3 ? KLING_V3_DURATIONS : isKling ? KLING_V2_DURATIONS : SEEDANCE_DURATIONS;
   const clampedDuration = isVeo
     ? ([4, 6, 8] as number[]).includes(duration) ? duration : 8
+    : isKlingV3
+    ? Math.max(3, Math.min(15, duration))
     : isKling
     ? ([5, 10] as number[]).includes(duration) ? duration : 5
     : duration;
@@ -97,6 +104,7 @@ export default function EditorAIVideoModal({ open, workspaceId, playbackTime, on
           ratio,
           duration: clampedDuration,
           resolution,
+          klingMultiShot,
           vidCommonRules,
           vidNegativePrompt,
           workspaceId: workspaceId ?? undefined,

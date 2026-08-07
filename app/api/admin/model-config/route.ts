@@ -18,6 +18,7 @@ const MODEL_DEFINITIONS = [
   { modelId: "kling-v2-master",     modelType: "video",  modelLabel: "Kling 2.0 Master" },
   { modelId: "kling-v3",            modelType: "video",  modelLabel: "Kling 3.0" },
   { modelId: "kling-v3-turbo",      modelType: "video",  modelLabel: "Kling 3.0 Turbo" },
+  { modelId: "kling-v3-omni",       modelType: "video",  modelLabel: "Kling 3.0 Omni" },
   { modelId: "gemini-tts-high",     modelType: "tts",    modelLabel: "Gemini TTS High" },
   { modelId: "lyria-2",             modelType: "bgm",    modelLabel: "Lyria 2" },
   { modelId: "lyria-3-pro-preview", modelType: "bgm",    modelLabel: "Lyria 3 Pro" },
