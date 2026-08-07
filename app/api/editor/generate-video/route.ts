@@ -188,6 +188,8 @@ export async function POST(request: NextRequest) {
     }
     const klingEndpoint = isKlingOmni ? "omni-video" : "text-to-video";
 
+    console.log("[Kling editor] POST", `${KLING_API_BASE}/${klingEndpoint}/${modelPath}`, JSON.stringify(klingBody, null, 2));
+
     try {
       const resp = await fetch(`${KLING_API_BASE}/${klingEndpoint}/${modelPath}`, {
         method: "POST",

@@ -253,6 +253,8 @@ export async function POST(
     }
     const klingEndpoint = isKlingOmni ? "omni-video" : (hasRefImage ? "image-to-video" : "text-to-video");
 
+    console.log("[Kling storyboard] POST", `${KLING_API_BASE}/${klingEndpoint}/${modelPath}`, JSON.stringify(klingBody, null, 2));
+
     try {
       const resp = await fetch(`${KLING_API_BASE}/${klingEndpoint}/${modelPath}`, {
         method: "POST",
