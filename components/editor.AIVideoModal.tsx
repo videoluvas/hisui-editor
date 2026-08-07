@@ -40,6 +40,7 @@ export default function EditorAIVideoModal({ open, workspaceId, playbackTime, on
   const [model,             setModel]             = useState<string>("seedance-1-5-pro");
   const [ratio,             setRatio]             = useState("16:9");
   const [duration,          setDuration]          = useState(5);
+  const [resolution,        setResolution]        = useState<string>("720p");
   const [vidCommonRules,    setVidCommonRules]    = useState("");
   const [vidNegativePrompt, setVidNegativePrompt] = useState("");
   const [status,            setStatus]            = useState<"idle" | "generating" | "polling" | "done" | "error">("idle");
@@ -51,6 +52,7 @@ export default function EditorAIVideoModal({ open, workspaceId, playbackTime, on
   useEffect(() => {
     if (!open) return;
     const s = loadVideoSettings();
+    setResolution(s.resolution);
     setVidCommonRules(s.vidCommonRules);
     setVidNegativePrompt(s.vidNegativePrompt);
     if (initialData) {
@@ -94,7 +96,7 @@ export default function EditorAIVideoModal({ open, workspaceId, playbackTime, on
           videoModel: model,
           ratio,
           duration: clampedDuration,
-          resolution: "720p",
+          resolution,
           vidCommonRules,
           vidNegativePrompt,
           workspaceId: workspaceId ?? undefined,

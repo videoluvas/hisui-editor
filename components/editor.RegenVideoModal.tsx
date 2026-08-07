@@ -64,7 +64,7 @@ export default function EditorRegenVideoModal({ open, fileUrl, meta, workspaceId
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           prompt, videoModel: meta.model, ratio: meta.ratio,
-          duration: meta.duration, resolution: "720p",
+          duration: meta.duration, resolution: loadVideoSettings().resolution,
           vidCommonRules: wsRules, vidNegativePrompt: wsNeg,
           workspaceId: workspaceId ?? undefined,
         }),

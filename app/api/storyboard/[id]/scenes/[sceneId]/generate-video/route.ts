@@ -201,6 +201,7 @@ export async function POST(
 
     const settings: Record<string, unknown> = { duration: duration >= 8 ? 10 : 5 };
     if (!hasRefImage && ["16:9", "9:16", "1:1"].includes(ratio)) settings.aspect_ratio = ratio;
+    if (isKlingV3 && resolution === "1080p") settings.resolution = "1080p";
     if (videoModel === "kling-v3") settings.audio = generateAudio ? "native" : "off";
 
     const klingBody: Record<string, unknown> = { contents, settings };
