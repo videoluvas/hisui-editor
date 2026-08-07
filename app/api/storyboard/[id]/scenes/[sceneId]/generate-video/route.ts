@@ -232,25 +232,9 @@ export async function POST(
     if (!hasRefImage && ["16:9", "9:16", "1:1"].includes(ratio)) settings.aspect_ratio = ratio;
     if (isKlingV3 && (resolution === "1080p" || resolution === "4k")) settings.resolution = resolution;
     if (videoModel === "kling-v3" || isKlingOmni) settings.audio = generateAudio ? "native" : "off";
-
-    // カメラ config（3.0 / Omni のみ）: camera_control はトップレベルフィールド
-    const isKlingNonTurbo = videoModel === "kling-v3" || isKlingOmni;
+    if (isKlingV3) settings.multi_shot = klingMultiShot;
 
     const klingBody: Record<string, unknown> = { contents, settings };
-    if (isKlingV3) klingBody.multi_shot = klingMultiShot;
-    if (isKlingNonTurbo) {
-      const camCfg = {
-        horizontal: Math.max(-10, Math.min(10, klingCamHorizontal)),
-        vertical:   Math.max(-10, Math.min(10, klingCamVertical)),
-        pan:        Math.max(-10, Math.min(10, klingCamPan)),
-        tilt:       Math.max(-10, Math.min(10, klingCamTilt)),
-        roll:       Math.max(-10, Math.min(10, klingCamRoll)),
-        zoom:       Math.max(-10, Math.min(10, klingCamZoom)),
-      };
-      if (Object.values(camCfg).some(v => v !== 0)) {
-        klingBody.camera_control = { type: "simple", config: camCfg };
-      }
-    }
     const klingEndpoint = isKlingOmni ? "omni-video" : (hasRefImage ? "image-to-video" : "text-to-video");
 
     console.log("[Kling storyboard] POST", `${KLING_API_BASE}/${klingEndpoint}/${modelPath}`, JSON.stringify(klingBody, null, 2));
