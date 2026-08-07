@@ -167,12 +167,12 @@ export async function POST(request: NextRequest) {
     if (["16:9", "9:16", "1:1"].includes(ratio)) settings.aspect_ratio = ratio;
     if (isKlingV3 && (resolution === "1080p" || resolution === "4k")) settings.resolution = resolution;
     if (videoModel === "kling-v3" || isKlingOmni) settings.audio = generateAudio ? "native" : "off";
-    if (isKlingV3 && klingMultiShot) settings.mode = "multi_shot";
 
     // カメラ config（3.0 / Omni のみ）: camera_control はトップレベルフィールド
     const isKlingNonTurbo = videoModel === "kling-v3" || isKlingOmni;
 
     const klingBody: Record<string, unknown> = { contents, settings };
+    if (isKlingV3) klingBody.multi_shot = klingMultiShot;
     if (isKlingNonTurbo) {
       const camCfg = {
         horizontal: Math.max(-10, Math.min(10, klingCamHorizontal)),

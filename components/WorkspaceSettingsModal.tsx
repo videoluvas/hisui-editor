@@ -1253,7 +1253,6 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                           if (nextVid.duration < 3 || nextVid.duration > 15) nextVid.duration = 5;
                           // Turbo は 4K 非対応
                           if (m.id === "kling-v3-turbo" && nextVid.resolution === "4k") nextVid.resolution = "1080p";
-                          if (m.id === "kling-v3-turbo") nextVid.generateAudio = true;
                         } else {
                           // v2 系: 5 or 10 のみ
                           if (!([5, 10] as number[]).includes(nextVid.duration)) nextVid.duration = 5;
@@ -1487,18 +1486,23 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                     </div>
                     <div style={{ fontSize: 11, color: "#94a3b8", fontFamily: FONT, marginBottom: 4 }}>各軸 -10 〜 +10（0 = 指定なし、すべて 0 の場合は送信しません）</div>
                     {(["klingCamHorizontal", "klingCamVertical", "klingCamPan", "klingCamTilt", "klingCamRoll", "klingCamZoom"] as const).map((key) => {
-                      const axisLabels: Record<string, string> = {
-                        klingCamHorizontal: "Horizontal（水平移動）",
-                        klingCamVertical:   "Vertical（垂直移動）",
-                        klingCamPan:        "Pan（パン）",
-                        klingCamTilt:       "Tilt（チルト）",
-                        klingCamRoll:       "Roll（ロール）",
-                        klingCamZoom:       "Zoom（ズーム）",
+                      const axisInfo: Record<string, { label: string; neg: string; pos: string }> = {
+                        klingCamHorizontal: { label: "Horizontal（水平移動）", neg: "← Left（左）", pos: "Right（右）→" },
+                        klingCamVertical:   { label: "Vertical（垂直移動）",   neg: "↓ Down（下）", pos: "Up（上）↑" },
+                        klingCamPan:        { label: "Pan（パン）",             neg: "← Left（左）", pos: "Right（右）→" },
+                        klingCamTilt:       { label: "Tilt（チルト）",          neg: "↓ Down（下）", pos: "Up（上）↑" },
+                        klingCamRoll:       { label: "Roll（ロール）",           neg: "↺ CCW（反時計）", pos: "CW（時計）↻" },
+                        klingCamZoom:       { label: "Zoom（ズーム）",           neg: "Out（引き）↔", pos: "↔ In（寄り）" },
                       };
+                      const { label, neg, pos } = axisInfo[key];
                       const val = (vid[key] as number) ?? 0;
                       return (
                         <div key={key} style={FIELD}>
-                          <label style={LBL}>{axisLabels[key]}</label>
+                          <label style={LBL}>{label}</label>
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#94a3b8", fontFamily: FONT, marginBottom: 2 }}>
+                            <span>{neg}</span>
+                            <span>{pos}</span>
+                          </div>
                           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                             <input
                               type="range" min={-10} max={10} step={1}
