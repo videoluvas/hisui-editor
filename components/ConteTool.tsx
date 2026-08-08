@@ -85,7 +85,17 @@ type ImagePrompt = {
   refUploadUrl: string | null;   // ref-upload: アップロード画像 URL
 };
 
-type VideoPrompt     = { instructions: string };
+type VideoPrompt = {
+  instructions: string;
+  firstFrameMode: "scene" | "upload" | "none" | "other-scene" | "file";
+  firstFrameUploadUrl: string | null;
+  firstFrameOtherSceneId: string | null;
+  firstFrameFileUrl: string | null;
+  lastFrameMode: "none" | "upload" | "this-scene" | "scene" | "file";
+  lastFrameUploadUrl: string | null;
+  lastFrameSceneId: string | null;
+  lastFrameFileUrl: string | null;
+};
 type NarrationPrompt = {
   speaker: string;
   emotion: string;
@@ -148,7 +158,7 @@ function dbSceneToLocal(s: StoryboardSceneData, idx: number): Scene {
       refFileUrl:    s.imgStyle === "ref-file"     ? (s.imgStyleIllust ?? null) : null,
       refUploadUrl:  s.imgStyle === "ref-upload"   ? (s.imgStyleIllust ?? null) : null,
     },
-    videoPrompt: { instructions: s.videoPrompt ?? "" },
+    videoPrompt: { instructions: s.videoPrompt ?? "", firstFrameMode: "scene", firstFrameUploadUrl: null, firstFrameOtherSceneId: null, firstFrameFileUrl: null, lastFrameMode: "none", lastFrameUploadUrl: null, lastFrameSceneId: null, lastFrameFileUrl: null },
     narrationPrompt: {
       speaker:  as?.speaker  ?? "",
       emotion:  as?.emotion  ?? "ニュートラル",
@@ -615,8 +625,19 @@ export default function ConteTool({
 
   const handleGenerateVideo = async (sceneId: string, scene: Scene) => {
     if (!storyboardId) return;
-    if (!scene.videoPrompt.instructions.trim() && !scene.imageUrl) {
-      setGenError(sceneId, "video", "プロンプトまたは画像が必要です");
+    const ffMode = scene.videoPrompt.firstFrameMode ?? "scene";
+
+    // 開始フレーム URL を解決
+    const resolvedFirstFrameUrl: string | null =
+      ffMode === "scene"       ? (scene.imageUrl ?? null) :
+      ffMode === "other-scene" ? (scenes.find((s) => s.id === scene.videoPrompt.firstFrameOtherSceneId)?.imageUrl ?? null) :
+      ffMode === "upload"      ? (scene.videoPrompt.firstFrameUploadUrl ?? null) :
+      ffMode === "file"        ? (scene.videoPrompt.firstFrameFileUrl?.trim() || null) :
+      null;
+
+    const sceneHasRef = !!resolvedFirstFrameUrl;
+    if (!scene.videoPrompt.instructions.trim() && !sceneHasRef) {
+      setGenError(sceneId, "video", "プロンプトまたは参照画像が必要です");
       return;
     }
     setGenError(sceneId, "video", undefined);
@@ -624,6 +645,20 @@ export default function ConteTool({
     setVideoStatusMap((m) => ({ ...m, [sceneId]: "queued" }));
     try {
       const vidSettings = loadVideoSettings();
+      const effectiveUseFirstFrame = ffMode !== "none" && sceneHasRef && (vidSettings.useFirstFrame ?? true);
+      // "scene" モードはサーバーが scene.imgUrl を直接参照するため省略
+      const firstFrameUrl = ffMode !== "scene" ? (resolvedFirstFrameUrl ?? undefined) : undefined;
+
+      const lastFrameMode = scene.videoPrompt.lastFrameMode ?? "none";
+      const sceneLastFrameUrl: string | null =
+        lastFrameMode === "this-scene" ? (scene.imageUrl ?? null) :
+        lastFrameMode === "upload"     ? (scene.videoPrompt.lastFrameUploadUrl ?? null) :
+        lastFrameMode === "scene"      ? (scenes.find((s) => s.id === scene.videoPrompt.lastFrameSceneId)?.imageUrl ?? null) :
+        lastFrameMode === "file"       ? (scene.videoPrompt.lastFrameFileUrl?.trim() || null) :
+        null;
+      const wsLastFrameUrl = (vidSettings.useLastFrame && vidSettings.lastFrameUrl?.trim()) ? vidSettings.lastFrameUrl.trim() : null;
+      const resolvedLastFrameUrl = sceneLastFrameUrl ?? wsLastFrameUrl;
+      const effectiveUseLastFrame = !!resolvedLastFrameUrl;
       const res = await generateSceneVideo(storyboardId, sceneId, {
         videoModel:       vidSettings.videoModel,
         instructions:     scene.videoPrompt.instructions,
@@ -633,6 +668,10 @@ export default function ConteTool({
         generateAudio:    vidSettings.generateAudio,
         klingMultiShot:   vidSettings.klingMultiShot,
         klingElements:    vidSettings.klingElements,
+        useFirstFrame:    effectiveUseFirstFrame,
+        firstFrameUrl,
+        useLastFrame:     effectiveUseLastFrame,
+        lastFrameUrl:     resolvedLastFrameUrl ?? "",
         cameraFixed:        vidSettings.cameraFixed,
         watermark:          vidSettings.watermark,
         seed:               vidSettings.seed,
@@ -1135,15 +1174,23 @@ function SceneCol({ scene, index, allScenes, stepOpen, promptOpen, onToggleStep,
   onDrop: () => void;
   onDragEnd: () => void;
 }) {
-  const imgUploadRef    = useRef<HTMLInputElement>(null);
-  const refUploadRef    = useRef<HTMLInputElement>(null);
-  const videoUploadRef  = useRef<HTMLInputElement>(null);
-  const audioUploadRef  = useRef<HTMLInputElement>(null);
+  const imgUploadRef      = useRef<HTMLInputElement>(null);
+  const refUploadRef      = useRef<HTMLInputElement>(null);
+  const vidRefUploadRef   = useRef<HTMLInputElement>(null);
+  const videoUploadRef    = useRef<HTMLInputElement>(null);
+  const audioUploadRef    = useRef<HTMLInputElement>(null);
+  const vidLastFrameUploadRef  = useRef<HTMLInputElement>(null);
   const [uploadingImg,      setUploadingImg]       = useState(false);
   const [uploadingRefImg,   setUploadingRefImg]    = useState(false);
+  const [uploadingVidRefImg, setUploadingVidRefImg] = useState(false);
   const [uploadingVideo,    setUploadingVideo]     = useState(false);
   const [uploadingAudio,    setUploadingAudio]     = useState(false);
-  const [refDropdownOpen,   setRefDropdownOpen]    = useState(false);
+  const [uploadingVidLastFrame, setUploadingVidLastFrame] = useState(false);
+  const [refDropdownOpen,    setRefDropdownOpen]    = useState(false);
+  const [vidRefDropdownOpen, setVidRefDropdownOpen] = useState(false);
+  const [vidLastDropdownOpen,   setVidLastDropdownOpen]   = useState(false);
+  const [vidLastFileBrowserOpen,  setVidLastFileBrowserOpen]  = useState(false);
+  const [vidFirstFileBrowserOpen, setVidFirstFileBrowserOpen] = useState(false);
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [fileBrowserOpen,    setFileBrowserOpen]    = useState(false);
   const [imgUploadPickerOpen,   setImgUploadPickerOpen]   = useState(false);
@@ -1202,6 +1249,58 @@ function SceneCol({ scene, index, allScenes, stepOpen, promptOpen, onToggleStep,
       alert("アップロードに失敗しました");
     } finally {
       setUploadingRefImg(false);
+      e.target.value = "";
+    }
+  };
+
+  const handleVidRefUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const err = checkUploadLimit(file, "image");
+    if (err) { alert(err); e.target.value = ""; return; }
+    setUploadingVidRefImg(true);
+    try {
+      const data = await getPresignedUrl(file, undefined, workspaceId);
+      if (!data.ok || !data.presignedUrl) { alert(data.message ?? "アップロードに失敗しました"); return; }
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.onload = () => (xhr.status < 400 ? resolve() : reject(new Error("upload failed")));
+        xhr.onerror = () => reject(new Error("network error"));
+        xhr.open("PUT", data.presignedUrl!);
+        xhr.setRequestHeader("Content-Type", file.type);
+        xhr.send(file);
+      });
+      if (data.fileUrl) onUpdate({ videoPrompt: { ...scene.videoPrompt, firstFrameMode: "upload", firstFrameUploadUrl: data.fileUrl } });
+    } catch {
+      alert("アップロードに失敗しました");
+    } finally {
+      setUploadingVidRefImg(false);
+      e.target.value = "";
+    }
+  };
+
+  const handleVidLastFrameUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const err = checkUploadLimit(file, "image");
+    if (err) { alert(err); e.target.value = ""; return; }
+    setUploadingVidLastFrame(true);
+    try {
+      const data = await getPresignedUrl(file, undefined, workspaceId);
+      if (!data.ok || !data.presignedUrl) { alert(data.message ?? "アップロードに失敗しました"); return; }
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.onload = () => (xhr.status < 400 ? resolve() : reject(new Error("upload failed")));
+        xhr.onerror = () => reject(new Error("network error"));
+        xhr.open("PUT", data.presignedUrl!);
+        xhr.setRequestHeader("Content-Type", file.type);
+        xhr.send(file);
+      });
+      if (data.fileUrl) onUpdate({ videoPrompt: { ...scene.videoPrompt, lastFrameMode: "upload", lastFrameUploadUrl: data.fileUrl } });
+    } catch {
+      alert("アップロードに失敗しました");
+    } finally {
+      setUploadingVidLastFrame(false);
       e.target.value = "";
     }
   };
@@ -1267,6 +1366,7 @@ function SceneCol({ scene, index, allScenes, stepOpen, promptOpen, onToggleStep,
 
   const imgSettings = loadImageSettings();
   const vidSettings = loadVideoSettings();
+  const vidSupportsLastFrame = !["veo-3", "veo-3-lite"].includes(vidSettings.videoModel);
   const imgRatio = imgSettings.imageModel === "reve-1"
     ? imgSettings.aspectRatio
     : imgSettings.imageModel === "seedream-5-0-pro"
@@ -1716,6 +1816,338 @@ function SceneCol({ scene, index, allScenes, stepOpen, promptOpen, onToggleStep,
         promptSlot={
           <>
             <PromptCard>
+              {/* 参照画像（ファーストフレーム / ラストフレーム） */}
+              {vidSettings.useFirstFrame && (
+                <>
+                  <DarkBadge>参照画像</DarkBadge>
+                  <div style={{ height: 8 }} />
+                  <div style={{ display: "flex", gap: 5, position: "relative" }}>
+                    {/* 開始画像を参照ボタン */}
+                    <button
+                      onClick={() => {
+                        if (scene.videoPrompt.firstFrameMode !== "none") {
+                          onUpdate({ videoPrompt: { ...scene.videoPrompt, firstFrameMode: "none" } });
+                          setVidRefDropdownOpen(false);
+                        } else {
+                          setVidRefDropdownOpen((o) => !o);
+                          setVidLastDropdownOpen(false);
+                        }
+                      }}
+                      style={{
+                        flex: 1, fontSize: 11, padding: "5px 4px", borderRadius: 7,
+                        border: `1.5px solid ${scene.videoPrompt.firstFrameMode !== "none" ? PURPLE : "#e2e8f0"}`,
+                        background: scene.videoPrompt.firstFrameMode !== "none" ? `${PURPLE}18` : "#fff",
+                        color: scene.videoPrompt.firstFrameMode !== "none" ? PURPLE : "#64748b",
+                        cursor: "pointer", fontFamily: FONT,
+                        fontWeight: scene.videoPrompt.firstFrameMode !== "none" ? 700 : 400,
+                        display: "flex", alignItems: "center", justifyContent: "center", gap: 2,
+                      }}
+                    >
+                      開始画像を参照
+                      {scene.videoPrompt.firstFrameMode === "none" && <span style={{ fontSize: 8, lineHeight: 1 }}>▼</span>}
+                    </button>
+
+                    {/* 終了画像を参照ボタン（useLastFrame がオンかつモデルが対応しているときのみ表示） */}
+                    {vidSettings.useLastFrame && vidSupportsLastFrame && (
+                      <button
+                        onClick={() => {
+                          if ((scene.videoPrompt.lastFrameMode ?? "none") !== "none") {
+                            onUpdate({ videoPrompt: { ...scene.videoPrompt, lastFrameMode: "none", lastFrameUploadUrl: null } });
+                            setVidLastDropdownOpen(false);
+                          } else {
+                            setVidLastDropdownOpen((o) => !o);
+                            setVidRefDropdownOpen(false);
+                          }
+                        }}
+                        style={{
+                          flex: 1, fontSize: 11, padding: "5px 4px", borderRadius: 7,
+                          border: `1.5px solid ${(scene.videoPrompt.lastFrameMode ?? "none") !== "none" ? PURPLE : "#e2e8f0"}`,
+                          background: (scene.videoPrompt.lastFrameMode ?? "none") !== "none" ? `${PURPLE}18` : "#fff",
+                          color: (scene.videoPrompt.lastFrameMode ?? "none") !== "none" ? PURPLE : "#64748b",
+                          cursor: "pointer", fontFamily: FONT,
+                          fontWeight: (scene.videoPrompt.lastFrameMode ?? "none") !== "none" ? 700 : 400,
+                          display: "flex", alignItems: "center", justifyContent: "center", gap: 2,
+                        }}
+                      >
+                        終了画像を参照
+                        {(scene.videoPrompt.lastFrameMode ?? "none") === "none" && <span style={{ fontSize: 8, lineHeight: 1 }}>▼</span>}
+                      </button>
+                    )}
+
+                    {/* 終了画像ドロップダウン */}
+                    {vidSettings.useLastFrame && vidSupportsLastFrame && vidLastDropdownOpen && (() => {
+                      const lfMode = scene.videoPrompt.lastFrameMode ?? "none";
+                      const prevImg =
+                        lfMode === "this-scene" ? scene.imageUrl :
+                        lfMode === "scene"      ? (allScenes.find((s) => s.id === scene.videoPrompt.lastFrameSceneId)?.imageUrl ?? null) :
+                        lfMode === "upload"     ? scene.videoPrompt.lastFrameUploadUrl :
+                        lfMode === "file"       ? scene.videoPrompt.lastFrameFileUrl :
+                        null;
+                      return (
+                        <>
+                          <div style={{ position: "fixed", inset: 0, zIndex: 199 }} onClick={() => setVidLastDropdownOpen(false)} />
+                          <div style={{ position: "absolute", top: "calc(100% + 3px)", left: 0, right: 0, background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, boxShadow: "0 6px 20px rgba(0,0,0,0.13)", zIndex: 200, overflow: "hidden" }}>
+                            {prevImg && (
+                              <div style={{ position: "relative" }}>
+                                <img src={prevImg} alt="終了画像参照中" style={{ width: "100%", height: 86, objectFit: "cover", display: "block" }} />
+                                <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0) 55%)" }} />
+                                <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "5px 10px", display: "flex", alignItems: "center", gap: 5 }}>
+                                  <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="rgba(255,255,255,0.8)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M4.5 7.5l-2.8 2.8M7.5 4.5l2.8-2.8M3.5 8.5l4-4"/>
+                                    <circle cx="9.5" cy="2.5" r="1.5"/><circle cx="2.5" cy="9.5" r="1.5"/>
+                                  </svg>
+                                  <span style={{ fontSize: 9, color: "rgba(255,255,255,0.92)", fontFamily: FONT, fontWeight: 700 }}>終了画像参照中</span>
+                                </div>
+                              </div>
+                            )}
+                            {([
+                              ["this-scene", "このシーンの画像"],
+                              ["scene",      "別シーンの画像"],
+                              ["upload",     "画像をアップロード"],
+                              ["file",       "ファイルから参照"],
+                            ] as const).map(([m, lbl], idx) => {
+                              const isActive = lfMode === m;
+                              return (
+                                <div key={m}>
+                                  <button
+                                    onClick={() => {
+                                      if (!isActive) onUpdate({ videoPrompt: { ...scene.videoPrompt, lastFrameMode: m } });
+                                      if (m === "upload" && !scene.videoPrompt.lastFrameUploadUrl) vidLastFrameUploadRef.current?.click();
+                                    }}
+                                    style={{
+                                      display: "flex", alignItems: "center", gap: 7,
+                                      width: "100%", textAlign: "left", padding: "8px 10px",
+                                      fontSize: 11,
+                                      color: isActive ? PURPLE : "#475569",
+                                      fontWeight: isActive ? 700 : 400,
+                                      background: isActive ? `${PURPLE}09` : "none",
+                                      border: "none",
+                                      borderTop: idx > 0 || !!prevImg ? "1px solid #f1f5f9" : "none",
+                                      cursor: "pointer", fontFamily: FONT,
+                                    }}
+                                    onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = isActive ? `${PURPLE}12` : "#f8fafc"; }}
+                                    onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = isActive ? `${PURPLE}09` : "none"; }}
+                                  >
+                                    <span style={{ width: 10, flexShrink: 0, display: "flex" }}>
+                                      {isActive && (
+                                        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke={PURPLE} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                          <path d="M1.5 5l2.5 2.5 4.5-5"/>
+                                        </svg>
+                                      )}
+                                    </span>
+                                    {lbl}
+                                  </button>
+                                  {isActive && m === "this-scene" && !scene.imageUrl && (
+                                    <div style={{ padding: "4px 10px 8px 27px", fontSize: 10, color: "#94a3b8", fontFamily: FONT }}>STEP 02 で先に画像を生成してください</div>
+                                  )}
+                                  {isActive && m === "scene" && (
+                                    <div style={{ padding: "4px 10px 8px 27px" }}>
+                                      <select
+                                        value={scene.videoPrompt.lastFrameSceneId ?? ""}
+                                        onChange={(e) => onUpdate({ videoPrompt: { ...scene.videoPrompt, lastFrameSceneId: e.target.value || null } })}
+                                        style={{ width: "100%", fontSize: 10, padding: "4px 6px", borderRadius: 5, border: "1px solid #e2e8f0", outline: "none", fontFamily: FONT, color: "#475569", background: "#fff", cursor: "pointer" }}
+                                      >
+                                        <option value="">シーンを選択...</option>
+                                        {allScenes.filter((s) => s.id !== scene.id && s.imageUrl).map((s, si) => (
+                                          <option key={s.id} value={s.id}>{s.title || `シーン ${si + 1}`}</option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                  )}
+                                  {isActive && m === "upload" && (
+                                    <div style={{ padding: "4px 10px 8px 27px", display: "flex", gap: 4 }}>
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); if (!uploadingVidLastFrame) vidLastFrameUploadRef.current?.click(); }}
+                                        style={{ flex: 1, fontSize: 10, padding: "3px 6px", borderRadius: 5, border: `1px solid ${uploadingVidLastFrame ? "#e2e8f0" : PURPLE}`, background: "transparent", color: uploadingVidLastFrame ? "#cbd5e1" : PURPLE, cursor: uploadingVidLastFrame ? "not-allowed" : "pointer", fontFamily: FONT }}
+                                      >{uploadingVidLastFrame ? "アップロード中..." : scene.videoPrompt.lastFrameUploadUrl ? "画像を変更" : "画像をアップロード..."}</button>
+                                      {scene.videoPrompt.lastFrameUploadUrl && !uploadingVidLastFrame && (
+                                        <button onClick={(e) => { e.stopPropagation(); onUpdate({ videoPrompt: { ...scene.videoPrompt, lastFrameUploadUrl: null } }); }} style={{ fontSize: 10, padding: "3px 6px", borderRadius: 5, border: "1px solid #e2e8f0", background: "transparent", color: "#94a3b8", cursor: "pointer", fontFamily: FONT }}>×</button>
+                                      )}
+                                    </div>
+                                  )}
+                                  {isActive && m === "file" && (
+                                    <div style={{ padding: "4px 10px 8px 27px", display: "flex", gap: 4 }}>
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); setVidLastFileBrowserOpen(true); setVidLastDropdownOpen(false); }}
+                                        style={{ flex: 1, fontSize: 10, padding: "3px 6px", borderRadius: 5, border: `1px solid ${PURPLE}`, background: "transparent", color: PURPLE, cursor: "pointer", fontFamily: FONT }}
+                                      >{scene.videoPrompt.lastFrameFileUrl ? "ファイルを変更" : "ファイルを選択..."}</button>
+                                      {scene.videoPrompt.lastFrameFileUrl && (
+                                        <button onClick={(e) => { e.stopPropagation(); onUpdate({ videoPrompt: { ...scene.videoPrompt, lastFrameFileUrl: null } }); }} style={{ fontSize: 10, padding: "3px 6px", borderRadius: 5, border: "1px solid #e2e8f0", background: "transparent", color: "#94a3b8", cursor: "pointer", fontFamily: FONT }}>×</button>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </>
+                      );
+                    })()}
+
+                    {/* 開始画像ドロップダウン */}
+                    {vidRefDropdownOpen && (() => {
+                      const ffm = scene.videoPrompt.firstFrameMode;
+                      const prevImg =
+                        ffm === "scene"       ? scene.imageUrl :
+                        ffm === "other-scene" ? (allScenes.find((s) => s.id === scene.videoPrompt.firstFrameOtherSceneId)?.imageUrl ?? null) :
+                        ffm === "upload"      ? scene.videoPrompt.firstFrameUploadUrl :
+                        ffm === "file"        ? scene.videoPrompt.firstFrameFileUrl :
+                        null;
+                      return (
+                        <>
+                          <div style={{ position: "fixed", inset: 0, zIndex: 199 }} onClick={() => setVidRefDropdownOpen(false)} />
+                          <div style={{ position: "absolute", top: "calc(100% + 3px)", left: 0, right: 0, background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, boxShadow: "0 6px 20px rgba(0,0,0,0.13)", zIndex: 200, overflow: "hidden" }}>
+                            {prevImg && (
+                              <div style={{ position: "relative" }}>
+                                <img src={prevImg} alt="開始画像参照中" style={{ width: "100%", height: 86, objectFit: "cover", display: "block" }} />
+                                <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0) 55%)" }} />
+                                <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "5px 10px", display: "flex", alignItems: "center", gap: 5 }}>
+                                  <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="rgba(255,255,255,0.8)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M4.5 7.5l-2.8 2.8M7.5 4.5l2.8-2.8M3.5 8.5l4-4"/>
+                                    <circle cx="9.5" cy="2.5" r="1.5"/><circle cx="2.5" cy="9.5" r="1.5"/>
+                                  </svg>
+                                  <span style={{ fontSize: 9, color: "rgba(255,255,255,0.92)", fontFamily: FONT, fontWeight: 700 }}>開始画像参照中</span>
+                                </div>
+                              </div>
+                            )}
+                            {([
+                              ["scene",       "このシーンの画像"],
+                              ["other-scene", "別シーンの画像"],
+                              ["upload",      "画像をアップロード"],
+                              ["file",        "ファイルから参照"],
+                            ] as const).map(([m, lbl], idx) => {
+                              const isActive = ffm === m;
+                              return (
+                                <div key={m}>
+                                  <button
+                                    onClick={() => {
+                                      if (!isActive) onUpdate({ videoPrompt: { ...scene.videoPrompt, firstFrameMode: m } });
+                                      if (m === "upload" && !scene.videoPrompt.firstFrameUploadUrl) vidRefUploadRef.current?.click();
+                                    }}
+                                    style={{
+                                      display: "flex", alignItems: "center", gap: 7,
+                                      width: "100%", textAlign: "left", padding: "8px 10px",
+                                      fontSize: 11,
+                                      color: isActive ? PURPLE : "#475569",
+                                      fontWeight: isActive ? 700 : 400,
+                                      background: isActive ? `${PURPLE}09` : "none",
+                                      border: "none",
+                                      borderTop: idx > 0 || !!prevImg ? "1px solid #f1f5f9" : "none",
+                                      cursor: "pointer", fontFamily: FONT,
+                                    }}
+                                    onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = isActive ? `${PURPLE}12` : "#f8fafc"; }}
+                                    onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = isActive ? `${PURPLE}09` : "none"; }}
+                                  >
+                                    <span style={{ width: 10, flexShrink: 0, display: "flex" }}>
+                                      {isActive && (
+                                        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke={PURPLE} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                          <path d="M1.5 5l2.5 2.5 4.5-5"/>
+                                        </svg>
+                                      )}
+                                    </span>
+                                    {lbl}
+                                  </button>
+                                  {isActive && m === "scene" && !scene.imageUrl && (
+                                    <div style={{ padding: "4px 10px 8px 27px", fontSize: 10, color: "#94a3b8", fontFamily: FONT }}>STEP 02 で先に画像を生成してください</div>
+                                  )}
+                                  {isActive && m === "other-scene" && (
+                                    <div style={{ padding: "4px 10px 8px 27px" }}>
+                                      <select
+                                        value={scene.videoPrompt.firstFrameOtherSceneId ?? ""}
+                                        onChange={(e) => onUpdate({ videoPrompt: { ...scene.videoPrompt, firstFrameOtherSceneId: e.target.value || null } })}
+                                        style={{ width: "100%", fontSize: 10, padding: "4px 6px", borderRadius: 5, border: "1px solid #e2e8f0", outline: "none", fontFamily: FONT, color: "#475569", background: "#fff", cursor: "pointer" }}
+                                      >
+                                        <option value="">シーンを選択...</option>
+                                        {allScenes.filter((s) => s.id !== scene.id && s.imageUrl).map((s, si) => (
+                                          <option key={s.id} value={s.id}>{s.title || `シーン ${si + 1}`}</option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                  )}
+                                  {isActive && m === "upload" && (
+                                    <div style={{ padding: "4px 10px 8px 27px", display: "flex", gap: 4 }}>
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); if (!uploadingVidRefImg) vidRefUploadRef.current?.click(); }}
+                                        style={{ flex: 1, fontSize: 10, padding: "3px 6px", borderRadius: 5, border: `1px solid ${uploadingVidRefImg ? "#e2e8f0" : PURPLE}`, background: "transparent", color: uploadingVidRefImg ? "#cbd5e1" : PURPLE, cursor: uploadingVidRefImg ? "not-allowed" : "pointer", fontFamily: FONT }}
+                                      >{uploadingVidRefImg ? "アップロード中..." : scene.videoPrompt.firstFrameUploadUrl ? "画像を変更" : "画像をアップロード..."}</button>
+                                      {scene.videoPrompt.firstFrameUploadUrl && !uploadingVidRefImg && (
+                                        <button onClick={(e) => { e.stopPropagation(); onUpdate({ videoPrompt: { ...scene.videoPrompt, firstFrameUploadUrl: null } }); }} style={{ fontSize: 10, padding: "3px 6px", borderRadius: 5, border: "1px solid #e2e8f0", background: "transparent", color: "#94a3b8", cursor: "pointer", fontFamily: FONT }}>×</button>
+                                      )}
+                                    </div>
+                                  )}
+                                  {isActive && m === "file" && (
+                                    <div style={{ padding: "4px 10px 8px 27px", display: "flex", gap: 4 }}>
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); setVidFirstFileBrowserOpen(true); setVidRefDropdownOpen(false); }}
+                                        style={{ flex: 1, fontSize: 10, padding: "3px 6px", borderRadius: 5, border: `1px solid ${PURPLE}`, background: "transparent", color: PURPLE, cursor: "pointer", fontFamily: FONT }}
+                                      >{scene.videoPrompt.firstFrameFileUrl ? "ファイルを変更" : "ファイルを選択..."}</button>
+                                      {scene.videoPrompt.firstFrameFileUrl && (
+                                        <button onClick={(e) => { e.stopPropagation(); onUpdate({ videoPrompt: { ...scene.videoPrompt, firstFrameFileUrl: null } }); }} style={{ fontSize: 10, padding: "3px 6px", borderRadius: 5, border: "1px solid #e2e8f0", background: "transparent", color: "#94a3b8", cursor: "pointer", fontFamily: FONT }}>×</button>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+
+                  {/* 選択中の開始画像プレビュー */}
+                  {scene.videoPrompt.firstFrameMode !== "none" && (() => {
+                    const ffm = scene.videoPrompt.firstFrameMode;
+                    const inlineImg =
+                      ffm === "scene"       ? scene.imageUrl :
+                      ffm === "other-scene" ? (allScenes.find((s) => s.id === scene.videoPrompt.firstFrameOtherSceneId)?.imageUrl ?? null) :
+                      ffm === "upload"      ? scene.videoPrompt.firstFrameUploadUrl :
+                      ffm === "file"        ? scene.videoPrompt.firstFrameFileUrl :
+                      null;
+                    if (!inlineImg) return null;
+                    return (
+                      <div style={{ marginTop: 6, position: "relative", borderRadius: 6, overflow: "hidden" }}>
+                        <img src={inlineImg} alt="開始画像参照中" style={{ width: "100%", height: 64, objectFit: "cover", display: "block" }} />
+                        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0) 55%)" }} />
+                        <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "4px 8px", display: "flex", alignItems: "center", gap: 4 }}>
+                          <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="rgba(255,255,255,0.8)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M4.5 7.5l-2.8 2.8M7.5 4.5l2.8-2.8M3.5 8.5l4-4"/>
+                            <circle cx="9.5" cy="2.5" r="1.5"/><circle cx="2.5" cy="9.5" r="1.5"/>
+                          </svg>
+                          <span style={{ fontSize: 9, color: "rgba(255,255,255,0.9)", fontFamily: FONT, fontWeight: 700 }}>開始画像参照中</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                  {/* 選択中の終了画像プレビュー */}
+                  {vidSettings.useLastFrame && vidSupportsLastFrame && (scene.videoPrompt.lastFrameMode ?? "none") !== "none" && (() => {
+                    const lfm = scene.videoPrompt.lastFrameMode;
+                    const inlineImg =
+                      lfm === "this-scene" ? scene.imageUrl :
+                      lfm === "scene"      ? (allScenes.find((s) => s.id === scene.videoPrompt.lastFrameSceneId)?.imageUrl ?? null) :
+                      lfm === "upload"     ? scene.videoPrompt.lastFrameUploadUrl :
+                      lfm === "file"       ? scene.videoPrompt.lastFrameFileUrl :
+                      null;
+                    if (!inlineImg) return null;
+                    return (
+                      <div style={{ marginTop: 6, position: "relative", borderRadius: 6, overflow: "hidden" }}>
+                        <img src={inlineImg} alt="終了画像参照中" style={{ width: "100%", height: 64, objectFit: "cover", display: "block" }} />
+                        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0) 55%)" }} />
+                        <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "4px 8px", display: "flex", alignItems: "center", gap: 4 }}>
+                          <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="rgba(255,255,255,0.8)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M4.5 7.5l-2.8 2.8M7.5 4.5l2.8-2.8M3.5 8.5l4-4"/>
+                            <circle cx="9.5" cy="2.5" r="1.5"/><circle cx="2.5" cy="9.5" r="1.5"/>
+                          </svg>
+                          <span style={{ fontSize: 9, color: "rgba(255,255,255,0.9)", fontFamily: FONT, fontWeight: 700 }}>終了画像参照中</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                  <input ref={vidRefUploadRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleVidRefUpload} />
+                  <input ref={vidLastFrameUploadRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleVidLastFrameUpload} />
+                  <div style={{ height: 10 }} />
+                </>
+              )}
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <DarkBadge>プロンプト</DarkBadge>
                 <HintIcon text="動画を出力するための指示プロンプトを入力してください。「指示プロンプト」と「AI出力画像」フィールドの情報を基に動画が出力されます。" />
@@ -1749,10 +2181,30 @@ function SceneCol({ scene, index, allScenes, stepOpen, promptOpen, onToggleStep,
               label="AI動画生成"
               loading={generatingVideo}
               loadingLabel="動画生成中"
-              disabled={!scene.videoPrompt.instructions.trim() && !scene.imageUrl}
+              disabled={!scene.videoPrompt.instructions.trim() && scene.videoPrompt.firstFrameMode === "none"}
               onClick={onGenerateVideo}
             />
             {!generatingVideo && genErrors.video && <ErrorBanner message={genErrors.video} />}
+            {vidFirstFileBrowserOpen && (
+              <FileBrowserModal
+                workspaceId={workspaceId}
+                current={scene.videoPrompt.firstFrameFileUrl ?? null}
+                fileType="image"
+                title="開始画像を選択"
+                onSelect={(url) => { onUpdate({ videoPrompt: { ...scene.videoPrompt, firstFrameMode: "file", firstFrameFileUrl: url } }); setVidFirstFileBrowserOpen(false); }}
+                onClose={() => setVidFirstFileBrowserOpen(false)}
+              />
+            )}
+            {vidLastFileBrowserOpen && (
+              <FileBrowserModal
+                workspaceId={workspaceId}
+                current={scene.videoPrompt.lastFrameFileUrl ?? null}
+                fileType="image"
+                title="終了画像を選択"
+                onSelect={(url) => { onUpdate({ videoPrompt: { ...scene.videoPrompt, lastFrameMode: "file", lastFrameFileUrl: url } }); setVidLastFileBrowserOpen(false); }}
+                onClose={() => setVidLastFileBrowserOpen(false)}
+              />
+            )}
           </>
         }
       >
@@ -2444,18 +2896,27 @@ function AudioPlayer({ url, name }: { url: string; name: string }) {
 // ─── Hint tooltip ────────────────────────────────────────────────────────────
 
 function HintIcon({ text }: { text: string }) {
-  const [show, setShow] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const ref = useRef<HTMLSpanElement>(null);
+
+  const handleEnter = () => {
+    if (!ref.current) return;
+    const r = ref.current.getBoundingClientRect();
+    setPos({ top: r.top - 6, left: r.left + r.width / 2 });
+  };
+
   return (
     <span
-      style={{ position: "relative", display: "inline-flex", alignItems: "center", flexShrink: 0 }}
-      onMouseEnter={() => setShow(true)}
-      onMouseLeave={() => setShow(false)}
+      ref={ref}
+      style={{ display: "inline-flex", alignItems: "center", flexShrink: 0 }}
+      onMouseEnter={handleEnter}
+      onMouseLeave={() => setPos(null)}
     >
       <span style={{ width: 13, height: 13, borderRadius: "50%", border: "1.5px solid #94a3b8", color: "#94a3b8", fontSize: 8, fontWeight: 700, display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "help", lineHeight: 1, flexShrink: 0 }}>
         ?
       </span>
-      {show && (
-        <span style={{ position: "absolute", left: "50%", bottom: "calc(100% + 6px)", transform: "translateX(-50%)", background: "#1e293b", color: "#FFFFFF", fontSize: 10, lineHeight: 1.65, padding: "8px 10px", borderRadius: 8, width: 200, zIndex: 1000, boxShadow: "0 4px 12px rgba(0,0,0,0.2)", pointerEvents: "none", whiteSpace: "normal", display: "block", fontWeight: 400 }}>
+      {pos && (
+        <span style={{ position: "fixed", top: pos.top, left: pos.left, transform: "translateX(-50%) translateY(-100%)", background: "#1e293b", color: "#FFFFFF", fontSize: 10, lineHeight: 1.65, padding: "8px 10px", borderRadius: 8, width: 200, zIndex: 9999, boxShadow: "0 4px 12px rgba(0,0,0,0.2)", pointerEvents: "none", whiteSpace: "normal", display: "block", fontWeight: 400 }}>
           {text}
           <span style={{ position: "absolute", left: "50%", top: "100%", transform: "translateX(-50%)", width: 0, height: 0, borderLeft: "5px solid transparent", borderRight: "5px solid transparent", borderTop: "5px solid #1e293b", display: "block" }} />
         </span>

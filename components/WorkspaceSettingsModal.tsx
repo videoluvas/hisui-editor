@@ -263,14 +263,14 @@ const IMAGE_MODELS = [
 ] as const;
 
 const VIDEO_MODELS = [
-  { id: "veo-3-lite",       label: "Google AI",         sub: "Veo 3.1 Lite",      color: "#4285F4", provider: "google"   as const, veoLite: true  },
-  { id: "veo-3",            label: "Google AI",         sub: "Veo 3.1",           color: "#1A73E8", provider: "google"   as const, veoLite: false },
-  { id: "seedance-1-5-pro", label: "BytePlus ModelArk", sub: "Seedance 1.5 Pro",  color: "#E67D30", provider: "byteplus" as const, veoLite: false },
-  { id: "kling-v2",         label: "Kling AI",          sub: "Kling 2.0",         color: "#7C3AED", provider: "kling"    as const, veoLite: false },
-  { id: "kling-v2-master",  label: "Kling AI",          sub: "Kling 2.0 Master",  color: "#5B21B6", provider: "kling"    as const, veoLite: false },
-  { id: "kling-v3",         label: "Kling AI",          sub: "Kling 3.0",         color: "#0EA5E9", provider: "kling"    as const, veoLite: false },
-  { id: "kling-v3-turbo",   label: "Kling AI",          sub: "Kling 3.0 Turbo",   color: "#0284C7", provider: "kling"    as const, veoLite: false },
-  { id: "kling-v3-omni",    label: "Kling AI",          sub: "Kling 3.0 Omni",    color: "#0369A1", provider: "kling"    as const, veoLite: false },
+  { id: "veo-3-lite",       label: "Google AI",         sub: "Veo 3.1 Lite",      color: "#4285F4", provider: "google"   as const, veoLite: true,  supportsFirstFrame: true,  supportsLastFrame: false },
+  { id: "veo-3",            label: "Google AI",         sub: "Veo 3.1",           color: "#1A73E8", provider: "google"   as const, veoLite: false, supportsFirstFrame: true,  supportsLastFrame: false },
+  { id: "seedance-1-5-pro", label: "BytePlus ModelArk", sub: "Seedance 1.5 Pro",  color: "#E67D30", provider: "byteplus" as const, veoLite: false, supportsFirstFrame: true,  supportsLastFrame: true  },
+  { id: "kling-v2",         label: "Kling AI",          sub: "Kling 2.0",         color: "#7C3AED", provider: "kling"    as const, veoLite: false, supportsFirstFrame: true,  supportsLastFrame: true  },
+  { id: "kling-v2-master",  label: "Kling AI",          sub: "Kling 2.0 Master",  color: "#5B21B6", provider: "kling"    as const, veoLite: false, supportsFirstFrame: true,  supportsLastFrame: true  },
+  { id: "kling-v3",         label: "Kling AI",          sub: "Kling 3.0",         color: "#0EA5E9", provider: "kling"    as const, veoLite: false, supportsFirstFrame: true,  supportsLastFrame: true  },
+  { id: "kling-v3-turbo",   label: "Kling AI",          sub: "Kling 3.0 Turbo",   color: "#0284C7", provider: "kling"    as const, veoLite: false, supportsFirstFrame: true,  supportsLastFrame: true  },
+  { id: "kling-v3-omni",    label: "Kling AI",          sub: "Kling 3.0 Omni",    color: "#0369A1", provider: "kling"    as const, veoLite: false, supportsFirstFrame: true,  supportsLastFrame: true  },
 ] as const;
 
 const TTS_MODELS = [
@@ -370,10 +370,6 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
   const handleSave = async () => {
     setSaving(true);
     try {
-      if (workspaceId && wsName.trim()) {
-        await updateWorkspace(workspaceId, wsName.trim());
-        onNameChanged?.(wsName.trim());
-      }
       saveImageSettings(img);
       saveVideoSettings(vid);
       saveTtsSettings(tts);
@@ -384,6 +380,10 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
       saveSpreadsheetSettings(ss);
       saveBgmSettings(bgm);
       saveVideoExportSettings(render);
+      if (workspaceId && wsName.trim()) {
+        await updateWorkspace(workspaceId, wsName.trim());
+        onNameChanged?.(wsName.trim());
+      }
       audioRef.current?.pause();
       setSaved(true);
       setTimeout(() => { setSaved(false); onClose(); }, 900);
@@ -1209,6 +1209,8 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
               const currentVidModel = VIDEO_MODELS.find((m) => m.id === vid.videoModel) ?? VIDEO_MODELS[0];
               const isVeoLite    = currentVidModel.veoLite;
               const isVeo        = currentVidModel.id === "veo-3" || currentVidModel.id === "veo-3-lite";
+              const supportsFirstFrame = currentVidModel.supportsFirstFrame;
+              const supportsLastFrame  = currentVidModel.supportsLastFrame;
               const isKling      = currentVidModel.provider === "kling";
               const isKlingV3    = ["kling-v3", "kling-v3-turbo", "kling-v3-omni"].includes(vid.videoModel);
               const isKlingTurbo = vid.videoModel === "kling-v3-turbo";
@@ -1429,6 +1431,27 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                     </div>
                   </>
                 )}
+
+                {/* ── 参照フレーム ── */}
+                <div style={SEC}>参照フレーム</div>
+                <div style={FIELD}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {supportsFirstFrame && (
+                      <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, color: "#475569", fontFamily: FONT }}>
+                        <input type="checkbox" checked={vid.useFirstFrame ?? true} onChange={(e) => setVid((s) => ({ ...s, useFirstFrame: e.target.checked }))} style={{ accentColor: vidColor, width: 14, height: 14 }} />
+                        開始画像を参照する（最初のフレーム）
+                      </label>
+                    )}
+                    {supportsLastFrame && (
+                      <>
+                        <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, color: "#475569", fontFamily: FONT }}>
+                          <input type="checkbox" checked={vid.useLastFrame ?? false} onChange={(e) => setVid((s) => ({ ...s, useLastFrame: e.target.checked }))} style={{ accentColor: vidColor, width: 14, height: 14 }} />
+                          終了画像を参照する（最後のフレーム）
+                        </label>
+                      </>
+                    )}
+                  </div>
+                </div>
 
                 {/* ── Elements（Kling 3.0 / Omni のみ） ── */}
                 {(vid.videoModel === "kling-v3" || isKlingOmni) && (() => {

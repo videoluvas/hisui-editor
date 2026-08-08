@@ -244,6 +244,10 @@ export async function generateSceneVideo(
     generateAudio?: boolean;
     klingMultiShot?: boolean;
     klingElements?: string[];
+    useFirstFrame?: boolean;
+    firstFrameUrl?: string;
+    useLastFrame?: boolean;
+    lastFrameUrl?: string;
     cameraFixed?: boolean;
     watermark?: boolean;
     seed?: number;

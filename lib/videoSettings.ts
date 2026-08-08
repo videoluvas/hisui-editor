@@ -6,6 +6,9 @@ export type VideoSettings = {
   generateAudio: boolean;
   klingMultiShot: boolean; // Kling v3/turbo/omni: マルチショット（自動カット割り）
   klingElements: string[]; // Kling 3.0/omni: 参照Elementの画像URL（最大3件/7件）
+  useFirstFrame: boolean;  // AI画像をファーストフレームとして参照するか（デフォルト: true）
+  useLastFrame: boolean;   // ラストフレーム参照を使うか（Kling/Seedance のみ）
+  lastFrameUrl: string;    // ラストフレームの画像URL
   cameraFixed: boolean;
   watermark: boolean;
   // Veo 専用
@@ -24,6 +27,9 @@ export const DEFAULT_VIDEO_SETTINGS: VideoSettings = {
   generateAudio: false,
   klingMultiShot: false,
   klingElements: [],
+  useFirstFrame: true,
+  useLastFrame: false,
+  lastFrameUrl: "",
   cameraFixed: false,
   watermark: false,
   seed: 0,

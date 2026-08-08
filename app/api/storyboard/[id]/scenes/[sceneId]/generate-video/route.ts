@@ -48,6 +48,10 @@ export async function POST(
     generateAudio?: boolean;
     klingMultiShot?: boolean;
     klingElements?: string[];
+    useFirstFrame?: boolean;
+    firstFrameUrl?: string;
+    useLastFrame?: boolean;
+    lastFrameUrl?: string;
     cameraFixed?: boolean;
     watermark?: boolean;
     // Veo 専用
@@ -77,10 +81,16 @@ export async function POST(
     generateAudio  = false,
     klingMultiShot = false,
     klingElements  = [],
+    useFirstFrame  = true,
+    useLastFrame   = false,
+    lastFrameUrl   = "",
     cameraFixed        = false,
     watermark      = false,
     seed           = 0,
   } = body;
+
+  // クライアントから指定された firstFrameUrl があればそれを優先、なければ DB の imgUrl を使用
+  const effectiveFirstFrameUrl = body.firstFrameUrl ?? scene.imgUrl ?? null;
 
   // ルール・ネガティブプロンプトをインストラクションに結合
   const instructionParts = [body.instructions?.trim() ?? ""];
@@ -99,7 +109,7 @@ export async function POST(
     // Veo constraints
     const allowedRes = videoModel === "veo-3-lite" ? VEO_LITE_RESOLUTIONS : VEO_FULL_RESOLUTIONS;
     const clampedResolution = allowedRes.has(resolution) ? resolution : "720p";
-    const hasRefImage = !!scene.imgUrl;
+    const hasRefImage = useFirstFrame && !!effectiveFirstFrameUrl;
 
     // aspectRatio: 16:9 / 9:16 のみ有効。"adaptive" その他は省略（API デフォルトに任せる）
     const validRatio = VEO_VALID_RATIOS.has(ratio) ? ratio : null;
@@ -121,9 +131,9 @@ export async function POST(
     const instance: Record<string, unknown> = { prompt };
 
     // 参照画像があれば追加
-    if (scene.imgUrl) {
+    if (hasRefImage) {
       try {
-        const imgRes = await fetch(scene.imgUrl);
+        const imgRes = await fetch(effectiveFirstFrameUrl!);
         const imageBytes = Buffer.from(await imgRes.arrayBuffer()).toString("base64");
         instance.image = { bytesBase64Encoded: imageBytes, mimeType: "image/jpeg" };
       } catch {
@@ -131,7 +141,7 @@ export async function POST(
       }
     }
 
-    if (!instructions.trim() && !scene.imgUrl)
+    if (!instructions.trim() && !hasRefImage)
       return NextResponse.json({ ok: false, message: "プロンプトまたは画像が必要です" }, { status: 400 });
 
     const veoParams: Record<string, unknown> = {
@@ -196,8 +206,10 @@ export async function POST(
       "kling-v3-turbo":  "kling-3.0-turbo",
       "kling-v3-omni":   "kling-3.0-omni",
     };
-    const modelPath   = KLING_MODEL_PATHS[videoModel] ?? "kling-3.0";
-    const hasRefImage = !!scene.imgUrl;
+    const modelPath    = KLING_MODEL_PATHS[videoModel] ?? "kling-3.0";
+    const hasFirstFrameKling = useFirstFrame && !!effectiveFirstFrameUrl;
+    const hasLastFrameKling  = useLastFrame && !!lastFrameUrl?.trim();
+    const hasRefImage = hasFirstFrameKling || hasLastFrameKling;
 
     const isKlingOmni = videoModel === "kling-v3-omni";
 
@@ -208,7 +220,8 @@ export async function POST(
     const contents: Record<string, unknown>[] = [
       { type: "prompt", text: instructions.trim() || "動画を生成してください" },
     ];
-    if (hasRefImage) contents.push({ type: "first_frame", url: scene.imgUrl });
+    if (hasFirstFrameKling) contents.push({ type: "first_frame", url: effectiveFirstFrameUrl });
+    if (hasLastFrameKling)  contents.push({ type: "last_frame",  url: lastFrameUrl.trim() });
     // 3.0 / Omni: Element 参照
     const maxElements = isKlingOmni ? 7 : 3;
     const validElements = (klingElements ?? []).filter((u) => u.trim().startsWith("http")).slice(0, maxElements);
@@ -262,12 +275,11 @@ export async function POST(
   // content 配列を構築
   const content: Record<string, unknown>[] = [];
 
-  if (scene.imgUrl) {
-    content.push({
-      type: "image_url",
-      image_url: { url: scene.imgUrl },
-      role: "first_frame",
-    });
+  if (useFirstFrame && effectiveFirstFrameUrl) {
+    content.push({ type: "image_url", image_url: { url: effectiveFirstFrameUrl }, role: "first_frame" });
+  }
+  if (useLastFrame && lastFrameUrl?.trim()) {
+    content.push({ type: "image_url", image_url: { url: lastFrameUrl.trim() }, role: "last_frame" });
   }
 
   const text = instructions.trim();
@@ -275,6 +287,8 @@ export async function POST(
 
   if (content.length === 0)
     return NextResponse.json({ ok: false, message: "プロンプトまたは画像が必要です" }, { status: 400 });
+
+  const seedanceHasRefImage = (useFirstFrame && !!effectiveFirstFrameUrl) || (useLastFrame && !!lastFrameUrl?.trim());
 
   const reqBody: Record<string, unknown> = {
     model: SEEDANCE_MODEL,
@@ -286,8 +300,8 @@ export async function POST(
     watermark,
   };
 
-  // camera_fixed は first_frame（image-to-video）では未サポートのため、テキストのみの場合のみ送信
-  if (!scene.imgUrl) {
+  // camera_fixed は参照画像がある場合は未サポートのため、テキストのみの場合のみ送信
+  if (!seedanceHasRefImage) {
     reqBody.camera_fixed = cameraFixed;
   }
 
