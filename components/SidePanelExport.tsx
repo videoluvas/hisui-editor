@@ -1,8 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { TEAL } from "@/components/icons";
+import { useEffect, useRef, useState } from "react";
 import type { Project } from "@/lib/project.api";
+import { loadVideoExportSettings, saveVideoExportSettings } from "@/lib/videoExportSettings";
 
 const FONT   = "'Noto Sans JP', sans-serif";
 const ACCENT = "#5184F0";
@@ -22,12 +22,10 @@ export type ExportProgressInfo = { phase: ExportProgressPhase; url?: string };
 
 type Props = {
   selectedProject:  Project | null;
-  onExportLocal:    () => void | Promise<void>;
   onExportApi:      (cb: (info: ExportProgressInfo) => void) => Promise<void>;
-  isExporting:      boolean;
   isProjectLoading: boolean;
-  exportError:      string | null;
   onOpenDashboard?: () => void;
+  isFreePlan:       boolean;
 };
 
 // ─── Phase metadata ───────────────────────────────────────────────────────────
@@ -76,19 +74,6 @@ function fmtElapsed(s: number): string {
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
-
-function IconBrowser() {
-  return (
-    <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke={TEAL} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="2" y="4" width="24" height="18" rx="2" />
-      <line x1="2" y1="9" x2="26" y2="9" />
-      <circle cx="6" cy="6.5" r="1" fill={TEAL} stroke="none" />
-      <circle cx="10" cy="6.5" r="1" fill={TEAL} stroke="none" />
-      <circle cx="14" cy="6.5" r="1" fill={TEAL} stroke="none" />
-      <path d="M9 16l3 3 7-5" strokeWidth="1.8" />
-    </svg>
-  );
-}
 
 function IconCloud() {
   return (
@@ -218,8 +203,18 @@ function CopyUrlButton({ url }: { url: string }) {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function SidePanelExport({
-  selectedProject, onExportLocal, onExportApi, isExporting, isProjectLoading, exportError, onOpenDashboard,
+  selectedProject, onExportApi, isProjectLoading, onOpenDashboard, isFreePlan,
 }: Props) {
+  const [watermarkSetting, setWatermarkSetting] = useState(true);
+  useEffect(() => { setWatermarkSetting(loadVideoExportSettings().sandboxMode); }, []);
+  const watermark = isFreePlan || watermarkSetting;
+  const toggleWatermark = () => {
+    if (isFreePlan) return;
+    const next = !watermarkSetting;
+    setWatermarkSetting(next);
+    saveVideoExportSettings({ ...loadVideoExportSettings(), sandboxMode: next });
+  };
+
   const [phase,       setPhase]       = useState<ExportProgressPhase | "idle">("idle");
   const [elapsed,     setElapsed]     = useState(0);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
@@ -259,7 +254,6 @@ export default function SidePanelExport({
     setElapsed(0);
   };
 
-  const localDisabled = !selectedProject || isProjectLoading || isExporting;
   const apiDisabled   = !selectedProject || isProjectLoading || phase !== "idle";
 
   const isApiActive = phase !== "idle";
@@ -285,9 +279,8 @@ export default function SidePanelExport({
         </div>
       )}
       {isProjectLoading && <div style={{ fontSize: 12, color: "#94a3b8" }}>プロジェクト読み込み中...</div>}
-      {exportError      && <div style={{ fontSize: 12, color: "#e53935" }}>{exportError}</div>}
 
-      {/* ── APIで書き出しカード ── */}
+      {/* ── 動画に書き出しカード ── */}
       <div style={{
         borderRadius: 10, padding: 14, background: "#fff", display: "flex", flexDirection: "column", gap: 12,
         border: `1px solid ${isApiActive ? ACCENT + "55" : "#f0f0f0"}`,
@@ -295,10 +288,10 @@ export default function SidePanelExport({
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <IconCloud />
-          <span style={{ fontSize: 13, fontWeight: 600, color: "#333", lineHeight: 1.4 }}>APIで書き出す</span>
+          <span style={{ fontSize: 13, fontWeight: 600, color: "#333", lineHeight: 1.4 }}>動画に書き出し</span>
         </div>
         <p style={{ margin: 0, fontSize: 11, color: "#888", lineHeight: 1.7 }}>
-          音声・動画クリップを含むプロジェクトをサーバーでレンダリングして書き出します。
+          タイムラインをサーバーでレンダリングし、動画ファイルを作成します。
         </p>
 
         {/* ── アイドル時: ボタン ── */}
@@ -421,30 +414,43 @@ export default function SidePanelExport({
             )}
           </div>
         )}
-      </div>
 
-      {/* ── ブラウザ書き出しカード ── */}
-      <div style={{ borderRadius: 10, border: "1px solid #f0f0f0", padding: 14, background: "#fff", display: "flex", flexDirection: "column", gap: 10 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <IconBrowser />
-          <span style={{ fontSize: 13, fontWeight: 600, color: "#333", lineHeight: 1.4 }}>ブラウザで書き出す</span>
+        {/* ── ウォーターマーク ── */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, paddingTop: 10, borderTop: "1px solid #f1f5f9" }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "#333" }}>ウォーターマーク</div>
+            <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2, lineHeight: 1.5 }}>
+              {watermark ? "ロゴ入り・クレジット消費なし" : "ロゴなし・クレジットを消費します"}
+            </div>
+          </div>
+          {isFreePlan && (
+            <button
+              type="button"
+              onClick={onOpenDashboard}
+              title="ウォーターマークを外すには有料プランが必要です"
+              style={{ fontSize: 9, fontWeight: 700, color: "#e67d30", background: "#fff3e8", border: "1px solid #e67d3040", padding: "2px 6px", borderRadius: 4, whiteSpace: "nowrap", cursor: onOpenDashboard ? "pointer" : "default", fontFamily: FONT }}
+            >
+              外すには有料プラン
+            </button>
+          )}
+          <button
+            type="button"
+            role="switch"
+            aria-checked={watermark}
+            aria-label="ウォーターマーク"
+            onClick={toggleWatermark}
+            disabled={isFreePlan || isRendering}
+            style={{
+              width: 36, height: 20, borderRadius: 10, border: "none", padding: 2, flexShrink: 0,
+              background: watermark ? ACCENT : "#cbd5e1",
+              cursor: isFreePlan || isRendering ? "not-allowed" : "pointer",
+              opacity: isFreePlan ? 0.6 : 1, display: "flex", justifyContent: watermark ? "flex-end" : "flex-start",
+              transition: "background 0.15s",
+            }}
+          >
+            <span style={{ width: 16, height: 16, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 2px rgba(0,0,0,0.2)" }} />
+          </button>
         </div>
-        <p style={{ margin: 0, fontSize: 11, color: "#888", lineHeight: 1.7 }}>
-          テキスト・画像のみのプロジェクトを素早く書き出します。音声・動画クリップは含まれません。
-        </p>
-        <button
-          type="button"
-          onClick={() => void onExportLocal()}
-          disabled={localDisabled}
-          style={{
-            width: "100%", padding: "7px 0", fontSize: 12, fontWeight: 600,
-            borderRadius: 7, border: "none",
-            background: localDisabled ? "#c8e6e0" : TEAL,
-            color: "#fff", cursor: localDisabled ? "not-allowed" : "pointer", fontFamily: FONT,
-          }}
-        >
-          {isExporting ? "書き出し中..." : "書き出す"}
-        </button>
       </div>
     </div>
   );

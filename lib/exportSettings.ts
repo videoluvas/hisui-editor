@@ -84,7 +84,15 @@ export const RESOLUTION_MAP: Record<ExportResolution, { width: number; height: n
   "1080p": { width: 1920, height: 1080, label: "Full HD 1080p (1920×1080)" },
 };
 
-export type TelopFontFamily = "Noto Sans JP" | "Noto Serif JP";
+// 短い辺を解像度に合わせ、長い辺は比率から計算して偶数に丸める（16:9 → 1280×720 / 1920×1080）
+export function resolutionSize(resolution: ExportResolution, aspectW: number, aspectH: number): { width: number; height: number } {
+  const short = RESOLUTION_MAP[resolution].height;
+  if (!(aspectW > 0 && aspectH > 0)) return { width: RESOLUTION_MAP[resolution].width, height: short };
+  const long = Math.round((short * Math.max(aspectW, aspectH)) / Math.min(aspectW, aspectH) / 2) * 2;
+  return aspectW >= aspectH ? { width: long, height: short } : { width: short, height: long };
+}
+
+export type TelopFontFamily ="Noto Sans JP" | "Noto Serif JP";
 export type TelopFontWeight = 300 | 400 | 500 | 700 | 900;
 
 export type DurationMode = "narration" | "fixed";

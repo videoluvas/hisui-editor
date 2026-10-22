@@ -6,6 +6,7 @@ import { getEditorSessionFromCookie } from "@/lib/auth.backend";
 import { logError } from "@/lib/log.error";
 import { consumeCredits, refundCredits, videoModelToAction } from "@/lib/credits";
 import { checkModelAccess } from "@/lib/model-config";
+import { R2_PUBLIC_URL } from "@/lib/fileupload.r2";
 
 const ARK_API_BASE   = "https://ark.ap-southeast.bytepluses.com/api/v3";
 const SEEDANCE_MODEL = "seedance-1-5-pro-251215";
@@ -39,7 +40,12 @@ export async function POST(request: NextRequest) {
     seed?: number;
     vidCommonRules?: string;
     vidNegativePrompt?: string;
+    firstFrameUrl?: string;
   };
+
+  // 最初のフレーム（img to video）は自分の R2 にある画像だけ受け付ける
+  const firstFrameUrl = body.firstFrameUrl?.startsWith(`${R2_PUBLIC_URL}/`) ? body.firstFrameUrl : null;
+  if (body.firstFrameUrl && !firstFrameUrl) return NextResponse.json({ ok: false, message: "参照画像を読み込めませんでした" }, { status: 400 });
 
   const basePrompt = (body.prompt ?? "").trim();
   if (!basePrompt) return NextResponse.json({ ok: false, message: "プロンプトを入力してください" }, { status: 400 });
@@ -97,13 +103,22 @@ export async function POST(request: NextRequest) {
     const veoParams: Record<string, unknown> = {
       resolution:       clampedResolution,
       sampleCount:      1,
-      personGeneration: "allow_all",
+      personGeneration: firstFrameUrl ? "allow_adult" : "allow_all",
     };
     if (validRatio !== null)      veoParams.aspectRatio     = validRatio;
     if (clampedDuration !== null) veoParams.durationSeconds = clampedDuration;
     if (seed && seed > 0)         veoParams.seed            = seed;
 
-    const veoBody = { instances: [{ prompt }], parameters: veoParams };
+    const instance: Record<string, unknown> = { prompt };
+    if (firstFrameUrl) {
+      const imgRes = await fetch(firstFrameUrl).catch(() => null);
+      if (!imgRes?.ok) {
+        await refundCredits(userId, videoModelToAction(videoModel, false));
+        return NextResponse.json({ ok: false, message: "参照画像を読み込めませんでした" }, { status: 400 });
+      }
+      instance.image = { bytesBase64Encoded: Buffer.from(await imgRes.arrayBuffer()).toString("base64"), mimeType: imgRes.headers.get("content-type")?.split(";")[0] ?? "image/png" };
+    }
+    const veoBody = { instances: [instance], parameters: veoParams };
 
     try {
       const resp = await fetch(`${GOOGLE_AI_BASE}/models/${modelId}:predictLongRunning`, {
@@ -144,6 +159,7 @@ export async function POST(request: NextRequest) {
       : (duration >= 8 ? 10 : 5);
 
     const contents: Record<string, unknown>[] = [{ type: "prompt", text: prompt }];
+    if (firstFrameUrl) contents.push({ type: "first_frame", url: firstFrameUrl });
     // 3.0 / Omni: Element 参照（有効な URL のみ追加）
     const maxElements = isKlingOmni ? 7 : 3;
     const validElements = (klingElements ?? []).filter((u) => u.trim().startsWith("http")).slice(0, maxElements);
@@ -152,13 +168,13 @@ export async function POST(request: NextRequest) {
     }
 
     const settings: Record<string, unknown> = { duration: klingDuration };
-    if (["16:9", "9:16", "1:1"].includes(ratio)) settings.aspect_ratio = ratio;
+    if (!firstFrameUrl && ["16:9", "9:16", "1:1"].includes(ratio)) settings.aspect_ratio = ratio;
     if (isKlingV3 && (resolution === "1080p" || resolution === "4k")) settings.resolution = resolution;
     if (videoModel === "kling-v3" || isKlingOmni) settings.audio = generateAudio ? "native" : "off";
     if (isKlingV3) settings.multi_shot = klingMultiShot;
 
     const klingBody: Record<string, unknown> = { contents, settings };
-    const klingEndpoint = isKlingOmni ? "omni-video" : "text-to-video";
+    const klingEndpoint = isKlingOmni ? "omni-video" : (firstFrameUrl ? "image-to-video" : "text-to-video");
 
     console.log("[Kling editor] POST", `${KLING_API_BASE}/${klingEndpoint}/${modelPath}`, JSON.stringify(klingBody, null, 2));
 
@@ -186,7 +202,10 @@ export async function POST(request: NextRequest) {
 
   const reqBody: Record<string, unknown> = {
     model: SEEDANCE_MODEL,
-    content: [{ type: "text", text: prompt }],
+    content: [
+      ...(firstFrameUrl ? [{ type: "image_url", image_url: { url: firstFrameUrl }, role: "first_frame" }] : []),
+      { type: "text", text: prompt },
+    ],
     resolution,
     ratio,
     duration: duration === -1 ? -1 : Math.max(4, Math.min(12, Number(duration))),

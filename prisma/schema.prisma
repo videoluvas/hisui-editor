@@ -13,6 +13,7 @@ model Workspace {
   id        String   @id @default(uuid())
   userId    String   @map("user_id")
   name      String   @default("新しいワークスペース")
+  toolType  String   @default("conte") @map("tool_type") // "conte" | "pptx"（作成後は変更不可）
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt      @map("updated_at")
 
@@ -446,4 +447,26 @@ model OwnershipTransferToken {
 
   @@index([resourceId])
   @@map("ownership_transfer_tokens")
+}
+
+// ─── パワーポイント取り込みジョブ ─────────────────────────────────────────────
+
+model ImportJob {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  workspaceId String   @map("workspace_id")
+  status      String   @default("uploading") // uploading | converting | done | error
+  message     String?
+  options     Json     @default("{}")
+  inputPrefix String?  @map("input_prefix") // 元ファイルの一時置き場（取り込み後に削除して null）
+  outPrefix   String   @map("out_prefix")
+  manifestKey String?  @map("manifest_key")
+  projectId   String?  @map("project_id")
+  warnings    Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt      @map("updated_at")
+
+  @@index([userId])
+  @@index([projectId])
+  @@map("import_jobs")
 }

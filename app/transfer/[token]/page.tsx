@@ -61,8 +61,9 @@ export default function TransferPage() {
       if (trf.resourceType !== "workspace") {
         const wsRes = await listWorkspaces();
         if (wsRes.ok) {
-          setWorkspaces(wsRes.workspaces);
-          if (wsRes.workspaces.length > 0) setTargetWs(wsRes.workspaces[0].id);
+          const list = trf.resourceType === "storyboard" ? wsRes.workspaces.filter((w) => w.toolType === "conte") : wsRes.workspaces;
+          setWorkspaces(list);
+          if (list.length > 0) setTargetWs(list[0].id);
         }
       }
 

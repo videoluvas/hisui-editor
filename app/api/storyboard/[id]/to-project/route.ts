@@ -4,8 +4,8 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getEditorSessionFromCookie } from "@/lib/auth.backend";
-import { buildEditJsonKey, putEditJsonToR2 } from "@/lib/project.r2";
-import { getTimelineFonts, getShotstackFontId } from "@/lib/fonts";
+import { buildEditJson, createProjectFromEditJson } from "@/lib/timeline.build";
+import type { TimelineSegment, TimelineClip } from "@/lib/timeline.build";
 import { logError } from "@/lib/log.error";
 
 import { RESOLUTION_MAP } from "@/lib/exportSettings";
@@ -66,29 +66,12 @@ export async function POST(
 
   const settings: ExportSettings = { ...FALLBACK_SETTINGS, ...(await req.json().catch(() => ({}))) };
   const { width, height } = RESOLUTION_MAP[settings.resolution] ?? RESOLUTION_MAP["1080p"];
-  const fps             = settings.fps;
-  const backgroundColor = settings.backgroundColor;
-  const aspectRatio     = "16:9";
-
-  // ── タイムライン構築 ──────────────────────────────────────────────────────────
-  const visualClips: Record<string, unknown>[] = [];
-  const audioClips:  Record<string, unknown>[] = [];
-  const telopClips:  Record<string, unknown>[] = [];
-  let cursor = 0;
-
-  const fontFamily    = settings.telopFontFamily ?? "Noto Sans JP";
-  const fontWeight    = settings.telopFontWeight ?? 700;
-  const fontId        = getShotstackFontId(fontFamily);
-  // rich-text クリップ高さ = フォントサイズ + 少し余白（仕様の 48→50 に準拠）
-  const telopH        = settings.telopFontSize + 4;
-  // offset.y は正値 = 上方向。クリップ中心がキャンバス端に来るため、半高さ＋42px 分だけ内側にオフセット
-  const telopYAbs     = Math.round(((telopH / 2 + 42) / height) * 1000) / 1000;
-  const telopYOffset  = settings.telopPosition === "bottom" ? telopYAbs : -telopYAbs;
+  const size = { width, height, fps: settings.fps, backgroundColor: settings.backgroundColor };
 
   const useNarrationMode = settings.durationMode === "narration";
   const narPadding = Math.max(0, settings.narrationPadding ?? 0.5);
 
-  for (const scene of sb.scenes) {
+  const segments: TimelineSegment[] = sb.scenes.map((scene) => {
     const len = useNarrationMode
       ? sceneDurationNarration(scene, settings.defaultDuration, narPadding)
       : sceneDuration(scene.videoDuration, scene.duration, settings.defaultDuration);
@@ -101,105 +84,39 @@ export async function POST(
       ? (() => { const n = parseFloat(scene.duration); return !isNaN(n) && n > 0 ? n : null; })()
       : null;
 
+    const layers: TimelineClip[] = [];
     if (scene.videoUrl) {
-      visualClips.push({
-        asset: { type: "video", src: scene.videoUrl, volume: 0 },
-        start: cursor, length: videoFileLen ?? len,
-        position: "center", fit: "cover",
-      });
+      layers.push({ asset: { type: "video", src: scene.videoUrl, volume: 0 }, length: videoFileLen ?? len, position: "center", fit: "cover" });
     } else if (scene.imgUrl) {
-      visualClips.push({
-        asset: { type: "image", src: scene.imgUrl },
-        start: cursor, length: len,
-        position: "center", fit: "cover",
-      });
+      layers.push({ asset: { type: "image", src: scene.imgUrl }, position: "center", fit: "cover" });
     }
 
-    if (scene.audioUrl) {
-      audioClips.push({
-        asset: { type: "audio", src: scene.audioUrl, volume: settings.narrationVolume },
-        start: cursor, length: audioFileLen ?? len,
-      });
-    }
+    return {
+      length: len,
+      layers,
+      audio: scene.audioUrl ? { src: scene.audioUrl, volume: settings.narrationVolume, length: audioFileLen ?? len } : undefined,
+      telop: scene.telopText ?? undefined,
+    };
+  });
 
-    if (scene.telopText?.trim()) {
-      telopClips.push({
-        asset: {
-          type: "rich-text",
-          text: scene.telopText.trim(),
-          font: {
-            family: fontId,
-            size: settings.telopFontSize,
-            weight: fontWeight,
-            color: settings.telopColor,
-            opacity: 1,
-          },
-          align: { horizontal: "center", vertical: "middle" },
-          ...(settings.telopShadow ? {
-            shadow: { offsetX: 2, offsetY: 2, blur: 4, color: "#000000", opacity: 0.5 },
-          } : {}),
-        },
-        start: cursor,
-        length: len,
-        position: settings.telopPosition,
-        offset: { x: 0, y: telopYOffset },
-        width,
-        height: telopH,
-        transform: { rotate: { angle: 0 } },
-      });
-    }
-
-    cursor += len;
-  }
-
-  // ビジュアルが 1 つもない場合は透明プレースホルダを挿入
-  if (visualClips.length === 0) {
-    visualClips.push({
-      asset: { type: "svg", src: '<svg viewBox="0 0 1 1" xmlns="http://www.w3.org/2000/svg"/>' },
-      start: 0, length: Math.max(cursor, settings.defaultDuration),
-    });
-  }
-
-  // テロップを最上位レイヤーに、ビジュアル・音声をその下に配置
-  const tracks: { clips: Record<string, unknown>[] }[] = [];
-  if (telopClips.length > 0) tracks.push({ clips: telopClips });
-  tracks.push({ clips: visualClips });
-  if (audioClips.length > 0) tracks.push({ clips: audioClips });
-
-  const editJson = {
-    timeline: {
-      tracks,
-      fonts: getTimelineFonts(),
-      background: backgroundColor,
-    },
-    output: {
-      format: "mp4",
-      resolution: "hd",
-      size: { width, height },
-      fps,
-    },
-  };
+  const { editJson, duration } = buildEditJson(segments, size, {
+    fontFamily: settings.telopFontFamily ?? "Noto Sans JP",
+    fontWeight: settings.telopFontWeight ?? 700,
+    fontSize:   settings.telopFontSize,
+    color:      settings.telopColor,
+    position:   settings.telopPosition,
+    shadow:     settings.telopShadow,
+  }, settings.defaultDuration);
 
   // ── プロジェクト作成 ──────────────────────────────────────────────────────────
   try {
-    const projectId  = crypto.randomUUID();
-    const editJsonKey = buildEditJsonKey(session.userId, workspaceId, projectId);
-    await putEditJsonToR2(editJsonKey, editJson);
-
-    const project = await prisma.project.create({
-      data: {
-        id: projectId,
-        userId: session.userId,
-        workspaceId,
-        title: sb.title ?? "動画プロジェクト",
-        aspectRatio,
-        width,
-        height,
-        fps,
-        backgroundColor,
-        editJsonKey,
-        durationSec: cursor > 0 ? Math.ceil(cursor) : null,
-      } as any,
+    const project = await createProjectFromEditJson({
+      userId: session.userId,
+      workspaceId,
+      title: sb.title ?? "動画プロジェクト",
+      size,
+      editJson,
+      duration,
     });
 
     // コンテとプロジェクトを紐付け

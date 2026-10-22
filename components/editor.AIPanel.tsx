@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
 import EditorBGMModal         from "@/components/editor.BGMModal";
 import EditorBulkEditModal    from "@/components/editor.BulkEditModal";
@@ -9,7 +9,9 @@ import EditorAIVideoModal     from "@/components/editor.AIVideoModal";
 import EditorAINarrationModal from "@/components/editor.AINarrationModal";
 import WorkspaceSettingsModal from "@/components/WorkspaceSettingsModal";
 import type { WsSettingsTab } from "@/components/WorkspaceSettingsModal";
-import { loadGenMeta } from "@/lib/gen.meta";
+import type { ToolType } from "@/lib/workspace.api";
+import { CLIP_MENU, CLIP_KIND_LABEL } from "@/lib/clip.kind";
+import type { ClipKind } from "@/lib/clip.kind";
 import type { GenMetaImage, GenMetaVideo, GenMetaNarration } from "@/lib/gen.meta";
 
 const GRAD = "linear-gradient(45deg, #5184F0, #169385)";
@@ -28,41 +30,12 @@ function DragDotsIcon() {
   );
 }
 
-function EditPromptIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#fff" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 3.5l4 4L6 17H3v-3L12 3.5z"/>
-      <path d="M9 6.5l4 4"/>
-    </svg>
-  );
-}
-
-function MusicIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#fff" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M7 16V5l10-2.5v11"/>
-      <circle cx="5" cy="16" r="2.5"/>
-      <circle cx="15" cy="13.5" r="2.5"/>
-    </svg>
-  );
-}
-
 function DecoTelopIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 16 16" fill="white" stroke="none">
       <path d="M1.5 2.5h13v2H9.5v9h-3v-9H1.5z" opacity="0.9"/>
       <path d="M11.5 9.5 12 8l.5 1.5L14 10l-1.5.5L12 12l-.5-1.5L10 10z"/>
       <path d="M13.5 7 13.8 6l.3 1 1 .3-1 .3-.3 1-.3-1-1-.3z"/>
-    </svg>
-  );
-}
-
-function ImageIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#fff" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="2" y="4" width="16" height="12" rx="2"/>
-      <circle cx="7" cy="8.5" r="1.5"/>
-      <path d="M2 14l4-4 3 3 3-3 4 4"/>
     </svg>
   );
 }
@@ -98,6 +71,25 @@ function RegenIcon() {
   );
 }
 
+function SparkleIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#fff" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 17l8-8"/>
+      <path d="M13 3l.8 2.2L16 6l-2.2.8L13 9l-.8-2.2L10 6l2.2-.8z"/>
+      <path d="M16.5 11l.5 1.3 1.3.5-1.3.5-.5 1.3-.5-1.3-1.3-.5 1.3-.5z"/>
+    </svg>
+  );
+}
+
+function SwapIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#fff" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 7h11l-3-3"/>
+      <path d="M16 13H5l3 3"/>
+    </svg>
+  );
+}
+
 function Sep() {
   return <div style={{ width: 24, height: 1, background: "rgba(255,255,255,0.3)", margin: "2px auto" }} />;
 }
@@ -112,24 +104,35 @@ type MinEdit = {
 type Props = {
   workspaceId?:        string | null;
   workspaceName?:      string | null;
+  toolType?:           ToolType;
   playbackTime:        number;
-  selectedClipType?:   string | null;
-  selectedClipSrc?:    string | null;
   onInsert: (asset: { type: "image" | "video" | "audio"; src: string; volume?: number }, start: number) => void;
   getTimelineDuration?: () => number;
   editRef?:            MutableRefObject<MinEdit | null>;
   projectId?:          string | null;
   onBulkEditApplied?:  () => void;
   onBeforeAIApply?:    (snapshot: unknown) => void;
+  // ②新規作成パネルから開く生成画面
   bulkEditOpen?:       boolean;
   onBulkEditClose?:    () => void;
   bgmOpen?:            boolean;
   onBgmClose?:         () => void;
-  onBulkEditOpen?:     () => void;
-  onBgmOpen?:          () => void;
-  onDecoTelopOpen?:    () => void;
-  onRegenDeco?:        (fileUrl?: string) => void;
-  onRegenFile?:        (fileUrl: string) => void;
+  imageOpen?:          boolean;
+  onImageClose?:       () => void;
+  videoOpen?:          boolean;
+  onVideoClose?:       () => void;
+  narrationOpen?:      boolean;
+  onNarrationClose?:   () => void;
+  // ①クリップ操作パネル（選択中のクリップの種類でボタンを出し分ける）
+  selectedKind?:       ClipKind | null;
+  canToVideo?:         boolean;   // 透過のある画像は動画化しない
+  busy?:               boolean;
+  onDecorate?:         () => void;
+  onRegenImage?:       () => void;
+  onImageToVideo?:     () => void;
+  onReplaceFile?:      () => void;
+  onRegenDeco?:        () => void;
+  onRegenNarration?:   () => void;
   onImageGenerated?:    (fileUrl: string, meta: GenMetaImage) => void;
   onVideoGenerated?:    (fileUrl: string, meta: GenMetaVideo) => void;
   onNarrationGenerated?: (fileUrl: string, meta: GenMetaNarration) => void;
@@ -138,22 +141,21 @@ type Props = {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function EditorAIPanel({
-  workspaceId, workspaceName, playbackTime, selectedClipType, selectedClipSrc, onInsert,
+  workspaceId, workspaceName, toolType, playbackTime, onInsert,
   getTimelineDuration, editRef, projectId, onBulkEditApplied, onBeforeAIApply,
   bulkEditOpen, onBulkEditClose, bgmOpen, onBgmClose,
-  onBulkEditOpen, onBgmOpen, onDecoTelopOpen, onRegenDeco, onRegenFile,
+  imageOpen, onImageClose, videoOpen, onVideoClose, narrationOpen, onNarrationClose,
+  selectedKind, canToVideo, busy,
+  onDecorate, onRegenImage, onImageToVideo, onReplaceFile, onRegenDeco, onRegenNarration,
   onImageGenerated, onVideoGenerated, onNarrationGenerated,
 }: Props) {
-  const [pos, setPos] = useState<{ x: number; y: number }>(() => {
-    if (typeof window === "undefined") return { x: 360, y: 250 };
-    return {
+  const [pos, setPos] = useState<{ x: number; y: number }>({ x: 360, y: 250 });
+  useEffect(() => {
+    setPos({
       x: Math.round(window.innerWidth  * 0.28),
       y: Math.round(window.innerHeight * 0.31),
-    };
-  });
-  const [imageOpen,     setImageOpen]     = useState(false);
-  const [videoOpen,     setVideoOpen]     = useState(false);
-  const [narrationOpen, setNarrationOpen] = useState(false);
+    });
+  }, []);
   const [wsSettingsOpen, setWsSettingsOpen] = useState(false);
   const [wsSettingsTab,  setWsSettingsTab]  = useState<WsSettingsTab>("image");
 
@@ -183,76 +185,68 @@ export default function EditorAIPanel({
     setWsSettingsOpen(true);
   };
 
-  const regenInfo = (() => {
-    if (!selectedClipSrc) return null;
-    const meta = loadGenMeta(selectedClipSrc);
-    if (!meta) return null;
-    if (meta.type === "ai-image")     return { label: "AI 画像を再生成",         action: () => onRegenFile?.(selectedClipSrc) };
-    if (meta.type === "ai-video")     return { label: "AI 動画を再生成",          action: () => onRegenFile?.(selectedClipSrc) };
-    if (meta.type === "ai-narration") return { label: "AI ナレーションを再生成",  action: () => onRegenFile?.(selectedClipSrc) };
-    if (meta.type === "deco-telop")   return { label: "装飾テロップを再加工",     action: () => onRegenDeco?.(selectedClipSrc) };
-    return null;
-  })();
+  const menu = selectedKind ? CLIP_MENU[selectedKind] : null;
+  const noop = () => {};
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        left: pos.x,
-        top: pos.y,
-        zIndex: 500,
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        gap: 2,
-        padding: 6,
-        borderRadius: 14,
-        background: GRAD,
-        boxShadow: "0 2px 8px rgba(0,0,0,0.1), 0 8px 24px rgba(81,132,240,0.28)",
-        fontFamily: FONT,
-        userSelect: "none",
-        overflow: "visible",
-      }}
-    >
-      {/* ── ドラッグハンドル ── */}
-      <div
-        onMouseDown={onMouseDown}
-        title="ドラッグして移動"
-        style={{ width: 36, height: 20, display: "flex", alignItems: "center", justifyContent: "center", cursor: "grab" }}
-      >
-        <DragDotsIcon />
-      </div>
+    <>
+      {menu && (
+        <div
+          style={{
+            position: "fixed",
+            left: pos.x,
+            top: pos.y,
+            zIndex: 500,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 2,
+            padding: 6,
+            borderRadius: 14,
+            background: GRAD,
+            boxShadow: "0 2px 8px rgba(0,0,0,0.1), 0 8px 24px rgba(81,132,240,0.28)",
+            fontFamily: FONT,
+            userSelect: "none",
+            overflow: "visible",
+            opacity: busy ? 0.6 : 1,
+            pointerEvents: busy ? "none" : "auto",
+          }}
+        >
+          {/* ── ドラッグハンドル ── */}
+          <div
+            onMouseDown={onMouseDown}
+            title={`選択中：${CLIP_KIND_LABEL[selectedKind!]}（ドラッグして移動）`}
+            style={{ width: 36, height: 20, display: "flex", alignItems: "center", justifyContent: "center", cursor: "grab" }}
+          >
+            <DragDotsIcon />
+          </div>
 
-      <Sep />
-
-      {/* ── プロンプトで全体編集 ── */}
-      <GradBtn icon={<EditPromptIcon />} tooltip="プロンプトで全体編集" onClick={() => onBulkEditOpen?.()} />
-
-      <Sep />
-
-      {/* ── 装飾テロップを追加 ── */}
-      <GradBtn icon={<DecoTelopIcon />} tooltip="装飾テロップを追加" onClick={() => onDecoTelopOpen?.()} />
-
-      {/* ── BGMを生成 ── */}
-      <GradBtn icon={<MusicIcon />} tooltip="BGMを生成" onClick={() => onBgmOpen?.()} />
-
-      <Sep />
-
-      {/* ── AI画像を生成 ── */}
-      <GradBtn icon={<ImageIcon />} tooltip="AI 画像を生成" onClick={() => setImageOpen(true)} />
-
-      {/* ── AI動画を生成 ── */}
-      <GradBtn icon={<VideoIcon />} tooltip="AI 動画を生成" onClick={() => setVideoOpen(true)} />
-
-      {/* ── AIナレーションを生成 ── */}
-      <GradBtn icon={<MicIcon />} tooltip="AI ナレーションを生成" onClick={() => setNarrationOpen(true)} />
-
-      {/* ── 再生成（選択クリップ種別に応じて表示） ── */}
-      {regenInfo && (
-        <>
           <Sep />
-          <GradBtn icon={<RegenIcon />} tooltip={regenInfo.label} onClick={regenInfo.action} />
-        </>
+
+          {menu === "decorate" && (
+            <GradBtn icon={<SparkleIcon />} tooltip="AI で装飾" onClick={onDecorate ?? noop} />
+          )}
+          {menu === "picture" && (
+            <>
+              <GradBtn icon={<RegenIcon />} tooltip="画像を再生成" onClick={onRegenImage ?? noop} />
+              <GradBtn
+                icon={<VideoIcon />}
+                tooltip={canToVideo ? "画像から動画を生成" : "透過のある画像は動画にできません"}
+                disabled={!canToVideo}
+                onClick={onImageToVideo ?? noop}
+              />
+            </>
+          )}
+          {menu === "deco-telop" && (
+            <GradBtn icon={<DecoTelopIcon />} tooltip="装飾テロップを再編集" onClick={onRegenDeco ?? noop} />
+          )}
+          {menu === "narration" && (
+            <GradBtn icon={<MicIcon />} tooltip="ナレーションを再生成" onClick={onRegenNarration ?? noop} />
+          )}
+          {(menu === "decorate" || menu === "picture" || menu === "video" || menu === "audio") && (
+            <GradBtn icon={<SwapIcon />} tooltip="ファイルを置き換え" onClick={onReplaceFile ?? noop} />
+          )}
+        </div>
       )}
 
       {/* ── Modals ── */}
@@ -276,32 +270,32 @@ export default function EditorAIPanel({
       )}
 
       <EditorAIImageModal
-        open={imageOpen}
+        open={imageOpen ?? false}
         workspaceId={workspaceId}
         playbackTime={playbackTime}
-        onClose={() => setImageOpen(false)}
+        onClose={() => onImageClose?.()}
         onInsert={(asset, start) => onInsert(asset, start)}
-        onOpenSettings={() => openWsSettings("image", () => setImageOpen(false))}
+        onOpenSettings={() => openWsSettings("image", onImageClose)}
         onGenerated={onImageGenerated}
       />
 
       <EditorAIVideoModal
-        open={videoOpen}
+        open={videoOpen ?? false}
         workspaceId={workspaceId}
         playbackTime={playbackTime}
-        onClose={() => setVideoOpen(false)}
+        onClose={() => onVideoClose?.()}
         onInsert={(asset, start) => onInsert(asset, start)}
-        onOpenSettings={() => openWsSettings("video", () => setVideoOpen(false))}
+        onOpenSettings={() => openWsSettings("video", onVideoClose)}
         onGenerated={onVideoGenerated}
       />
 
       <EditorAINarrationModal
-        open={narrationOpen}
+        open={narrationOpen ?? false}
         workspaceId={workspaceId}
         playbackTime={playbackTime}
-        onClose={() => setNarrationOpen(false)}
+        onClose={() => onNarrationClose?.()}
         onInsert={(asset, start) => onInsert(asset, start)}
-        onOpenSettings={() => openWsSettings("narration", () => setNarrationOpen(false))}
+        onOpenSettings={() => openWsSettings("narration", onNarrationClose)}
         onGenerated={onNarrationGenerated}
       />
 
@@ -310,33 +304,36 @@ export default function EditorAIPanel({
           defaultTab={wsSettingsTab}
           workspaceId={workspaceId}
           workspaceName={workspaceName ?? ""}
+          toolType={toolType}
           onClose={() => setWsSettingsOpen(false)}
           onNameChanged={() => {}}
         />
       )}
-    </div>
+    </>
   );
 }
 
 // ─── Gradient Button ─────────────────────────────────────────────────────────
 
-function GradBtn({ icon, tooltip, onClick }: {
+function GradBtn({ icon, tooltip, onClick, disabled }: {
   icon: React.ReactNode;
   tooltip: string;
   onClick: () => void;
+  disabled?: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
 
   return (
     <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
       <button
-        onClick={onClick}
+        onClick={disabled ? undefined : onClick}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         style={{
           width: 36, height: 36, borderRadius: 8, border: "none",
-          background: hovered ? "rgba(255,255,255,0.28)" : "rgba(255,255,255,0.14)",
-          color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+          background: hovered && !disabled ? "rgba(255,255,255,0.28)" : "rgba(255,255,255,0.14)",
+          color: "#fff", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.4 : 1,
+          display: "flex", alignItems: "center", justifyContent: "center",
           transition: "background 0.15s", padding: 0, flexShrink: 0,
         }}
       >

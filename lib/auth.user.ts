@@ -8,6 +8,7 @@ export type AuthUser = {
   name: string | null;
   plan: string | null;
   iconUrl: string | null;
+  isAdmin?: boolean;
 };
 
 type MeApiResponse = {

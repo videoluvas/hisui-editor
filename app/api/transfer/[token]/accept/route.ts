@@ -41,7 +41,7 @@ export async function POST(
     } else if (resourceType === "storyboard") {
       const targetWsId = body.targetWorkspaceId ?? null;
       if (targetWsId) {
-        const ws = await tx.workspace.findFirst({ where: { id: targetWsId, userId: newUserId } });
+        const ws = await tx.workspace.findFirst({ where: { id: targetWsId, userId: newUserId, toolType: "conte" } });
         if (!ws) throw new Error("WORKSPACE_NOT_FOUND");
       }
       await tx.storyboardMain.update({

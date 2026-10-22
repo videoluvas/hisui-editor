@@ -10,11 +10,13 @@ import SidePanelFiles    from "@/components/SidePanelFiles";
 import SidePanelExport   from "@/components/SidePanelExport";
 import type { ExportProgressInfo } from "@/components/SidePanelExport";
 import type { GenMeta } from "@/lib/gen.meta";
+import type { OpenEditorBridge } from "@/lib/sequence.motion";
 import SidePanelConteProject from "@/components/SidePanelConteProject";
 import SidePanelConvert  from "@/components/SidePanelConvert";
 import WorkspaceBar      from "@/components/WorkspaceBar";
 import UserDashboardModal from "@/components/UserDashboardModal";
 import type { Project } from "@/lib/project.api";
+import type { ToolType } from "@/lib/workspace.api";
 
 export type AppMode = "video" | "conte";
 
@@ -37,18 +39,17 @@ type SidePanelProps = {
   selectedProjectId?: string | null;
   selectedProject?: Project | null;
   onSelectProject?: (project: Project | null) => void;
-  onExportLocal?: () => void | Promise<void>;
   onExportApi?: (cb: (info: ExportProgressInfo) => void) => Promise<void>;
-  isExporting?: boolean;
   isProjectLoading?: boolean;
-  exportError?: string | null;
   appMode?: AppMode;
   onAppModeChange?: (mode: AppMode) => void;
   selectedStoryboardId?: string | null;
   onSelectStoryboard?: (id: string) => void;
   selectedWorkspaceId?: string | null;
-  onSelectWorkspace?: (id: string, name: string) => void;
+  selectedWorkspaceToolType?: ToolType;
+  onSelectWorkspace?: (id: string, name: string, toolType: ToolType) => void;
   onFileDoubleClick?: (fileUrl: string, meta: GenMeta | null) => void;
+  openEditor?: OpenEditorBridge;
   isOpen?: boolean;
   onClose?: () => void;
 };
@@ -57,18 +58,17 @@ export default function SidePanel({
   selectedProjectId = null,
   selectedProject   = null,
   onSelectProject,
-  onExportLocal,
   onExportApi,
-  isExporting        = false,
   isProjectLoading   = false,
-  exportError        = null,
   appMode            = "video",
   onAppModeChange,
   selectedStoryboardId = null,
   onSelectStoryboard,
   selectedWorkspaceId  = null,
+  selectedWorkspaceToolType = "conte",
   onSelectWorkspace,
   onFileDoubleClick,
+  openEditor,
   isOpen  = false,
   onClose,
 }: SidePanelProps) {
@@ -271,8 +271,8 @@ export default function SidePanel({
         />
       )}
 
-      {/* Mode switcher */}
-      <div style={{ padding: "10px 10px 6px" }}>
+      {/* Mode switcher（パワーポイント用ワークスペースは動画編集のみ） */}
+      {selectedWorkspaceToolType === "conte" && <div style={{ padding: "10px 10px 6px" }}>
         <div style={{ display: "flex", gap: 4, background: "#f0f0f0", borderRadius: 10, padding: 3 }}>
           {([ { id: "conte", label: "コンテ作成" }, { id: "video", label: "動画編集" } ] as const).map((m) => (
             <button
@@ -291,18 +291,19 @@ export default function SidePanel({
             </button>
           ))}
         </div>
-      </div>
+      </div>}
 
       {/* Workspace bar */}
       <WorkspaceBar
         selectedWorkspaceId={selectedWorkspaceId}
         onSelectWorkspace={onSelectWorkspace ?? (() => {})}
-        onCreated={(sbId, proj) => {
-          onAppModeChange?.("conte");
+        onCreated={(sbId, proj, toolType) => {
+          onAppModeChange?.(toolType === "pptx" ? "video" : "conte");
           if (sbId) onSelectStoryboard?.(sbId);
           if (proj) onSelectProject?.(proj);
         }}
         isLoggedIn={loading ? undefined : isLoggedIn}
+        allowedToolTypes={user?.isAdmin ? ["conte", "pptx"] : ["pptx"]}
       />
 
       {/* Tabs */}
@@ -338,6 +339,8 @@ export default function SidePanel({
               onSwitchToVideo={() => onAppModeChange?.("video")}
               onSwitchToConte={() => onAppModeChange?.("conte")}
               workspaceId={selectedWorkspaceId}
+              toolType={selectedWorkspaceToolType}
+              openEditor={openEditor}
             />
           </div>
         )}
@@ -345,12 +348,10 @@ export default function SidePanel({
           <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "10px" }}>
             <SidePanelExport
               selectedProject={selectedProject}
-              onExportLocal={onExportLocal ?? (() => {})}
               onExportApi={onExportApi ?? (async (_cb) => {})}
-              isExporting={isExporting}
               isProjectLoading={isProjectLoading}
-              exportError={exportError}
               onOpenDashboard={() => setDashboardOpen(true)}
+              isFreePlan={!user?.plan || user.plan === "Free"}
             />
           </div>
         )}
@@ -366,6 +367,8 @@ export default function SidePanel({
               onSwitchToVideo={() => onAppModeChange?.("video")}
               onSwitchToConte={() => onAppModeChange?.("conte")}
               workspaceId={selectedWorkspaceId}
+              toolType={selectedWorkspaceToolType}
+              openEditor={openEditor}
             />
           </div>
         )}

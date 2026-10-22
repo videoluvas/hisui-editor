@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { loadBgmSettings } from "@/lib/bgmSettings";
 import { bgmTimeEstimate } from "@/lib/genTimeEstimate";
+import { saveGenMeta } from "@/lib/gen.meta";
 
 const GRAD = "linear-gradient(45deg, #5184F0, #169385)";
 const FONT = "'Noto Sans JP', sans-serif";
@@ -69,6 +70,7 @@ export default function EditorBGMModal({ open, timelineDuration, workspaceId, on
       const audioUrl = data.audioUrl;
       setStatus("done");
       if (audioUrl) {
+        saveGenMeta(audioUrl, { type: "bgm", genre, mood, prompt });
         onInsert({ type: "audio", src: audioUrl, volume: defaults.defaultVolume }, 0);
         onClose();
       }

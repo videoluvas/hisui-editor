@@ -16,6 +16,17 @@ const REVE_API_URL   = "https://api.reve.com/v1/image/edit";
 const ARK_API_URL    = "https://ark.ap-southeast.bytepluses.com/api/v3/images/generations";
 const GOOGLE_AI_BASE = "https://generativelanguage.googleapis.com/v1beta";
 const OPENAI_IMG_URL = "https://api.openai.com/v1/images/generations";
+const OPENAI_IMG_EDIT_URL = "https://api.openai.com/v1/images/edits";
+
+// 参照画像は自分の R2 にあるものだけ取りに行く（外部 URL をサーバーから取得させない）
+async function fetchRefImage(url: string | undefined): Promise<{ buf: Buffer; mime: string } | null> {
+  if (!url || !url.startsWith(`${R2_PUBLIC_URL}/`)) return null;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    return { buf: Buffer.from(await res.arrayBuffer()), mime: res.headers.get("content-type")?.split(";")[0] ?? "image/png" };
+  } catch { return null; }
+}
 
 function buildBlankPng(w = 16, h = 9): Buffer {
   const t = new Uint32Array(256);
@@ -84,6 +95,8 @@ export async function POST(request: NextRequest) {
     // ワークスペース設定
     imgCommonRules?: string;
     imgNegativePrompt?: string;
+    // 参照画像（img to img）
+    imgUrl?: string;
   };
 
   const basePrompt = (body.prompt ?? "").trim();
@@ -100,6 +113,9 @@ export async function POST(request: NextRequest) {
 
   const access = await checkModelAccess(imageModel, session.user.plan ?? null);
   if (!access.ok) return NextResponse.json({ ok: false, message: access.message }, { status: access.status ?? 403 });
+
+  const ref = await fetchRefImage(body.imgUrl);
+  if (body.imgUrl && !ref) return NextResponse.json({ ok: false, message: "参照画像を読み込めませんでした" }, { status: 400 });
 
   const credit = await consumeCredits(userId, imageModelToAction(imageModel), workspaceId);
   if (!credit.ok) return NextResponse.json({ ok: false, message: credit.message }, { status: 402 });
@@ -121,6 +137,7 @@ export async function POST(request: NextRequest) {
       output_format: sdOutputFormat, watermark: sdWatermark, response_format: "b64_json",
     };
     if (sdOptimizePrompt) arkBody.optimize_prompt_options = { mode: "standard" };
+    if (ref) arkBody.image = `data:${ref.mime};base64,${ref.buf.toString("base64")}`;
 
     let imageB64: string;
     try {
@@ -168,11 +185,19 @@ export async function POST(request: NextRequest) {
 
     let imageB64: string;
     try {
-      const resp = await fetch(OPENAI_IMG_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${openaiApiKey}` },
-        body: JSON.stringify(gptBody),
-      });
+      let resp: Response;
+      if (ref) {
+        const form = new FormData();
+        form.append("image", new Blob([ref.buf as unknown as BlobPart], { type: ref.mime }), `ref.${ref.mime.includes("png") ? "png" : ref.mime.includes("webp") ? "webp" : "jpg"}`);
+        for (const [k, v] of Object.entries(gptBody)) form.append(k, String(v));
+        resp = await fetch(OPENAI_IMG_EDIT_URL, { method: "POST", headers: { "Authorization": `Bearer ${openaiApiKey}` }, body: form });
+      } else {
+        resp = await fetch(OPENAI_IMG_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${openaiApiKey}` },
+          body: JSON.stringify(gptBody),
+        });
+      }
       if (!resp.ok) throw new Error(`OpenAI ${resp.status}: ${await resp.text()}`);
       const data = await resp.json() as { data?: Array<{ b64_json?: string }>; error?: { message: string } };
       if (data.error) throw new Error((data.error as { message: string }).message);
@@ -215,7 +240,10 @@ export async function POST(request: NextRequest) {
       const resp = await fetch(`${GOOGLE_AI_BASE}/models/${googleModelId}:generateContent`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-goog-api-key": googleApiKey },
-        body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: fullPrompt }] }], generationConfig }),
+        body: JSON.stringify({
+          contents: [{ role: "user", parts: [...(ref ? [{ inlineData: { mimeType: ref.mime, data: ref.buf.toString("base64") } }] : []), { text: fullPrompt }] }],
+          generationConfig,
+        }),
       });
       if (!resp.ok) throw new Error(`Google ${resp.status}: ${await resp.text()}`);
       const data = await resp.json() as {
@@ -254,7 +282,7 @@ export async function POST(request: NextRequest) {
 
   const reveBody: Record<string, unknown> = {
     edit_instruction: prompt,
-    reference_image: buildBlankPng(16, 9).toString("base64"),
+    reference_image: (ref?.buf ?? buildBlankPng(16, 9)).toString("base64"),
     aspect_ratio: aspectRatio,
     version,
     test_time_scaling: Math.max(1, Math.min(15, Number(testTimeScaling) || 1)),

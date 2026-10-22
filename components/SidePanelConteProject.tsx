@@ -5,13 +5,21 @@ import {
   listStoryboards, createStoryboard, updateStoryboard, generateStoryboard,
 } from "@/lib/storyboard.api";
 import { getProjects, createProject, deleteProject } from "@/lib/project.api";
+
+import type { OpenEditorBridge } from "@/lib/sequence.motion";
 import type { StoryboardListItem } from "@/lib/storyboard.api";
 import type { Project } from "@/lib/project.api";
+import type { ToolType } from "@/lib/workspace.api";
 import SidePanelProjectCreateModal from "@/components/SidePanelProjectCreateModal";
+import PptxImportWizard from "@/components/PptxImportWizard";
+import { setOpenProject, takeOpenProject } from "@/lib/pptxHandoff";
+import { loadDraft } from "@/lib/pptxDraft";
+import type { PptxDraft } from "@/lib/pptxDraft";
 import { TransferOwnerSection } from "@/components/TransferOwnerSection";
 
 const CONTE_COLOR = "#169385";
 const SEQ_COLOR   = "#7F5AF0";
+const PPTX_COLOR  = "#c2410c";
 const FONT        = "'Noto Sans JP', sans-serif";
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
@@ -39,6 +47,16 @@ function SequenceIcon({ color = SEQ_COLOR }: { color?: string }) {
       <line x1="8.5" y1="2.5" x2="8.5" y2="5.5"/>
       <line x1="3.5" y1="7.5" x2="3.5" y2="10.5"/>
       <line x1="6" y1="7.5" x2="6" y2="10.5"/>
+    </svg>
+  );
+}
+
+function PptxIcon({ color = PPTX_COLOR }: { color?: string }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke={color} strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="1" y="2" width="12" height="8" rx="1"/>
+      <path d="M7 10v2.5M4.5 12.5h5"/>
+      <path d="M4 7.5V5h1.6a1.1 1.1 0 0 1 0 2.2H4"/>
     </svg>
   );
 }
@@ -138,6 +156,7 @@ type SettingsModalProps = {
   onClose:  () => void;
   onSaved:  (id: string, patch: { title?: string }) => void;
   onDelete: (item: MixedItem) => void;
+  openEditor?: OpenEditorBridge;
 };
 
 function SettingsModal({ item, onClose, onSaved, onDelete }: SettingsModalProps) {
@@ -177,7 +196,6 @@ function SettingsModal({ item, onClose, onSaved, onDelete }: SettingsModalProps)
     paddingBottom: 6, borderBottom: "1px solid #f1f5f9", fontFamily: FONT,
   };
   const FIELD: React.CSSProperties = { marginBottom: 12 };
-
   // ─── 保存 ────────────────────────────────────────────────────────────────────
   const handleSave = async () => {
     setSaving(true); setSaveError(null);
@@ -307,6 +325,7 @@ function SettingsModal({ item, onClose, onSaved, onDelete }: SettingsModalProps)
                 </div>
               </div>
             </div>
+
           </>)}
 
           {/* ── 情報 ── */}
@@ -534,6 +553,8 @@ type Props = {
   onSwitchToVideo:      () => void;
   onSwitchToConte?:     () => void;
   workspaceId?:         string | null;
+  toolType?:            ToolType;
+  openEditor?:          OpenEditorBridge;
 };
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
@@ -546,6 +567,8 @@ export default function SidePanelConteProject({
   onSwitchToVideo,
   onSwitchToConte,
   workspaceId,
+  toolType = "conte",
+  openEditor,
 }: Props) {
   const [items,       setItems]       = useState<MixedItem[]>([]);
   const [loading,     setLoading]     = useState(true);
@@ -554,6 +577,8 @@ export default function SidePanelConteProject({
   const [showChoice,  setShowChoice]  = useState(false);
   const [showAiPopup, setShowAiPopup] = useState(false);
   const [showSeqModal,setShowSeqModal]= useState(false);
+  const [showPptx,    setShowPptx]    = useState(false);
+  const [pptxDraft,   setPptxDraft]   = useState<PptxDraft | null>(null);
   const [renamingId,   setRenamingId]   = useState<string | null>(null);
   const [renameValue,  setRenameValue]  = useState("");
   const [renameKind,   setRenameKind]   = useState<"conte"|"sequence">("conte");
@@ -576,9 +601,26 @@ export default function SidePanelConteProject({
     );
     setItems(merged);
     setLoading(false);
+    // スタートページで取り込んだプロジェクトを開く
+    const openId = workspaceId ? takeOpenProject(workspaceId) : null;
+    const open = openId ? seqs.find((s) => s.id === openId) : null;
+    if (open) {
+      onSelectProject(open.project);
+      onSwitchToVideo();
+    }
   };
 
   useEffect(() => { load(); }, [workspaceId]);
+
+  // 取り込みの途中（ログインでページを離れた等）なら、続きから再開する
+  useEffect(() => {
+    if (toolType !== "pptx" || !workspaceId) return;
+    loadDraft().then((d) => {
+      if (!d) return;
+      setPptxDraft(d);
+      setShowPptx(true);
+    });
+  }, [toolType, workspaceId]);
 
   // メニュー外クリックで閉じる
   useEffect(() => {
@@ -623,6 +665,14 @@ export default function SidePanelConteProject({
       onSwitchToVideo();
     }
     setShowSeqModal(false);
+  };
+
+  const handlePptxImported = (project: Project) => {
+    const item: SequenceItem = { kind: "sequence", id: project.id, title: project.title, updatedAt: project.updatedAt, project };
+    setItems((prev) => [item, ...prev]);
+    onSelectProject(project);
+    onSwitchToVideo();
+    setShowPptx(false);
   };
 
   // ─── リネーム ────────────────────────────────────────────────────────────────
@@ -699,7 +749,7 @@ export default function SidePanelConteProject({
 
         {createMenu && (
           <div style={{ position:"absolute", top:"calc(100% + 4px)", left:0, right:0, background:"#fff", border:"1px solid #e2e8f0", borderRadius:10, boxShadow:"0 6px 20px rgba(0,0,0,0.1)", zIndex:100, overflow:"hidden" }}>
-            <button
+            {toolType === "conte" && <button
               onClick={() => { setCreateMenu(false); setShowChoice(true); }}
               style={{ width:"100%", display:"flex", alignItems:"center", gap:10, padding:"10px 14px", border:"none", background:"transparent", cursor:"pointer", fontFamily:FONT, borderBottom:"1px solid #f1f5f9" }}
             >
@@ -710,7 +760,19 @@ export default function SidePanelConteProject({
                 <div style={{ fontSize:13, fontWeight:600, color:CONTE_COLOR }}>コンテ</div>
                 <div style={{ fontSize:10, color:"#94a3b8", marginTop:1 }}>ナレーション・画像・音声コンテ</div>
               </div>
-            </button>
+            </button>}
+            {toolType === "pptx" && workspaceId && <button
+              onClick={() => { setCreateMenu(false); setShowPptx(true); }}
+              style={{ width:"100%", display:"flex", alignItems:"center", gap:10, padding:"10px 14px", border:"none", background:"transparent", cursor:"pointer", fontFamily:FONT, borderBottom:"1px solid #f1f5f9" }}
+            >
+              <span style={{ width:24, height:24, borderRadius:6, background:`${PPTX_COLOR}18`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                <PptxIcon />
+              </span>
+              <div style={{ textAlign:"left" }}>
+                <div style={{ fontSize:13, fontWeight:600, color:PPTX_COLOR }}>パワーポイントから作成</div>
+                <div style={{ fontSize:10, color:"#94a3b8", marginTop:1 }}>.pptx と PDF を取り込んで動画化</div>
+              </div>
+            </button>}
             <button
               onClick={() => { setCreateMenu(false); setShowSeqModal(true); }}
               style={{ width:"100%", display:"flex", alignItems:"center", gap:10, padding:"10px 14px", border:"none", background:"transparent", cursor:"pointer", fontFamily:FONT }}
@@ -829,6 +891,19 @@ export default function SidePanelConteProject({
           workspaceId={workspaceId}
         />
       )}
+      {showPptx && workspaceId && (
+        <PptxImportWizard
+          isLoggedIn
+          workspaceId={workspaceId}
+          initialDraft={pptxDraft}
+          onClose={() => { setShowPptx(false); setPptxDraft(null); }}
+          onImported={(p, wsId) => {
+            if (wsId === workspaceId) { handlePptxImported(p); return; }
+            setOpenProject(wsId, p.id);
+            window.location.href = "/";
+          }}
+        />
+      )}
       {showSeqModal && (
         <SidePanelProjectCreateModal
           onClose={() => setShowSeqModal(false)}
@@ -841,6 +916,7 @@ export default function SidePanelConteProject({
           onClose={() => setSettingsItem(null)}
           onSaved={handleSettingsSaved}
           onDelete={handleDelete}
+          openEditor={openEditor}
         />
       )}
     </div>

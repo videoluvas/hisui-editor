@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { verifyPassword } from "@/lib/auth.password";
 import { generateSessionToken, hashSessionToken, getSessionExpiresAt } from "@/lib/session.utils";
 import { logError } from "@/lib/log.error";
+import { LIMITS, clientIp, guardAuth } from "@/lib/auth.guard";
 
 type UserRow = {
   id: string;
@@ -25,6 +26,12 @@ export async function POST(request: NextRequest) {
     if (!email || !password) {
       return NextResponse.json({ ok: false, message: "メールアドレスとパスワードを入力してください" }, { status: 400 });
     }
+
+    const blocked = await guardAuth(request, body.turnstileToken, [
+      { key: `login:ip:${clientIp(request)}`, ...LIMITS.loginPerIp },
+      { key: `login:email:${email}`, ...LIMITS.loginPerEmail },
+    ]);
+    if (blocked) return blocked;
 
     // password_hash はまだ Prisma 型に反映されていないため raw SQL で取得する
     const rows = await prisma.$queryRaw<UserRow[]>`

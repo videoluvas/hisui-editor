@@ -1,6 +1,25 @@
+export type ToolType = "conte" | "pptx";
+
+export const TOOL_TYPE_LABEL: Record<ToolType, string> = {
+  conte: "コンテ→動画化",
+  pptx:  "パワーポイント→動画化",
+};
+
+export const TOOL_TYPE_DESC: Record<ToolType, { lead: string; points: string[] }> = {
+  conte: {
+    lead: "シーンごとのコンテを作り、AI で画像・動画・ナレーションを生成して動画にします。",
+    points: ["台本やテーマからコンテを AI 作成", "シーンごとに画像・動画・ナレーションを生成", "サンプルのコンテ付きではじめられます"],
+  },
+  pptx: {
+    lead: "PowerPoint のスライドを取り込み、オブジェクトごとに分けた動画プロジェクトを作ります。",
+    points: [".pptx と PDF をアップロードするだけ", "フォント・配置・アニメーション・画面切り替えを反映", "オブジェクトを AI 画像・AI 動画に置き換え"],
+  },
+};
+
 export type WorkspaceItem = {
   id: string;
   name: string;
+  toolType: ToolType;
   createdAt: string;
   updatedAt: string;
 };
@@ -27,7 +46,7 @@ export type SampleProject = {
   durationSec: number | null; createdAt: string; updatedAt: string;
 };
 
-export async function createWorkspace(name: string): Promise<{
+export async function createWorkspace(name: string, toolType: ToolType): Promise<{
   ok: boolean;
   workspace?: WorkspaceItem;
   sampleStoryboardId?: string | null;
@@ -38,7 +57,7 @@ export async function createWorkspace(name: string): Promise<{
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ name, toolType }),
   });
   return safeJson(res);
 }

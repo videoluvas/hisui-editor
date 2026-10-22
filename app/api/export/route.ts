@@ -6,10 +6,10 @@ import { getEditorSessionFromCookie } from "@/lib/auth.backend";
 import { prisma } from "@/lib/prisma";
 import { getEditJsonFromR2 } from "@/lib/project.r2";
 import type { VideoExportSettings } from "@/lib/videoExportSettings";
-import { RESOLUTION_MAP } from "@/lib/exportSettings";
+import { RESOLUTION_MAP, resolutionSize } from "@/lib/exportSettings";
 import { consumeCredits, refundCredits, exportAction, exportMultiplier } from "@/lib/credits";
 
-type ProjectWithKey = { id: string; userId: string; workspaceId: string | null; editJsonKey: string | null; durationSec: number | null };
+type ProjectWithKey = { id: string; userId: string; workspaceId: string | null; editJsonKey: string | null; durationSec: number | null; width: number | null; height: number | null };
 
 export async function POST(req: NextRequest) {
   try {
@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
     const [project, dbUser] = await Promise.all([
       prisma.project.findUnique({
         where: { id: projectId },
-        select: { id: true, userId: true, workspaceId: true, editJsonKey: true, durationSec: true },
+        select: { id: true, userId: true, workspaceId: true, editJsonKey: true, durationSec: true, width: true, height: true },
       }) as Promise<ProjectWithKey | null>,
       prisma.user.findUnique({ where: { id: session.userId }, select: { plan: true } }),
     ]);
@@ -50,6 +50,12 @@ export async function POST(req: NextRequest) {
     const apiUrl = useSandbox
       ? shotstackUrl
       : (process.env.SHOTSTACK_PROD_API_URL ?? shotstackUrl);
+
+    // パワーポイントのワークスペースは 1080p 固定（スライドの画角のまま短い辺 1080px）
+    const ws = project.workspaceId
+      ? await prisma.workspace.findUnique({ where: { id: project.workspaceId }, select: { toolType: true } })
+      : null;
+    if (ws?.toolType === "pptx") renderSettings.resolution = "1080p";
 
     const resolution = renderSettings.resolution ?? "1080p";
     const durationSec = project.durationSec ?? 60;
@@ -76,10 +82,14 @@ export async function POST(req: NextRequest) {
       quality: renderSettings.quality ?? baseOutput.quality ?? "medium",
     };
 
-    // 解像度（シーケンス連動）: renderSettings.resolution → RESOLUTION_MAP で size に変換
+    // 解像度（シーケンス連動）: プロジェクトの画角を保ったまま短い辺を解像度に合わせる
     if (renderSettings.resolution && RESOLUTION_MAP[renderSettings.resolution]) {
-      const { width, height } = RESOLUTION_MAP[renderSettings.resolution];
-      outputOverride.size = { width, height };
+      const base = (baseOutput.size ?? {}) as { width?: number; height?: number };
+      outputOverride.size = resolutionSize(
+        renderSettings.resolution,
+        base.width  ?? project.width  ?? 16,
+        base.height ?? project.height ?? 9,
+      );
     }
 
     // FPS（シーケンス連動）

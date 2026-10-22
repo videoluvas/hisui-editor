@@ -16,7 +16,7 @@
 		"@aws-sdk/client-s3": "^3.1019.0",
 		"@aws-sdk/s3-request-presigner": "^3.1019.0",
 		"@prisma/client": "^5.22.0",
-		"@shotstack/shotstack-studio": "^2.4.5",
+		"@shotstack/shotstack-studio": "^2.24.3",
 		"@types/node": "20.6.2",
 		"@types/react": "18.2.22",
 		"@types/react-dom": "18.2.7",

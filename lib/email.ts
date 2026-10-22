@@ -363,3 +363,16 @@ export async function sendEmailChangeEmail(to: string, token: string): Promise<v
     `),
   );
 }
+
+export async function sendLoginLinkEmail(to: string, link: string): Promise<void> {
+  await send(
+    to,
+    "【Hisui AI】ログイン用リンク",
+    wrap(`
+      <p>下のボタンを押すと、ヒスイAI にログインします（アカウントがない場合は、このメールアドレスで登録されます）。</p>
+      <a href="${link}" class="btn">ログインする</a>
+      <p class="note">リンクの有効期限は<strong>15分</strong>です。<br>このメールに心当たりがない場合は無視してください。</p>
+      <p class="note">ボタンが機能しない場合は以下のURLをブラウザに貼り付けてください：<br>${link}</p>
+    `),
+  );
+}

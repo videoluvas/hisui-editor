@@ -4,9 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { TEAL } from "@/components/icons";
 import { useIsMobile } from "@/lib/useIsMobile";
-import { listWorkspaces, createWorkspace, updateWorkspace, deleteWorkspace } from "@/lib/workspace.api";
-import type { WorkspaceItem, SampleProject } from "@/lib/workspace.api";
+import { listWorkspaces, createWorkspace, updateWorkspace, deleteWorkspace, TOOL_TYPE_LABEL, TOOL_TYPE_DESC } from "@/lib/workspace.api";
+import type { WorkspaceItem, SampleProject, ToolType } from "@/lib/workspace.api";
 import WorkspaceSettingsModal from "@/components/WorkspaceSettingsModal";
+import { peekOpenWorkspace } from "@/lib/pptxHandoff";
 
 const FONT = "'Noto Sans JP', sans-serif";
 
@@ -67,16 +68,155 @@ function GearIcon({ size = 14 }: { size?: number }) {
   );
 }
 
+function ToolBadge({ toolType }: { toolType: ToolType }) {
+  const pptx = toolType === "pptx";
+  return (
+    <span style={{ flexShrink: 0, fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 4, background: pptx ? "#fff1e6" : `${TEAL}15`, color: pptx ? "#c2410c" : TEAL }}>
+      {pptx ? "パワポ" : "コンテ"}
+    </span>
+  );
+}
+
+function ToolTypePicker({ value, onChange, options }: { value: ToolType; onChange: (t: ToolType) => void; options: ToolType[] }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10 }}>
+      {options.map((t) => {
+        const active = value === t;
+        const desc = TOOL_TYPE_DESC[t];
+        return (
+          <button
+            key={t}
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onChange(t); }}
+            style={{
+              padding: "14px 14px 12px", borderRadius: 12, textAlign: "left",
+              border: `1.5px solid ${active ? TEAL : "#e2e8f0"}`, background: active ? `${TEAL}0b` : "#fff",
+              cursor: "pointer", fontFamily: FONT, display: "flex", flexDirection: "column", gap: 6,
+              boxShadow: active ? `0 0 0 3px ${TEAL}1f` : "none",
+            }}
+          >
+            <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ width: 14, height: 14, borderRadius: "50%", border: `1.5px solid ${active ? TEAL : "#cbd5e1"}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                {active && <span style={{ width: 7, height: 7, borderRadius: "50%", background: TEAL }} />}
+              </span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: active ? TEAL : "#1e293b" }}>{TOOL_TYPE_LABEL[t]}</span>
+            </span>
+            <span style={{ fontSize: 11, color: "#475569", lineHeight: 1.6 }}>{desc.lead}</span>
+            <span style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              {desc.points.map((p) => (
+                <span key={p} style={{ fontSize: 10, color: "#94a3b8", lineHeight: 1.5 }}>・{p}</span>
+              ))}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function CreateWorkspaceModal({ first, submitting, onCreate, onClose, toolTypes }: {
+  first: boolean;
+  toolTypes: ToolType[];
+  submitting: boolean;
+  onCreate: (name: string, toolType: ToolType) => void;
+  onClose?: () => void;
+}) {
+  const [name, setName]         = useState("");
+  const [toolType, setToolType] = useState<ToolType>(toolTypes[0]);
+  const submit = () => onCreate(name.trim() || "新しいワークスペース", toolType);
+
+  return (
+    <div
+      onClick={first || submitting ? undefined : onClose}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(15,23,42,0.55)",
+        zIndex: 9000, display: "flex", alignItems: "center", justifyContent: "center",
+        padding: 16, fontFamily: FONT,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "#fff", borderRadius: 20, width: "100%", maxWidth: 520, maxHeight: "92vh", overflowY: "auto",
+          padding: "28px 24px 24px", boxShadow: "0 24px 64px rgba(0,0,0,0.22)",
+          display: "flex", flexDirection: "column", gap: 20, position: "relative", boxSizing: "border-box",
+        }}
+      >
+        {!first && (
+          <button type="button" onClick={onClose} disabled={submitting} aria-label="閉じる"
+            style={{ position: "absolute", top: 12, right: 14, border: "none", background: "transparent", color: "#94a3b8", fontSize: 20, cursor: "pointer", lineHeight: 1 }}>
+            ×
+          </button>
+        )}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+          <div style={{ width: 52, height: 52, borderRadius: 14, background: `${TEAL}15`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={TEAL} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M2 7a2 2 0 0 1 2-2h4l2 2h10a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7z"/>
+              <line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/>
+            </svg>
+          </div>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: "#1e293b" }}>{first ? "ワークスペースを作成" : "新しいワークスペース"}</div>
+            {first && (
+              <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 4, lineHeight: 1.6 }}>
+                コンテ・シーケンス・ファイルを管理する<br/>ワークスペースが必要です
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <label style={{ fontSize: 11, fontWeight: 700, color: "#64748b" }}>ツール（作成後は変更できません）</label>
+          <ToolTypePicker value={toolType} onChange={setToolType} options={toolTypes} />
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <label style={{ fontSize: 11, fontWeight: 700, color: "#64748b" }}>ワークスペース名</label>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="例：プロジェクトA、クライアント名 など"
+            onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
+            autoFocus
+            disabled={submitting}
+            style={{
+              width: "100%", border: `1.5px solid ${TEAL}55`, borderRadius: 10,
+              background: "#f8fafd", fontSize: 13, color: "#1e293b",
+              padding: "10px 12px", outline: "none", fontFamily: FONT,
+              boxSizing: "border-box",
+            }}
+          />
+        </div>
+
+        <button
+          onClick={submit}
+          disabled={submitting}
+          style={{
+            width: "100%", padding: "12px", fontSize: 14, fontWeight: 700,
+            borderRadius: 10, border: "none",
+            background: submitting ? "#94a3b8" : `linear-gradient(135deg, ${TEAL}, #0d7a6e)`,
+            color: "#fff", cursor: submitting ? "not-allowed" : "pointer", fontFamily: FONT,
+            boxShadow: submitting ? "none" : `0 4px 14px ${TEAL}44`,
+          }}
+        >
+          {submitting ? "作成中..." : first ? "作成してはじめる" : "作成する"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── WorkspaceBar ─────────────────────────────────────────────────────────────
 
 type Props = {
   selectedWorkspaceId: string | null;
-  onSelectWorkspace: (id: string, name: string) => void;
-  onCreated?: (storyboardId: string | null, project: SampleProject | null) => void;
+  onSelectWorkspace: (id: string, name: string, toolType: ToolType) => void;
+  onCreated?: (storyboardId: string | null, project: SampleProject | null, toolType: ToolType) => void;
   isLoggedIn?: boolean;
+  allowedToolTypes?: ToolType[];
 };
 
-export default function WorkspaceBar({ selectedWorkspaceId, onSelectWorkspace, onCreated, isLoggedIn }: Props) {
+export default function WorkspaceBar({ selectedWorkspaceId, onSelectWorkspace, onCreated, isLoggedIn, allowedToolTypes = ["pptx"] }: Props) {
   const router = useRouter();
   const isMobile = useIsMobile();
   const [workspaces, setWorkspaces]     = useState<WorkspaceItem[]>([]);
@@ -84,7 +224,6 @@ export default function WorkspaceBar({ selectedWorkspaceId, onSelectWorkspace, o
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [creating, setCreating]         = useState(false);
   const [submitting, setSubmitting]     = useState(false);
-  const [newName, setNewName]           = useState("");
   const [renamingId, setRenamingId]     = useState<string | null>(null);
   const [renameValue, setRenameValue]   = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -94,10 +233,12 @@ export default function WorkspaceBar({ selectedWorkspaceId, onSelectWorkspace, o
   useEffect(() => {
     listWorkspaces().then((res) => {
       if (res.ok) {
-        setWorkspaces(res.workspaces);
-        if (res.workspaces.length > 0 && !selectedWorkspaceId) {
-          onSelectWorkspace(res.workspaces[0].id, res.workspaces[0].name);
-        }
+        const list = res.workspaces;
+        // スタートページで取り込んだ場合は、そのワークスペースを開く
+        const openId = peekOpenWorkspace();
+        const pick = list.find((w) => w.id === openId) ?? list[0];
+        setWorkspaces(list);
+        if (pick && !selectedWorkspaceId) onSelectWorkspace(pick.id, pick.name, pick.toolType);
       }
       setLoaded(true);
     });
@@ -107,7 +248,6 @@ export default function WorkspaceBar({ selectedWorkspaceId, onSelectWorkspace, o
     const handler = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setDropdownOpen(false);
-        setCreating(false);
         setRenamingId(null);
       }
     };
@@ -117,18 +257,16 @@ export default function WorkspaceBar({ selectedWorkspaceId, onSelectWorkspace, o
 
   const selectedWs = workspaces.find((w) => w.id === selectedWorkspaceId) ?? null;
 
-  const handleCreate = async () => {
+  const handleCreate = async (name: string, toolType: ToolType) => {
     if (submitting) return;
     setSubmitting(true);
     try {
-      const name = newName.trim() || "新しいワークスペース";
-      const res = await createWorkspace(name);
+      const res = await createWorkspace(name, toolType);
       if (res.ok && res.workspace) {
         setWorkspaces((prev) => [res.workspace!, ...prev]);
-        onSelectWorkspace(res.workspace!.id, name);
-        onCreated?.(res.sampleStoryboardId ?? null, res.sampleProject ?? null);
+        onSelectWorkspace(res.workspace!.id, name, res.workspace!.toolType);
+        onCreated?.(res.sampleStoryboardId ?? null, res.sampleProject ?? null, res.workspace!.toolType);
       }
-      setNewName("");
       setCreating(false);
       setDropdownOpen(false);
     } finally {
@@ -159,7 +297,7 @@ export default function WorkspaceBar({ selectedWorkspaceId, onSelectWorkspace, o
       const next = workspaces.filter((w) => w.id !== ws.id);
       setWorkspaces(next);
       if (selectedWorkspaceId === ws.id && next.length > 0) {
-        onSelectWorkspace(next[0].id, next[0].name);
+        onSelectWorkspace(next[0].id, next[0].name, next[0].toolType);
       }
     }
   };
@@ -176,62 +314,7 @@ export default function WorkspaceBar({ selectedWorkspaceId, onSelectWorkspace, o
           <div style={{ height: 32, borderRadius: 8, background: "#f1f5f9" }} />
         </div>
 
-        <div style={{
-          position: "fixed", inset: 0, background: "rgba(15,23,42,0.55)",
-          zIndex: 9000, display: "flex", alignItems: "center", justifyContent: "center",
-          padding: 24, fontFamily: FONT,
-        }}>
-          <div style={{
-            background: "#fff", borderRadius: 20, width: "100%", maxWidth: 400,
-            padding: "32px 28px 28px", boxShadow: "0 24px 64px rgba(0,0,0,0.22)",
-            display: "flex", flexDirection: "column", gap: 20,
-          }}>
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
-              <div style={{ width: 52, height: 52, borderRadius: 14, background: `${TEAL}15`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={TEAL} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M2 7a2 2 0 0 1 2-2h4l2 2h10a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7z"/>
-                  <line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/>
-                </svg>
-              </div>
-              <div style={{ textAlign: "center" }}>
-                <div style={{ fontSize: 15, fontWeight: 700, color: "#1e293b" }}>ワークスペースを作成</div>
-                <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 4, lineHeight: 1.6 }}>
-                  コンテ・シーケンス・ファイルを管理する<br/>ワークスペースが必要です
-                </div>
-              </div>
-            </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <label style={{ fontSize: 11, fontWeight: 700, color: "#64748b" }}>ワークスペース名</label>
-              <input
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                placeholder="例：プロジェクトA、クライアント名 など"
-                onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); }}
-                autoFocus
-                style={{
-                  width: "100%", border: `1.5px solid ${TEAL}55`, borderRadius: 10,
-                  background: "#f8fafd", fontSize: 13, color: "#1e293b",
-                  padding: "10px 12px", outline: "none", fontFamily: FONT,
-                  boxSizing: "border-box",
-                }}
-              />
-            </div>
-
-            <button
-              onClick={handleCreate}
-              style={{
-                width: "100%", padding: "12px", fontSize: 14, fontWeight: 700,
-                borderRadius: 10, border: "none",
-                background: `linear-gradient(135deg, ${TEAL}, #0d7a6e)`,
-                color: "#fff", cursor: "pointer", fontFamily: FONT,
-                boxShadow: `0 4px 14px ${TEAL}44`,
-              }}
-            >
-              作成してはじめる
-            </button>
-          </div>
-        </div>
+        <CreateWorkspaceModal first submitting={submitting} onCreate={handleCreate} toolTypes={allowedToolTypes} />
       </>
     );
   }
@@ -245,7 +328,7 @@ export default function WorkspaceBar({ selectedWorkspaceId, onSelectWorkspace, o
           <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
             <button
               type="button"
-              onClick={() => { setDropdownOpen((o) => !o); setCreating(false); setRenamingId(null); }}
+              onClick={() => { setDropdownOpen((o) => !o); setRenamingId(null); }}
               style={{
                 flex: 1, display: "flex", alignItems: "center", gap: 6,
                 padding: isMobile ? "9px 10px" : "6px 9px", borderRadius: 8,
@@ -263,6 +346,7 @@ export default function WorkspaceBar({ selectedWorkspaceId, onSelectWorkspace, o
                   {selectedWs?.name ?? "ワークスペースを選択"}
                 </span>
               )}
+              {!isMobile && selectedWs && <ToolBadge toolType={selectedWs.toolType} />}
               {isMobile && selectedWs && (
                 <span style={{
                   flex: 1, textAlign: "left", fontSize: 11, fontWeight: 600,
@@ -307,7 +391,7 @@ export default function WorkspaceBar({ selectedWorkspaceId, onSelectWorkspace, o
                 return (
                   <div
                     key={ws.id}
-                    onClick={() => { if (!isRenaming) { onSelectWorkspace(ws.id, ws.name); setDropdownOpen(false); } }}
+                    onClick={() => { if (!isRenaming) { onSelectWorkspace(ws.id, ws.name, ws.toolType); setDropdownOpen(false); } }}
                     style={{
                       display: "flex", alignItems: "center", gap: 6,
                       padding: "8px 12px",
@@ -334,6 +418,7 @@ export default function WorkspaceBar({ selectedWorkspaceId, onSelectWorkspace, o
                         {ws.name}
                       </span>
                     )}
+                    {!isRenaming && <ToolBadge toolType={ws.toolType} />}
                     {!isRenaming && (
                       <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
                         <span onClick={(e) => startRename(ws, e)} style={{ color: "#cbd5e1", cursor: "pointer", display: "flex" }} title="名前を変更">
@@ -351,46 +436,28 @@ export default function WorkspaceBar({ selectedWorkspaceId, onSelectWorkspace, o
                 );
               })}
 
-              {/* 新規作成エリア */}
               <div style={{ padding: "8px 10px" }}>
-                {creating ? (
-                  <div style={{ display: "flex", gap: 6 }}>
-                    <input
-                      value={newName}
-                      onChange={(e) => setNewName(e.target.value)}
-                      placeholder="ワークスペース名"
-                      onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); if (e.key === "Escape") { setCreating(false); setNewName(""); } }}
-                      autoFocus
-                      disabled={submitting}
-                      style={{ flex: 1, border: `1px solid ${TEAL}`, borderRadius: 6, background: "#f8fafd", fontSize: 12, color: "#1e293b", padding: "5px 8px", outline: "none", fontFamily: FONT }}
-                    />
-                    <button
-                      onClick={handleCreate}
-                      disabled={submitting}
-                      style={{ padding: "5px 10px", fontSize: 12, fontWeight: 600, borderRadius: 6, border: "none", background: submitting ? "#94a3b8" : TEAL, color: "#fff", cursor: submitting ? "not-allowed" : "pointer", whiteSpace: "nowrap", fontFamily: FONT }}
-                    >
-                      {submitting ? "作成中..." : "作成"}
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); setCreating(true); }}
-                    style={{
-                      width: "100%", display: "flex", alignItems: "center", gap: 6,
-                      padding: "6px 2px", border: "none", background: "transparent",
-                      cursor: "pointer", fontFamily: FONT, color: "#64748b",
-                    }}
-                  >
-                    <span style={{ display: "flex" }}><PlusIcon /></span>
-                    <span style={{ fontSize: 12, fontWeight: 600 }}>新しいワークスペース</span>
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setDropdownOpen(false); setCreating(true); }}
+                  style={{
+                    width: "100%", display: "flex", alignItems: "center", gap: 6,
+                    padding: "6px 2px", border: "none", background: "transparent",
+                    cursor: "pointer", fontFamily: FONT, color: "#64748b",
+                  }}
+                >
+                  <span style={{ display: "flex" }}><PlusIcon /></span>
+                  <span style={{ fontSize: 12, fontWeight: 600 }}>新しいワークスペース</span>
+                </button>
               </div>
             </div>
           )}
         </div>
       </div>
+
+      {creating && (
+        <CreateWorkspaceModal first={false} submitting={submitting} onCreate={handleCreate} onClose={() => setCreating(false)} toolTypes={allowedToolTypes} />
+      )}
 
       {/* 設定モーダル */}
       {settingsOpen && selectedWs && (
@@ -398,6 +465,7 @@ export default function WorkspaceBar({ selectedWorkspaceId, onSelectWorkspace, o
           defaultTab="general"
           workspaceId={selectedWs.id}
           workspaceName={selectedWs.name}
+          toolType={selectedWs.toolType}
           onClose={() => setSettingsOpen(false)}
           onNameChanged={(newName) => {
             setWorkspaces((prev) => prev.map((w) => w.id === selectedWs.id ? { ...w, name: newName } : w));

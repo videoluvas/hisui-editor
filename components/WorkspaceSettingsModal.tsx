@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { TEAL } from "@/components/icons";
 import { useAuthUser } from "@/lib/auth.user";
 import { updateWorkspace } from "@/lib/workspace.api";
+import type { ToolType } from "@/lib/workspace.api";
 import { loadImageSettings, saveImageSettings, DEFAULT_IMAGE_SETTINGS } from "@/lib/imageSettings";
 import type { ImageSettings } from "@/lib/imageSettings";
 import { IMAGE_STYLE_TEMPLATES, getTemplateById, TEMPLATE_CATEGORY_LABELS } from "@/lib/imageTemplates";
@@ -308,13 +309,15 @@ type Props = {
   defaultTab?: WsSettingsTab;
   workspaceId?: string;
   workspaceName?: string;
+  toolType?: ToolType;
   onClose: () => void;
   onNameChanged?: (name: string) => void;
 };
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export default function WorkspaceSettingsModal({ defaultTab = "image", workspaceId, workspaceName, onClose, onNameChanged }: Props) {
+export default function WorkspaceSettingsModal({ defaultTab = "image", workspaceId, workspaceName, toolType, onClose, onNameChanged }: Props) {
+  const isPptx = toolType === "pptx";
   const [activeTab, setActiveTab] = useState<WsSettingsTab>(
     !workspaceId && defaultTab === "general" ? "image" : defaultTab
   );
@@ -1895,10 +1898,12 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                 { v: "high",     label: "高",   sub: "high" },
                 { v: "veryhigh", label: "最高", sub: "veryhigh — 高ビットレート / アーカイブ向け" },
               ];
-              const RES_OPTIONS: { v: ExportResolution; label: string }[] = [
-                { v: "720p",  label: "HD 720p (1280×720)" },
-                { v: "1080p", label: "Full HD 1080p (1920×1080)" },
-              ];
+              const RES_OPTIONS: { v: ExportResolution; label: string }[] = isPptx
+                ? [{ v: "1080p", label: "Full HD 1080p（16:9 は 1920×1080 / 4:3 は 1440×1080）" }]
+                : [
+                    { v: "720p",  label: "HD 720p (1280×720)" },
+                    { v: "1080p", label: "Full HD 1080p (1920×1080)" },
+                  ];
               const FPS_OPTIONS: { v: 24 | 25 | 30 | 60; label: string }[] = [
                 { v: 24, label: "24 fps" },
                 { v: 25, label: "25 fps" },
@@ -1962,7 +1967,7 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                     {RES_OPTIONS.map(({ v, label }) => {
-                      const active = render.resolution === v;
+                      const active = isPptx || render.resolution === v;
                       return (
                         <button key={v} type="button" onClick={() => setRender((s) => ({ ...s, resolution: v }))}
                           style={{ ...chip(active), textAlign: "left", padding: "5px 10px" }}>
@@ -2473,8 +2478,9 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
               if (isFree || render.sandboxMode) {
                 items = [{ label: "透かしあり", cost: "0 cr" }];
               } else {
-                const cost = render.resolution === "720p" ? 100 : 300;
-                items = [{ label: `${render.resolution} / 1分`, cost: `${cost} cr` }];
+                const res  = isPptx ? "1080p" : render.resolution;
+                const cost = res === "720p" ? 100 : 300;
+                items = [{ label: `${res} / 1分`, cost: `${cost} cr` }];
               }
             }
             if (!items) return null;

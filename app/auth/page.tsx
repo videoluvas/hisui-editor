@@ -1,8 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useIsMobile } from "@/lib/useIsMobile";
+import AuthQuickLogin from "@/components/AuthQuickLogin";
+import Turnstile, { turnstileEnabled } from "@/components/Turnstile";
+import { safeNext } from "@/lib/auth.next";
 
 const TEAL = "#2aab8e";
 
@@ -16,6 +19,16 @@ export default function AuthPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [next, setNext] = useState("/");
+  const [tsToken, setTsToken] = useState("");
+  const [tsReset, setTsReset] = useState(0);
+
+  // ログイン後は元のページ（取り込みの途中など）に戻る
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    setNext(safeNext(q.get("next")) ?? "/");
+    if (q.get("error")) setError(q.get("error"));
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,11 +39,12 @@ export default function AuthPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, turnstileToken: tsToken }),
       });
+      setTsReset((n) => n + 1);
       const data = await res.json();
       if (!data.ok) { setError(data.message ?? "エラーが発生しました"); return; }
-      router.push("/");
+      router.push(next);
     } catch {
       setError("通信エラーが発生しました");
     } finally {
@@ -107,6 +121,7 @@ export default function AuthPage() {
         {/* ── ログインフォーム ── */}
         {tab === "login" && (
           <form onSubmit={handleSubmit} style={{ padding: isMobile ? "24px 16px 20px" : "32px 28px 28px" }}>
+            <AuthQuickLogin next={next} color={TEAL} />
             <Field label="メールアドレス">
               <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
                 placeholder="example@email.com" required autoComplete="email" style={inputStyle} />
@@ -117,14 +132,16 @@ export default function AuthPage() {
                 placeholder="••••••••" required autoComplete="current-password" style={inputStyle} />
             </Field>
 
+            <div style={{ marginBottom: 12 }}><Turnstile onToken={setTsToken} resetKey={tsReset} /></div>
+
             {error && (
               <div style={{ background: "#fff0f0", border: "1px solid #ffcdd2", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "#c62828", marginBottom: 16 }}>
                 {error}
               </div>
             )}
 
-            <button type="submit" disabled={loading} style={{
-              width: "100%", height: 48, background: loading ? "#a8d5ca" : TEAL,
+            <button type="submit" disabled={loading || (turnstileEnabled && !tsToken)} style={{
+              width: "100%", height: 48, background: loading || (turnstileEnabled && !tsToken) ? "#a8d5ca" : TEAL,
               color: "#fff", border: "none", borderRadius: 10, fontSize: 15, fontWeight: 700,
               cursor: loading ? "not-allowed" : "pointer", transition: "background 0.15s ease", marginTop: 4,
             }}>

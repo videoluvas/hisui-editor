@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { CopyObjectCommand } from "@aws-sdk/client-s3";
 import { prisma } from "@/lib/prisma";
 import { getEditorSessionFromCookie } from "@/lib/auth.backend";
+import { isAdminUser } from "@/lib/admin";
 import { r2Client, R2_BUCKET_NAME } from "@/lib/fileupload.r2";
 import { buildEditJsonKey } from "@/lib/project.r2";
 
@@ -23,6 +24,7 @@ export async function GET() {
       workspaces: workspaces.map((w: any) => ({
         id: w.id,
         name: w.name,
+        toolType: w.toolType,
         createdAt: w.createdAt.toISOString(),
         updatedAt: w.updatedAt.toISOString(),
       })),
@@ -40,9 +42,12 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
     const name = String(body.name ?? "新しいワークスペース").trim() || "新しいワークスペース";
+    const toolType = body.toolType === "pptx" ? "pptx" : "conte";
+    if (toolType === "conte" && !(await isAdminUser(session.userId)))
+      return NextResponse.json({ ok: false, message: "このツールのワークスペースは作成できません" }, { status: 403 });
 
     const workspace = await prisma.workspace.create({
-      data: { userId: session.userId, name },
+      data: { userId: session.userId, name, toolType },
     });
 
     // デフォルトサンプルをコピー（失敗してもワークスペース作成は続行）
@@ -54,7 +59,8 @@ export async function POST(request: NextRequest) {
       durationSec: number | null; createdAt: string; updatedAt: string;
     } | null = null;
 
-    try {
+    // パワーポイント用ワークスペースはサンプルなし
+    if (toolType === "conte") try {
       const sampleStoryboards = await prisma.storyboardMain.findMany({
         where: { isDefaultSample: true },
         include: { scenes: true },
@@ -181,6 +187,7 @@ export async function POST(request: NextRequest) {
       workspace: {
         id: workspace.id,
         name: workspace.name,
+        toolType: workspace.toolType,
         createdAt: workspace.createdAt.toISOString(),
         updatedAt: workspace.updatedAt.toISOString(),
       },

@@ -13,7 +13,15 @@ type FileItem = {
   fileUrl: string | null;
   sizeBytes: string | null;
   createdAt: string;
+  projectId?: string | null;
+  projectTitle?: string | null;
 };
+
+// パワーポイント取り込みで作られたファイルは、プロジェクト名のフォルダに入れる
+function importFolder(f: FileItem): { id: string; name: string } | null {
+  if (!f.projectId || !f.fileUrl?.includes("/import/")) return null;
+  return { id: `pptx_${f.projectId}`, name: f.projectTitle ?? "パワーポイント" };
+}
 
 type Folder = { id: string; name: string; collapsed: boolean };
 type FileCtxMenu   = { x: number; y: number; fileId: string };
@@ -106,7 +114,7 @@ export default function SidePanelFiles({ selectedProjectId, workspaceId, onFileD
 
     for (const file of res.files) {
       if (nextFileFolder[file.id]) continue; // 既に振り分け済み
-      const cfg = DEFAULT_FOLDERS.find((d) => d.match(file));
+      const cfg = importFolder(file) ?? DEFAULT_FOLDERS.find((d) => d.match(file));
       if (!cfg) continue;
       if (!nextFolders.find((f) => f.id === cfg.id)) {
         nextFolders = [...nextFolders, { id: cfg.id, name: cfg.name, collapsed: false }];

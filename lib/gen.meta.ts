@@ -27,7 +27,14 @@ export type GenMetaDeco = {
   settings: Record<string, unknown>;
 };
 
-export type GenMeta = GenMetaImage | GenMetaVideo | GenMetaNarration | GenMetaDeco;
+export type GenMetaBgm = {
+  type: "bgm";
+  genre: string;
+  mood: string;
+  prompt: string;
+};
+
+export type GenMeta = GenMetaImage | GenMetaVideo | GenMetaNarration | GenMetaDeco | GenMetaBgm;
 
 function metaKey(fileUrl: string) {
   return `hisui_gen_meta_${fileUrl}`;

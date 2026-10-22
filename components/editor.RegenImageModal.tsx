@@ -19,7 +19,9 @@ const MODEL_LABELS: Record<string, string> = {
 type Props = {
   open: boolean;
   fileUrl: string;
-  meta: GenMetaImage;
+  meta?: GenMetaImage;      // ない場合（パワポの画像・アップロード画像・図形など）は画像設定のモデルで参照生成
+  title?: string;
+  aspectRatio?: string;     // meta がないときの出力比率
   workspaceId?: string | null;
   playbackTime: number;
   fromTimeline?: boolean;
@@ -28,7 +30,9 @@ type Props = {
   onReplace?: (newUrl: string) => void;
 };
 
-export default function EditorRegenImageModal({ open, fileUrl, meta, workspaceId, playbackTime, fromTimeline, onClose, onInsert, onReplace }: Props) {
+export default function EditorRegenImageModal({ open, fileUrl, meta: givenMeta, title = "AI 画像を再生成", aspectRatio, workspaceId, playbackTime, fromTimeline, onClose, onInsert, onReplace }: Props) {
+  const [defaultModel] = useState(() => loadImageSettings().imageModel);
+  const meta: GenMetaImage = givenMeta ?? { type: "ai-image", prompt: "", model: defaultModel, aspectRatio: aspectRatio ?? "16:9" };
   const [prompt,      setPrompt]      = useState(meta.prompt);
   const [useRefImage, setUseRefImage] = useState(true);
   const [status,      setStatus]      = useState<"idle" | "generating" | "done" | "error">("idle");
@@ -105,7 +109,7 @@ export default function EditorRegenImageModal({ open, fileUrl, meta, workspaceId
       <div style={{ background: "#fff", borderRadius: 18, padding: 28, width: 540, maxHeight: "92vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: 16, boxShadow: "0 12px 48px rgba(0,0,0,0.22)" }} onClick={e => e.stopPropagation()}>
 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontSize: 17, fontWeight: 700, backgroundImage: GRAD, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>AI 画像を再生成</span>
+          <span style={{ fontSize: 17, fontWeight: 700, backgroundImage: GRAD, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{title}</span>
           <button onClick={handleClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "#bbb", lineHeight: 1, padding: 0 }}>×</button>
         </div>
 
@@ -168,9 +172,10 @@ export default function EditorRegenImageModal({ open, fileUrl, meta, workspaceId
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
             <span style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>プロンプト</span>
-            <span style={{ fontSize: 11, color: "#94a3b8" }}>編集して再生成できます</span>
+            <span style={{ fontSize: 11, color: "#94a3b8" }}>{givenMeta ? "編集して再生成できます" : "元の画像をどう変えるかを書いてください"}</span>
           </div>
           <textarea value={prompt} onChange={e => setPrompt(e.target.value)} rows={4}
+            placeholder={givenMeta ? undefined : "例：金色のグラデーションと影をつけて、立体的な見た目にしてください"}
             style={{ width: "100%", boxSizing: "border-box", border: "1.5px solid #e2e8f0", borderRadius: 10, padding: "9px 12px", fontSize: 13, fontFamily: FONT, resize: "vertical", outline: "none", color: "#334155", lineHeight: 1.6 }} />
         </div>
 

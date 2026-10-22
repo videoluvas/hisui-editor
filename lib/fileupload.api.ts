@@ -53,10 +53,12 @@ export async function getUserFiles(userId: string, projectId?: string, workspace
   const files = await prisma.file.findMany({
     where: workspaceId ? { userId, workspaceId } : projectId ? { userId, projectId } : { userId },
     orderBy: { createdAt: "desc" },
+    include: { project: { select: { title: true } } },
   });
 
-  return files.map((file) => ({
+  return files.map(({ project, ...file }) => ({
     ...file,
+    projectTitle: project?.title ?? null,
     sizeBytes: file.sizeBytes?.toString() ?? null,
   }));
 }

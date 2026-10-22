@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { loadVideoExportSettings } from "@/lib/videoExportSettings";
 import { useIsMobile } from "@/lib/useIsMobile";
 import SidePanel from "@/components/SidePanel";
@@ -18,12 +18,13 @@ import EditorProjectLoadingOverlay from "@/components/editor.ProjectLoadingOverl
 import EditorSavePanel from "@/components/editor.SavePanel";
 import EditorAIPanel from "@/components/editor.AIPanel";
 import EditorDecoTelopModal from "@/components/editor.DecoTelopModal";
-import EditorAIImageModal from "@/components/editor.AIImageModal";
-import EditorAIVideoModal from "@/components/editor.AIVideoModal";
-import EditorAINarrationModal from "@/components/editor.AINarrationModal";
 import EditorRegenImageModal from "@/components/editor.RegenImageModal";
 import EditorRegenVideoModal from "@/components/editor.RegenVideoModal";
 import EditorRegenNarrationModal from "@/components/editor.RegenNarrationModal";
+import EditorImageToVideoModal from "@/components/editor.ImageToVideoModal";
+import { CLIP_MENU, classifyClip, fetchPptxClipKinds } from "@/lib/clip.kind";
+import type { PptxObjectKind } from "@/lib/clip.kind";
+import { imageInfo, nearestRatio, rasterizeClip, uploadBlob } from "@/lib/clip.raster";
 import { saveProjectEditJson } from "@/lib/project.api";
 import type { AutoSaveMode, AutoSaveInterval, SaveLog } from "@/components/editor.SavePanel";
 import { loadGenMeta } from "@/lib/gen.meta";
@@ -31,6 +32,7 @@ import type { GenMeta, GenMetaImage, GenMetaVideo, GenMetaNarration } from "@/li
 import type { DecoSettings } from "@/components/editor.DecoTelopModal";
 import ConteTool from "@/components/ConteTool";
 import type { AppMode } from "@/components/SidePanel";
+import type { ToolType } from "@/lib/workspace.api";
 import type { ExportProgressInfo } from "@/components/SidePanelExport";
 
 type FileItem = {
@@ -64,6 +66,11 @@ type EditorHandle = {
 
 type UiOn = (event: string, handler: (payload: { position: number }) => void) => void;
 
+// 選択中のクリップ（clip:selected の位置と、その時点のクリップ）
+type ClipTarget = { trackIndex: number; clipIndex: number; clip: any };
+
+const ICON = (body: string) => `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+
 export default function Home() {
   const isMobile = useIsMobile();
   const [sidePanelOpen, setSidePanelOpen] = useState(false);
@@ -79,8 +86,7 @@ export default function Home() {
   const [selectedStoryboardId, setSelectedStoryboardId] = useState<string | null>(null);
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
   const [selectedWorkspaceName, setSelectedWorkspaceName] = useState<string | null>(null);
-  const [isExporting, setIsExporting] = useState(false);
-  const [exportError, setExportError] = useState<string | null>(null);
+  const [selectedWorkspaceToolType, setSelectedWorkspaceToolType] = useState<ToolType>("conte");
   const [fileModal, setFileModal] = useState<FileModalState>({
     open: false, position: 0, view: "choice", files: [], uploading: false, uploadProgress: null, mode: "insert",
   });
@@ -92,10 +98,17 @@ export default function Home() {
   const [regenMeta,    setRegenMeta]    = useState<GenMeta | null>(null);
   const [regenFileUrl, setRegenFileUrl] = useState<string | null>(null);
   const [regenSource,  setRegenSource]  = useState<"timeline" | "files" | null>(null);
-  const [selectedClipType, setSelectedClipType] = useState<string | null>(null);
-  const [selectedClipSrc,  setSelectedClipSrc]  = useState<string | null>(null);
+  const [selectedClip, setSelectedClip] = useState<ClipTarget | null>(null);
+  const [pptxKinds, setPptxKinds] = useState<Record<string, PptxObjectKind>>({});
+  const [canToVideo, setCanToVideo] = useState(false);
+  const [clipBusy, setClipBusy] = useState(false);
+  const [imgEdit, setImgEdit] = useState<{ target: ClipTarget; fileUrl: string; title: string; aspectRatio: string; meta?: GenMetaImage } | null>(null);
+  const [toVideo, setToVideo] = useState<{ target: ClipTarget; imageUrl: string; ratio: string } | null>(null);
   const [bulkEditOpen, setBulkEditOpen] = useState(false);
   const [bgmOpen, setBgmOpen] = useState(false);
+  const [aiImageOpen, setAiImageOpen] = useState(false);
+  const [aiVideoOpen, setAiVideoOpen] = useState(false);
+  const [aiNarrationOpen, setAiNarrationOpen] = useState(false);
 
   const editRef = useRef<EditorHandle | null>(null);
   const canvasRef = useRef<unknown>(null);
@@ -103,7 +116,8 @@ export default function Home() {
   const selectedProjectRef = useRef<Project | null>(null);
   const isLoadingRef = useRef(false);
   const editorInitializedRef = useRef(false);
-  const selectedClipSrcRef = useRef<string | null>(null);
+  const selectedClipRef = useRef<ClipTarget | null>(null);
+  const replaceTargetRef = useRef<ClipTarget | null>(null);
 
   const { isProjectLoading, isProjectLoadingRef } = useProjectLoader(editRef, editorReady, selectedProject, isLoadingRef);
 
@@ -226,41 +240,6 @@ export default function Home() {
     }
   };
 
-  const handleExportLocal = async () => {
-    const project = selectedProjectRef.current;
-    const edit = editRef.current;
-    const canvas = canvasRef.current;
-    if (!project || !edit || !canvas) { setExportError("書き出し対象のプロジェクトが見つかりません"); return; }
-    if (isProjectLoading || !editorReady) { setExportError("プロジェクトの読み込み完了後に書き出してください"); return; }
-
-    // 音声・動画チェック
-    const editJson = edit.getEdit() as any;
-    const hasMedia = editJson?.timeline?.tracks?.some((track: any) =>
-      track.clips?.some((clip: any) => clip?.asset?.type === "video" || clip?.asset?.type === "audio")
-    );
-    if (hasMedia) {
-      setExportError("音声・動画クリップが含まれています。「音声・動画を含むプロジェクト」の書き出しを使用してください。");
-      return;
-    }
-
-    setIsExporting(true);
-    setExportError(null);
-    try {
-      if (project.width && project.height) await edit.setOutputSize(project.width, project.height);
-      if (project.fps) await edit.setOutputFps(project.fps);
-      if (project.backgroundColor) await edit.setTimelineBackground(project.backgroundColor);
-      if (edit.setOutputFormat) await edit.setOutputFormat("mp4");
-      const { VideoExporter } = await import("@shotstack/shotstack-studio");
-      const exporter = new (VideoExporter as any)(edit, canvas);
-      await exporter.export("export.mp4", 25);
-    } catch (error) {
-      console.error("書き出しエラー:", error);
-      setExportError("書き出しに失敗しました");
-    } finally {
-      setIsExporting(false);
-    }
-  };
-
   const handleExportApi = async (onProgress: (info: ExportProgressInfo) => void): Promise<void> => {
     const project = selectedProjectRef.current;
     if (!project)                         throw new Error("プロジェクトを選択してください");
@@ -321,25 +300,115 @@ export default function Home() {
     await editRef.current.loadEdit(updated);
   };
 
-  const replaceFileInTimeline = async (file: FileItem) => {
-    if (!editRef.current || !file.fileUrl || !selectedClipSrcRef.current) return;
-    const oldSrc = selectedClipSrcRef.current;
-    let newAsset: Record<string, unknown>;
-    if (file.fileType === "video") newAsset = { type: "video", src: file.fileUrl };
-    else if (file.fileType === "image") newAsset = { type: "image", src: file.fileUrl };
-    else if (file.fileType === "audio") newAsset = { type: "audio", src: file.fileUrl, volume: 1 };
-    else return;
+  // 位置が動いていたら id か src で探し直す
+  const locateClip = (edit: any, t: ClipTarget) => {
+    const same = (c: any) => c && ((t.clip?.id && c.id === t.clip.id) || (c.asset?.type === t.clip?.asset?.type && c.asset?.src === t.clip?.asset?.src && c.start === t.clip?.start));
+    const at = edit.timeline?.tracks?.[t.trackIndex]?.clips?.[t.clipIndex];
+    if (same(at)) return at;
+    for (const track of edit.timeline?.tracks ?? []) for (const c of track.clips ?? []) if (same(c)) return c;
+    return null;
+  };
+
+  const replaceClipAsset = async (t: ClipTarget, asset: Record<string, unknown>) => {
+    if (!editRef.current) return;
     const updated = structuredClone(editRef.current.getEdit() as any);
-    for (const track of updated.timeline?.tracks ?? []) {
-      for (const clip of track.clips ?? []) {
-        if (clip?.asset?.src === oldSrc) {
-          clip.asset = newAsset;
-          break;
-        }
-      }
-    }
+    const clip = locateClip(updated, t);
+    if (!clip) { alert("差し替えるクリップが見つかりませんでした"); return; }
+    const wasText = clip.asset?.type === "rich-text" || clip.asset?.type === "text" || clip.asset?.type === "svg";
+    clip.asset = asset;
+    if (wasText && asset.type !== "audio") clip.fit = "contain";
     await editRef.current.loadEdit(updated);
+    selectedClipRef.current = null;
+    setSelectedClip(null);
+  };
+
+  const replaceFileInTimeline = async (file: FileItem) => {
+    const target = replaceTargetRef.current;
+    if (!target || !file.fileUrl) return;
+    if (file.fileType === "video") await replaceClipAsset(target, { type: "video", src: file.fileUrl, volume: 1 });
+    else if (file.fileType === "image") await replaceClipAsset(target, { type: "image", src: file.fileUrl });
+    else if (file.fileType === "audio") await replaceClipAsset(target, { type: "audio", src: file.fileUrl, volume: 1 });
+    else return;
     setFileModal((m) => ({ ...m, open: false }));
+  };
+
+  // ── ①クリップ操作パネル ──
+  const selectedKind = useMemo(() => (selectedClip ? classifyClip(selectedClip.clip, pptxKinds) : null), [selectedClip, pptxKinds]);
+  const selectedSrc: string | null = selectedClip?.clip?.asset?.src ?? null;
+
+  useEffect(() => {
+    setCanToVideo(false);
+    if (!selectedKind || CLIP_MENU[selectedKind] !== "picture" || !selectedSrc) return;
+    let alive = true;
+    imageInfo(selectedSrc).then((i) => { if (alive) setCanToVideo(!i.hasAlpha); }).catch(() => {});
+    return () => { alive = false; };
+  }, [selectedKind, selectedSrc]);
+
+  useEffect(() => {
+    setPptxKinds({});
+    if (!selectedProject) return;
+    let alive = true;
+    fetchPptxClipKinds(selectedProject.id).then((k) => { if (alive) setPptxKinds(k); });
+    return () => { alive = false; };
+  }, [selectedProject?.id]);
+
+  const withBusy = async (fn: () => Promise<void>) => {
+    setClipBusy(true);
+    try { await fn(); } catch (e) { alert(e instanceof Error ? e.message : "処理に失敗しました"); } finally { setClipBusy(false); }
+  };
+
+  const handleDecorate = () => withBusy(async () => {
+    const target = selectedClipRef.current;
+    if (!target) return;
+    const a = target.clip?.asset ?? {};
+    let fileUrl: string;
+    if (a.type === "image" && a.src) fileUrl = a.src;
+    else fileUrl = await uploadBlob(await rasterizeClip(target.clip), `decorate-${Date.now()}.png`, selectedProjectRef.current?.id, selectedWorkspaceId);
+    const info = await imageInfo(fileUrl);
+    setImgEdit({ target, fileUrl, title: "AI で装飾", aspectRatio: nearestRatio(info.width, info.height) });
+  });
+
+  const handleRegenImage = () => withBusy(async () => {
+    const target = selectedClipRef.current;
+    const src = target?.clip?.asset?.src;
+    if (!target || !src) return;
+    const meta = loadGenMeta(src);
+    const info = await imageInfo(src);
+    setImgEdit({ target, fileUrl: src, title: "画像を再生成", aspectRatio: nearestRatio(info.width, info.height), meta: meta?.type === "ai-image" ? meta : undefined });
+  });
+
+  const handleImageToVideo = () => withBusy(async () => {
+    const target = selectedClipRef.current;
+    const src = target?.clip?.asset?.src;
+    if (!target || !src) return;
+    const info = await imageInfo(src);
+    setToVideo({ target, imageUrl: src, ratio: nearestRatio(info.width, info.height) });
+  });
+
+  const handleReplaceFile = () => {
+    if (!selectedClipRef.current) return;
+    replaceTargetRef.current = selectedClipRef.current;
+    setFileModal({ open: true, position: editRef.current?.playbackTime ?? 0, view: "choice", files: [], uploading: false, uploadProgress: null, mode: "replace" });
+  };
+
+  const handleRegenDeco = () => {
+    const src = selectedSrc;
+    const meta = src ? loadGenMeta(src) : null;
+    if (src && meta?.type === "deco-telop") {
+      setDecoInitialData(meta.settings as unknown as DecoSettings);
+      setDecoExistingFileUrl(src);
+    }
+    setDecoTelopPosition(editRef.current?.playbackTime ?? 0);
+    setDecoTelopOpen(true);
+  };
+
+  const handleRegenNarration = () => {
+    const src = selectedSrc;
+    const meta = src ? loadGenMeta(src) : null;
+    if (!src || meta?.type !== "ai-narration") return;
+    setRegenFileUrl(src);
+    setRegenMeta(meta);
+    setRegenSource("timeline");
   };
 
   const handleSelectFromUploaded = async () => {
@@ -447,17 +516,20 @@ export default function Home() {
           });
         });
 
-        ui.registerButton({
-          id: "replacefile",
-          icon: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4v5h5"/><path d="M20 20v-5h-5"/><path d="M4 9a9 9 0 0 1 14.9-3.4L20 9"/><path d="M20 15a9 9 0 0 1-14.9 3.4L4 15"/></svg>`,
-          tooltip: "ファイルを差し替え",
-        });
+        ui.registerButton({ id: "bulkedit", icon: ICON('<path d="M12 3.5l4 4L6 17H3v-3L12 3.5z"/><path d="M9 6.5l4 4"/>'), tooltip: "プロンプトで全体編集" });
+        ui.registerButton({ id: "decotelop", icon: ICON('<path d="M3 4h14"/><path d="M10 4v12"/><path d="M15 11l.6 1.4L17 13l-1.4.6L15 15l-.6-1.4L13 13l1.4-.6z"/>'), tooltip: "装飾テロップを追加" });
+        ui.registerButton({ id: "aiimage", icon: ICON('<rect x="2" y="4" width="16" height="12" rx="2"/><circle cx="7" cy="8.5" r="1.5"/><path d="M2 14l4-4 3 3 3-3 4 4"/>'), tooltip: "AI 画像を生成" });
+        ui.registerButton({ id: "aivideo", icon: ICON('<rect x="2" y="5" width="12" height="10" rx="2"/><path d="M14 8l4-2v8l-4-2V8z"/>'), tooltip: "AI 動画を生成" });
+        ui.registerButton({ id: "ainarration", icon: ICON('<rect x="7" y="2" width="6" height="9" rx="3"/><path d="M3 10c0 3.866 3.134 7 7 7s7-3.134 7-7"/><path d="M10 17v3"/>'), tooltip: "AI ナレーションを生成" });
+        ui.registerButton({ id: "bgm", icon: ICON('<path d="M7 16V5l10-2.5v11"/><circle cx="5" cy="16" r="2.5"/><circle cx="15" cy="13.5" r="2.5"/>'), tooltip: "BGM を生成" });
+        (ui.on as UiOn)("button:bulkedit", () => setBulkEditOpen(true));
+        (ui.on as UiOn)("button:decotelop", ({ position }) => { setDecoTelopPosition(position); setDecoTelopOpen(true); });
+        (ui.on as UiOn)("button:aiimage", () => setAiImageOpen(true));
+        (ui.on as UiOn)("button:aivideo", () => setAiVideoOpen(true));
+        (ui.on as UiOn)("button:ainarration", () => setAiNarrationOpen(true));
+        (ui.on as UiOn)("button:bgm", () => setBgmOpen(true));
         (ui.on as UiOn)("button:insertfile", ({ position }) => {
           setFileModal({ open: true, position, view: "choice", files: [], uploading: false, uploadProgress: null, mode: "insert" });
-        });
-        (ui.on as UiOn)("button:replacefile", ({ position }) => {
-          if (!selectedClipSrcRef.current) return;
-          setFileModal({ open: true, position, view: "choice", files: [], uploading: false, uploadProgress: null, mode: "replace" });
         });
 
 
@@ -472,93 +544,16 @@ export default function Home() {
         edit.events.on("clip:loadFailed", (data: unknown) => console.error("clip:loadFailed", data));
         edit.events.on("clip:unresolved", (data: unknown) => console.error("clip:unresolved", data));
 
-        // Shotstack SDK のクリップ選択イベント（対応している場合に src を取得）
-        try {
-          (edit.events as any).on("clip:select", (data: unknown) => {
-            const d = data as any;
-            const src = d?.asset?.src ?? d?.clip?.asset?.src ?? d?.src ?? null;
-            if (src) setSelectedClipSrc(src);
-            console.debug("[clip:select]", data);
-          });
-          (edit.events as any).on("clip:deselect", () => setSelectedClipSrc(null));
-        } catch {}
-
-        // edit JSON をスキャンしてクリップの src を探す
-        // clipLabel（.ss-clip-label のテキスト）があればファイル名で確実に一致させる
-        const resolveClipSrc = (assetType: string, clipLabel?: string | null): string | null => {
-          const editJson = editRef.current?.getEdit() as any;
-          const tracks = editJson?.timeline?.tracks ?? [];
-
-          // ファイル名一致（最優先・genMeta 不要）
-          if (clipLabel) {
-            for (const track of tracks) {
-              for (const clip of track.clips ?? []) {
-                if (clip?.asset?.src && (clip.asset.src as string).includes(clipLabel)) {
-                  return clip.asset.src as string;
-                }
-              }
-            }
-          }
-
-          // フォールバック：再生位置 + genMeta で絞り込み
-          const t = editRef.current?.playbackTime ?? 0;
-          for (const track of tracks) {
-            for (const clip of track.clips ?? []) {
-              if (clip?.asset?.type === assetType && clip?.asset?.src) {
-                const s = clip.start ?? 0;
-                if (t >= s && t <= s + (clip.length ?? 0)) {
-                  if (loadGenMeta(clip.asset.src as string)) return clip.asset.src as string;
-                }
-              }
-            }
-          }
-          let bestSrc: string | null = null;
-          let bestDist = Infinity;
-          for (const track of tracks) {
-            for (const clip of track.clips ?? []) {
-              if (clip?.asset?.type === assetType && clip?.asset?.src) {
-                if (!loadGenMeta(clip.asset.src as string)) continue;
-                const s = clip.start ?? 0;
-                const e = s + (clip.length ?? 0);
-                const dist = t < s ? s - t : t > e ? t - e : 0;
-                if (dist < bestDist) { bestDist = dist; bestSrc = clip.asset.src as string; }
-              }
-            }
-          }
-          return bestSrc;
-        };
-
-        // DOM監視：クリップ種別の検出 + .ss-clip-label でファイル名を取得して src を解決
-        const selectionObserver = new MutationObserver(() => {
-          const el = document.querySelector(".ss-clip.selected");
-          if (!el) {
-            setSelectedClipType(null);
-            setSelectedClipSrc(null);
-            selectedClipSrcRef.current = null;
-            console.debug("[clip:deselect]");
-            return;
-          }
-          const assetType = el.getAttribute("data-asset-type") ?? "unknown";
-          const clipLabel = el.querySelector(".ss-clip-label")?.textContent ?? null;
-          setSelectedClipType(assetType);
-          const domSrc: string | null =
-            el.getAttribute("data-asset-src") ??
-            el.getAttribute("data-src") ??
-            el.getAttribute("data-clip-src") ??
-            (el.querySelector("img[src]") as HTMLImageElement | null)?.src ??
-            (() => {
-              for (const child of Array.from(el.querySelectorAll("[style]"))) {
-                const bg = (child as HTMLElement).style.backgroundImage;
-                if (bg) { const m = bg.match(/url\(["']?([^"')]+)["']?\)/); if (m?.[1] && !m[1].startsWith("data:")) return m[1]; }
-              }
-              return null;
-            })() ?? null;
-          const resolvedSrc = domSrc ?? resolveClipSrc(assetType, clipLabel);
-          setSelectedClipSrc(resolvedSrc);
-          selectedClipSrcRef.current = resolvedSrc;
-          console.debug("[clip:select via observer]", { clipLabel, assetType, domSrc, resolvedSrc });
+        edit.events.on("clip:selected", (data: unknown) => {
+          const d = data as ClipTarget;
+          const target = { trackIndex: d.trackIndex, clipIndex: d.clipIndex, clip: d.clip };
+          selectedClipRef.current = target;
+          setSelectedClip(target);
         });
-        selectionObserver.observe(document.body, { subtree: true, attributes: true, attributeFilter: ["class"] });
+        edit.events.on("selection:cleared", () => {
+          selectedClipRef.current = null;
+          setSelectedClip(null);
+        });
 
         setEditorReady(true);
       } catch (error) {
@@ -631,18 +626,42 @@ export default function Home() {
             <SidePanel
               selectedProjectId={selectedProject?.id ?? null}
               selectedProject={selectedProject}
+              openEditor={editorReady && !isProjectLoading ? {
+                projectId: selectedProject?.id ?? null,
+                getEdit: () => {
+                  if (!editRef.current) throw new Error("編集画面の読み込みが完了していません");
+                  return structuredClone(editRef.current.getEdit());
+                },
+                applyEdit: async (nextEdit) => {
+                  const editor = editRef.current;
+                  const project = selectedProjectRef.current;
+                  if (!editor || !project) throw new Error("編集中のシーケンスがありません");
+                  isLoadingRef.current = true;
+                  try {
+                    await editor.loadEdit(nextEdit as EditConfig);
+                    const result = await saveProjectEditJson(project.id, structuredClone(editor.getEdit()));
+                    if (!result.ok) throw new Error(result.message ?? "シーケンスの保存に失敗しました");
+                    setLastSavedAt(new Date());
+                  } finally {
+                    isLoadingRef.current = false;
+                  }
+                },
+              } : undefined}
               onSelectProject={selectProject}
-              onExportLocal={handleExportLocal}
               onExportApi={handleExportApi}
-              isExporting={isExporting}
               isProjectLoading={isProjectLoading}
-              exportError={exportError}
               appMode={appMode}
               onAppModeChange={setAppMode}
               selectedStoryboardId={selectedStoryboardId}
               onSelectStoryboard={setSelectedStoryboardId}
               selectedWorkspaceId={selectedWorkspaceId}
-              onSelectWorkspace={(id, name) => { setSelectedWorkspaceId(id); setSelectedWorkspaceName(name); }}
+              selectedWorkspaceToolType={selectedWorkspaceToolType}
+              onSelectWorkspace={(id, name, toolType) => {
+                setSelectedWorkspaceId(id);
+                setSelectedWorkspaceName(name);
+                setSelectedWorkspaceToolType(toolType);
+                if (toolType === "pptx") setAppMode("video");
+              }}
               onFileDoubleClick={(fileUrl, meta) => {
                 if (!meta) return;
                 if (meta.type === "deco-telop") {
@@ -718,9 +737,8 @@ export default function Home() {
         <EditorAIPanel
           workspaceId={selectedWorkspaceId}
           workspaceName={selectedWorkspaceName}
+          toolType={selectedWorkspaceToolType}
           playbackTime={editRef.current?.playbackTime ?? 0}
-          selectedClipType={selectedClipType}
-          selectedClipSrc={selectedClipSrc}
           editRef={editRef as any}
           projectId={selectedProject?.id ?? null}
           onBulkEditApplied={() => {
@@ -750,27 +768,21 @@ export default function Home() {
           onBulkEditClose={() => setBulkEditOpen(false)}
           bgmOpen={bgmOpen}
           onBgmClose={() => setBgmOpen(false)}
-          onBulkEditOpen={() => setBulkEditOpen(true)}
-          onBgmOpen={() => setBgmOpen(true)}
-          onDecoTelopOpen={() => { setDecoTelopPosition(editRef.current?.playbackTime ?? 0); setDecoTelopOpen(true); }}
-          onRegenDeco={(fileUrl) => {
-            if (fileUrl) {
-              const meta = loadGenMeta(fileUrl);
-              if (meta?.type === "deco-telop") {
-                setDecoInitialData(meta.settings as unknown as DecoSettings);
-                setDecoExistingFileUrl(fileUrl);
-              }
-            }
-            setDecoTelopPosition(editRef.current?.playbackTime ?? 0);
-            setDecoTelopOpen(true);
-          }}
-          onRegenFile={(fileUrl) => {
-            const meta = loadGenMeta(fileUrl);
-            if (!meta || meta.type === "deco-telop") return;
-            setRegenFileUrl(fileUrl);
-            setRegenMeta(meta);
-            setRegenSource("timeline");
-          }}
+          imageOpen={aiImageOpen}
+          onImageClose={() => setAiImageOpen(false)}
+          videoOpen={aiVideoOpen}
+          onVideoClose={() => setAiVideoOpen(false)}
+          narrationOpen={aiNarrationOpen}
+          onNarrationClose={() => setAiNarrationOpen(false)}
+          selectedKind={selectedKind}
+          canToVideo={canToVideo}
+          busy={clipBusy}
+          onDecorate={handleDecorate}
+          onRegenImage={handleRegenImage}
+          onImageToVideo={handleImageToVideo}
+          onReplaceFile={handleReplaceFile}
+          onRegenDeco={handleRegenDeco}
+          onRegenNarration={handleRegenNarration}
           onImageGenerated={(_url, _meta) => {}}
           onVideoGenerated={(_url, _meta) => {}}
           onNarrationGenerated={(_url, _meta) => {}}
@@ -842,6 +854,31 @@ export default function Home() {
           onClose={() => { setRegenMeta(null); setRegenFileUrl(null); setRegenSource(null); }}
           onInsert={(asset, start) => { if (!editRef.current) return; editRef.current.addTrack(0, { clips: [clampClipSize({ asset, start, length: 10 })] }); }}
           onReplace={async (newUrl) => { if (regenFileUrl) await replaceClipSrc(newUrl, regenFileUrl); setRegenMeta(null); setRegenFileUrl(null); setRegenSource(null); }}
+        />
+      )}
+      {imgEdit && (
+        <EditorRegenImageModal
+          open={true}
+          fileUrl={imgEdit.fileUrl}
+          meta={imgEdit.meta}
+          title={imgEdit.title}
+          aspectRatio={imgEdit.aspectRatio}
+          workspaceId={selectedWorkspaceId}
+          playbackTime={editRef.current?.playbackTime ?? 0}
+          fromTimeline={true}
+          onClose={() => setImgEdit(null)}
+          onInsert={(asset, start) => { if (!editRef.current) return; editRef.current.addTrack(0, { clips: [clampClipSize({ asset, start, length: 10 })] }); }}
+          onReplace={async (newUrl) => { await replaceClipAsset(imgEdit.target, { type: "image", src: newUrl }); setImgEdit(null); }}
+        />
+      )}
+      {toVideo && (
+        <EditorImageToVideoModal
+          open={true}
+          imageUrl={toVideo.imageUrl}
+          ratio={toVideo.ratio}
+          workspaceId={selectedWorkspaceId}
+          onClose={() => setToVideo(null)}
+          onReplace={async (videoUrl) => { await replaceClipAsset(toVideo.target, { type: "video", src: videoUrl, volume: 1 }); setToVideo(null); }}
         />
       )}
       <input ref={fileInputRef} type="file" accept="video/*,image/*,audio/*" style={{ display: "none" }} onChange={handleFileUploadAndInsert} />

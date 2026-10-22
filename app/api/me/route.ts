@@ -6,6 +6,7 @@ import {
   getSessionTokenFromCookie,
   hashSessionToken,
 } from "@/lib/auth.backend";
+import { isAdminEmail } from "@/lib/admin";
 
 export async function GET() {
   try {
@@ -69,6 +70,7 @@ export async function GET() {
         name: session.user.name,
         plan: session.user.plan,
         iconUrl: session.user.iconUrl,
+        isAdmin: isAdminEmail(session.user.email),
       },
     });
   } catch (error) {
