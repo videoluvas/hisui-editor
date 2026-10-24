@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { getEditorSessionFromCookie } from "@/lib/auth.backend";
 import { logError } from "@/lib/log.error";
+import { prisma } from "@/lib/prisma";
 
 export async function GET(req: NextRequest) {
   try {
@@ -30,6 +31,12 @@ export async function GET(req: NextRequest) {
     const data = await res.json();
     const { status, url, error } = data.response;
     // 失敗の理由を記録しておき、問い合わせの受付番号（renderId）から追えるようにする
+    if (status === "done" || status === "failed") {
+      await prisma.logOutput.updateMany({
+        where: { renderId, userId: session.userId, status: { notIn: ["done", "failed"] } },
+        data: { status, outputUrl: url ?? null },
+      }).catch((e) => console.error("logs_output update failed:", e));
+    }
     if (status === "failed") await logError("export-render", error ?? "render failed", { userId: session.userId, detail: { renderId, sandbox: useSandbox } });
 
     return NextResponse.json({ ok: true, status, url: url ?? null, error: error ?? null });
