@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useIsMobile } from "@/lib/useIsMobile";
 import AuthQuickLogin from "@/components/AuthQuickLogin";
@@ -52,36 +53,7 @@ export default function AuthPage() {
     }
   };
 
-  const switchTab = (next: Tab) => { setTab(next); setError(null); setContactDone(false); };
-
-  // ── お問い合わせフォーム ──
-  const [companyName, setCompanyName] = useState("");
-  const [contactName, setContactName] = useState("");
-  const [contactEmail, setContactEmail] = useState("");
-  const [contactMessage, setContactMessage] = useState("");
-  const [contactLoading, setContactLoading] = useState(false);
-  const [contactError, setContactError] = useState<string | null>(null);
-  const [contactDone, setContactDone] = useState(false);
-
-  const handleContact = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setContactError(null);
-    setContactLoading(true);
-    try {
-      const res = await fetch("/api/contact", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyName, name: contactName, email: contactEmail, message: contactMessage }),
-      });
-      const data = await res.json() as { ok: boolean; message?: string };
-      if (!data.ok) throw new Error(data.message ?? "送信に失敗しました");
-      setContactDone(true);
-    } catch (err) {
-      setContactError(err instanceof Error ? err.message : "送信に失敗しました");
-    } finally {
-      setContactLoading(false);
-    }
-  };
+  const switchTab = (next: Tab) => { setTab(next); setError(null); };
 
   return (
     <div style={{
@@ -155,81 +127,26 @@ export default function AuthPage() {
           </form>
         )}
 
-        {/* ── アカウント発行フォーム ── */}
+        {/* ── アカウント発行 ── */}
         {tab === "register" && (
           <div style={{ padding: isMobile ? "24px 16px 20px" : "28px 28px 24px" }}>
-            {contactDone ? (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, padding: "12px 0 8px" }}>
-                <div style={{ width: 52, height: 52, borderRadius: "50%", background: `${TEAL}14`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={TEAL} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M20 6L9 17l-5-5"/>
-                  </svg>
-                </div>
-                <div style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: "#1e293b", marginBottom: 8 }}>お問い合わせを受け付けました</div>
-                  <div style={{ fontSize: 13, color: "#64748b", lineHeight: 1.8 }}>
-                    確認メールをお送りしました。<br />
-                    1〜2営業日以内に担当者よりご連絡いたします。
-                  </div>
-                </div>
-                <button type="button" onClick={() => switchTab("login")} style={{ ...linkStyle, fontSize: 12 }}>
-                  ログインページへ戻る
-                </button>
-              </div>
-            ) : (
-              <>
-                <div style={{ fontSize: 13, color: "#64748b", lineHeight: 1.75, marginBottom: 20 }}>
-                  ヒスイAIは法人・チーム向けの動画編集ツールです。<br />
-                  フォームを送信いただくと、担当者よりご連絡いたします。
-                </div>
+            <div style={{ fontSize: 13, color: "#64748b", lineHeight: 1.75, marginBottom: 20 }}>
+              ヒスイAIは法人・チーム向けの動画編集ツールです。<br />
+              お問い合わせページからご連絡いただくと、担当者よりご案内いたします。
+            </div>
 
-                <form onSubmit={handleContact}>
-                  <Field label="会社名 / 組織名">
-                    <input value={companyName} onChange={(e) => setCompanyName(e.target.value)}
-                      placeholder="株式会社〇〇" required style={inputStyle} />
-                  </Field>
+            <Link href="/contact?topic=enterprise" style={{
+              display: "flex", alignItems: "center", justifyContent: "center",
+              width: "100%", height: 48, background: TEAL, color: "#fff",
+              borderRadius: 10, fontSize: 15, fontWeight: 700, textDecoration: "none",
+            }}>
+              お問い合わせページへ
+            </Link>
 
-                  <Field label="担当者名">
-                    <input value={contactName} onChange={(e) => setContactName(e.target.value)}
-                      placeholder="山田 太郎" required style={inputStyle} />
-                  </Field>
-
-                  <Field label="メールアドレス">
-                    <input type="email" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)}
-                      placeholder="example@company.com" required autoComplete="email" style={inputStyle} />
-                  </Field>
-
-                  <Field label="ご利用用途・ご要望（任意）">
-                    <textarea
-                      value={contactMessage}
-                      onChange={(e) => setContactMessage(e.target.value)}
-                      placeholder="例：SNS向け動画を週次で制作予定。5名程度のチームで利用したい。"
-                      rows={3}
-                      style={{ ...inputStyle, height: "auto", resize: "none", lineHeight: 1.6, paddingTop: 10, paddingBottom: 10 }}
-                    />
-                  </Field>
-
-                  {contactError && (
-                    <div style={{ background: "#fff0f0", border: "1px solid #ffcdd2", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "#c62828", marginBottom: 16 }}>
-                      {contactError}
-                    </div>
-                  )}
-
-                  <button type="submit" disabled={contactLoading} style={{
-                    width: "100%", height: 48, background: contactLoading ? "#a8d5ca" : TEAL,
-                    color: "#fff", border: "none", borderRadius: 10, fontSize: 15, fontWeight: 700,
-                    cursor: contactLoading ? "not-allowed" : "pointer", transition: "background 0.15s ease",
-                  }}>
-                    {contactLoading ? "送信中..." : "お問い合わせを送信する"}
-                  </button>
-
-                  <p style={{ textAlign: "center", marginTop: 16, fontSize: 12, color: "#94a3b8" }}>
-                    すでにアカウントをお持ちの方は{" "}
-                    <button type="button" onClick={() => switchTab("login")} style={linkStyle}>ログイン</button>
-                  </p>
-                </form>
-              </>
-            )}
+            <p style={{ textAlign: "center", marginTop: 16, fontSize: 12, color: "#94a3b8" }}>
+              すでにアカウントをお持ちの方は{" "}
+              <button type="button" onClick={() => switchTab("login")} style={linkStyle}>ログイン</button>
+            </p>
           </div>
         )}
       </div>

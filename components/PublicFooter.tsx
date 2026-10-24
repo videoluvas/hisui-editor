@@ -6,7 +6,7 @@ const LINKS: [string, string][] = [
   ["/privacy", "プライバシーポリシー"],
 ];
 
-export const LUVAS_POWERPOINT_URL = "https://luvas.red/powerpoint";
+export const LUVAS_POWERPOINT_URL = "https://www.luvas.red/hisui-ai/powerpoint";
 
 export default function PublicFooter() {
   return (

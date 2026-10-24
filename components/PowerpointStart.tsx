@@ -6,7 +6,7 @@ import PptxImportWizard from "@/components/PptxImportWizard";
 import { setOpenProject } from "@/lib/pptxHandoff";
 import { loadDraft } from "@/lib/pptxDraft";
 import type { PptxDraft } from "@/lib/pptxDraft";
-import { track } from "@/lib/analytics";
+import { entryParams, track } from "@/lib/analytics";
 import PublicFooter from "@/components/PublicFooter";
 
 const FONT   = "'Noto Sans JP', sans-serif";
@@ -89,7 +89,7 @@ export default function PowerpointStart() {
   const [draft, setDraft]       = useState<PptxDraft | null>(null);
 
   useEffect(() => {
-    track("pptx_lp_view");
+    track("pptx_lp_view", entryParams());
     fetch("/api/me", { credentials: "include", cache: "no-store" })
       .then((r) => setLoggedIn(r.ok))
       .catch(() => setLoggedIn(false));

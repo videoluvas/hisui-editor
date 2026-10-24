@@ -13,12 +13,14 @@ export async function POST(request: NextRequest) {
     name?: string;
     email?: string;
     message?: string;
+    topic?: string;
   };
 
   const companyName = body.companyName?.trim() ?? "";
   const name        = body.name?.trim()        ?? "";
   const email       = body.email?.trim()       ?? "";
   const message     = body.message?.trim()     ?? "";
+  const topic       = body.topic?.trim().slice(0, 40) || undefined;
 
   if (!companyName || !name || !email)
     return NextResponse.json({ ok: false, message: "会社名・担当者名・メールアドレスは必須です" }, { status: 400 });
@@ -27,7 +29,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, message: "メールアドレスの形式が正しくありません" }, { status: 400 });
 
   try {
-    await sendContactInquiryEmail({ companyName, name, email, message });
+    await sendContactInquiryEmail({ companyName, name, email, message, topic });
     return NextResponse.json({ ok: true });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

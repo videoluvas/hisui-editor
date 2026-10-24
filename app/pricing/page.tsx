@@ -113,7 +113,7 @@ export default async function PricingPage() {
                   </div>
                 ))}
               </div>
-              <a href={`/contact?plan=${encodeURIComponent(p.id)}`} style={button(false)}>このプランを申し込む</a>
+              <a href={`/contact?topic=plan&plan=${encodeURIComponent(p.id)}`} style={button(false)}>このプランを申し込む</a>
             </div>
           ))}
 
@@ -128,7 +128,7 @@ export default async function PricingPage() {
                 </li>
               ))}
             </ul>
-            <a href="/contact?plan=special" style={{ ...button(true), background: "#fff", color: INK, border: "none" }}>相談する</a>
+            <a href="/contact?topic=enterprise" style={{ ...button(true), background: "#fff", color: INK, border: "none" }}>相談する</a>
           </div>
         </section>
 

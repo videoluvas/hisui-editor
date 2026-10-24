@@ -63,7 +63,7 @@ export default function PrivacyPage() {
       <main style={{ maxWidth: 760, margin: "0 auto", padding: "48px 24px 80px" }}>
 
         <h1 style={{ margin: "0 0 6px", fontSize: 28, fontWeight: 800, color: "#1e293b" }}>プライバシーポリシー</h1>
-        <p style={{ margin: "0 0 40px", fontSize: 13, color: "#94a3b8" }}>制定日：2026年7月15日</p>
+        <p style={{ margin: "0 0 40px", fontSize: 13, color: "#94a3b8" }}>制定日：2026年7月15日　改定日：2026年10月24日</p>
 
         <P>
           株式会社LUVAS（以下「当社」）は、AI動画制作支援サービス「ヒスイAI」（以下「本サービス」）において取得するユーザーの個人情報の取り扱いについて、以下のとおりプライバシーポリシーを定めます。
@@ -75,6 +75,7 @@ export default function PrivacyPage() {
           ["メールアドレス", "ログイン・サービス通知に使用"],
           ["パスワード",     "ハッシュ化して保存（平文では保持しない）"],
           ["利用ログ",       "生成履歴・操作ログ（サービス品質改善に使用）"],
+          ["流入元",         "初めてアクセスしたときの参照元（広告・紹介ページなどのURLパラメータ）"],
           ["アップロードファイル", "ユーザーがアップロードした画像・動画・音声ファイル"],
           ["決済情報",       "当社は保持しません（決済代行会社が管理）"],
         ]} />
@@ -113,6 +114,21 @@ export default function PrivacyPage() {
         <H2>6. Cookie・ログ</H2>
         <P>
           本サービスはセッション管理のためCookieを使用します。ブラウザの設定によりCookieを無効にすることもできますが、その場合はログイン機能が正常に動作しない場合があります。
+        </P>
+        <P>
+          また、利用状況の分析とサービス改善のため、Google LLC が提供する「Google アナリティクス」を利用しています。Google アナリティクスは Cookie を使って利用者の情報を収集しますが、氏名やメールアドレスなど個人を特定する情報は含みません。当社が運営する LUVAS のウェブサイト（luvas.red）と同じ設定で計測し、両サイトをまたいだ利用状況を分析します。
+        </P>
+        <P>本サービスでは、利用者の端末から以下の外部サービスへ情報を送信しています。</P>
+        <Table rows={[
+          ["Google アナリティクス（Google LLC）", "閲覧したページ、操作の記録（ファイルの読み込み・書き出しなど）、参照元、端末・ブラウザの種類、IPアドレス、Cookie の識別子／利用状況の分析"],
+          ["Cloudflare Turnstile（Cloudflare, Inc.）", "端末・ブラウザの情報、IPアドレス／ロボットによる不正な登録・ログインの防止"],
+        ]} />
+        <P>
+          Google アナリティクスによる収集を止めたい場合は、Google が提供する
+          <a href="https://tools.google.com/dlpage/gaoptout?hl=ja" target="_blank" rel="noreferrer" style={{ color: TEAL }}>オプトアウトアドオン</a>
+          をご利用ください。Google によるデータの取り扱いは
+          <a href="https://policies.google.com/technologies/partner-sites?hl=ja" target="_blank" rel="noreferrer" style={{ color: TEAL }}>Google のポリシー</a>
+          をご確認ください。
         </P>
 
         <H2>7. 安全管理</H2>

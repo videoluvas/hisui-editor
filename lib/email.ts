@@ -84,12 +84,13 @@ export async function sendContactInquiryEmail(opts: {
   name: string;
   email: string;
   message: string;
+  topic?: string;
 }): Promise<void> {
-  const h = Object.fromEntries(Object.entries(opts).map(([k, v]) => [k, escapeHtml(v)])) as typeof opts;
+  const h = Object.fromEntries(Object.entries(opts).map(([k, v]) => [k, escapeHtml(v ?? "")])) as typeof opts;
   // 運営宛て通知
   await send(
     "info@hisui-ai.com",
-    `【Hisui AI】お問い合わせ：${opts.companyName}`,
+    `【Hisui AI】${opts.topic ?? "お問い合わせ"}：${opts.companyName}`,
     wrap(`
       <p><strong>新しいお問い合わせが届きました。</strong></p>
       <table style="width:100%;border-collapse:collapse;font-size:13px;margin:8px 0 16px">
