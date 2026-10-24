@@ -6,7 +6,7 @@ const LINKS: [string, string][] = [
   ["/privacy", "プライバシーポリシー"],
 ];
 
-export const LUVAS_POWERPOINT_URL = "https://www.luvas.red/hisui-ai/powerpoint";
+export const LUVAS_CONTACT_URL = "https://www.luvas.red/contact?service=video";
 
 export default function PublicFooter() {
   return (
@@ -19,8 +19,8 @@ export default function PublicFooter() {
         </nav>
         <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.8 }}>
           動画の制作をまるごと任せたい方は、運営会社 LUVAS の
-          <a href={LUVAS_POWERPOINT_URL} target="_blank" rel="noopener" style={{ color: "#169385", fontWeight: 700, margin: "0 2px" }}>パワーポイント動画化サービス</a>
-          へご相談ください。
+          <a href={LUVAS_CONTACT_URL} target="_blank" rel="noopener" style={{ color: "#169385", fontWeight: 700, margin: "0 2px" }}>お問い合わせフォーム</a>
+          からご相談ください。
         </div>
         <div style={{ fontSize: 11, color: "#94a3b8" }}>© LUVAS / ヒスイAI</div>
       </div>

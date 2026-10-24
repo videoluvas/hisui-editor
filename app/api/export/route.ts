@@ -33,16 +33,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, message: "プロジェクトが見つかりません" }, { status: 404 });
 
     if (!project.editJsonKey)
-      return NextResponse.json({ ok: false, message: "editJsonKeyがありません" }, { status: 400 });
+      return NextResponse.json({ ok: false, code: "RENDER_START_FAILED", message: "プロジェクトがまだ保存されていません" }, { status: 400 });
 
     const isFreeUser = !dbUser?.plan || dbUser.plan === "Free";
     const useSandbox = isFreeUser || (renderSettings.sandboxMode ?? false);
     // SHOTSTACK_API_KEY / SHOTSTACK_API_URL は現在サンドボックス環境
     // 本番（透かしなし）は SHOTSTACK_PROD_API_KEY / SHOTSTACK_PROD_API_URL を使用
     const shotstackKey = process.env.SHOTSTACK_API_KEY;
-    if (!shotstackKey) return NextResponse.json({ ok: false, message: "書き出し設定が未構成です" }, { status: 500 });
+    if (!shotstackKey) return NextResponse.json({ ok: false, code: "EXPORT_FAILED", message: "書き出し設定が未構成です" }, { status: 500 });
     const shotstackUrl = process.env.SHOTSTACK_API_URL;
-    if (!shotstackUrl) return NextResponse.json({ ok: false, message: "書き出し設定が未構成です" }, { status: 500 });
+    if (!shotstackUrl) return NextResponse.json({ ok: false, code: "EXPORT_FAILED", message: "書き出し設定が未構成です" }, { status: 500 });
 
     const apiKey = useSandbox
       ? shotstackKey
@@ -64,13 +64,13 @@ export async function POST(req: NextRequest) {
 
     if (!useSandbox) {
       const credit = await consumeCredits(session.userId, action, project.workspaceId, mult);
-      if (!credit.ok) return NextResponse.json({ ok: false, message: credit.message }, { status: 402 });
+      if (!credit.ok) return NextResponse.json({ ok: false, code: "CREDIT_SHORT", message: credit.message }, { status: 402 });
     }
 
     const editJson = await getEditJsonFromR2(project.editJsonKey) as Record<string, unknown>;
     if (!editJson) {
       if (!useSandbox) await refundCredits(session.userId, action, project.workspaceId, mult);
-      return NextResponse.json({ ok: false, message: "editJsonの取得に失敗しました" }, { status: 500 });
+      return NextResponse.json({ ok: false, code: "RENDER_START_FAILED", message: "編集内容を読み込めませんでした" }, { status: 500 });
     }
 
     // ── ShotStack output設定を上書き ────────────────────────────────────────────
@@ -141,12 +141,12 @@ export async function POST(req: NextRequest) {
     const data = await res.json();
     if (!res.ok) {
       if (!useSandbox) await refundCredits(session.userId, action, project.workspaceId, mult);
-      return NextResponse.json({ ok: false, message: data?.response?.message ?? "書き出しAPIエラー" }, { status: 500 });
+      return NextResponse.json({ ok: false, code: "RENDER_START_FAILED", message: data?.response?.message ?? "書き出しサーバーがエラーを返しました" }, { status: 500 });
     }
 
     return NextResponse.json({ ok: true, renderId: data.response.id, sandbox: useSandbox });
   } catch (error) {
     console.error("POST /api/export error:", error);
-    return NextResponse.json({ ok: false, message: "サーバーエラーが発生しました" }, { status: 500 });
+    return NextResponse.json({ ok: false, code: "EXPORT_FAILED", message: "サーバーエラーが発生しました" }, { status: 500 });
   }
 }

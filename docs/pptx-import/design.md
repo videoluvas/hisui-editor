@@ -88,6 +88,7 @@ sequenceDiagram
 - 埋め込み画像も LibreOffice で描画する（トリミング・角丸を保つため）。元の画像ファイルは `source` として別に保存する（AI の参照用）。
 - LibreOffice のページ端は半端なピクセルになるので、外周 2px の薄い色は消す。
 - 枚数・縦横比が PDF と合わなければ `SLIDE_COUNT_MISMATCH` / `PAGE_SIZE_MISMATCH`。ノートが空・形式の合わないメディアは警告。
+- 失敗時の案内: コードは `ImportJob.errorCode` に保存し、画面では `lib/errorGuide.ts` の対処方法・次の操作（PDF を選び直す など）・問い合わせ先（エラーコードと受付番号＝jobId 付き）を出す。書き出しも同じ仕組み（受付番号＝renderId）。内部エラー（`INTERNAL`）は文言を一般化して `logError` に記録する。
 - 出力: `manifest.json`（スライドごとの背景・オブジェクト・位置・テキスト・アニメーション・画面切り替え・警告）と画像ファイル。
 - インフラ: プロジェクト `hisui-converter-512305`、サービス `pptx-converter`（asia-northeast1、2 vCPU・4 GiB、最大 3 台、同時 1 件、タイムアウト 900 秒）。サンプル 13 枚で約 35 秒。
 - デプロイ: `gcloud builds submit converter --tag asia-northeast1-docker.pkg.dev/hisui-converter-512305/converter/pptx-converter:vN` → `gcloud run deploy pptx-converter --image ... --region asia-northeast1`。

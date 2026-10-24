@@ -47,7 +47,7 @@ export async function startPptxImport(jobId: string): Promise<{ ok: boolean; mes
 }
 
 export async function getPptxImport(jobId: string): Promise<{
-  ok: boolean; status?: ImportStatus; message?: string | null; warnings?: ImportWarning[]; project?: Project | null; progress?: ConvertProgress | null; estimate?: NarrationEstimate | null;
+  ok: boolean; status?: ImportStatus; message?: string | null; errorCode?: string | null; warnings?: ImportWarning[]; project?: Project | null; progress?: ConvertProgress | null; estimate?: NarrationEstimate | null;
 }> {
   const res = await fetch(`/api/projects/import-pptx/${jobId}`, { credentials: "include", cache: "no-store" });
   return safeJson(res);

@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { getEditorSessionFromCookie } from "@/lib/auth.backend";
+import { logError } from "@/lib/log.error";
 
 export async function GET(req: NextRequest) {
   try {
@@ -27,9 +28,11 @@ export async function GET(req: NextRequest) {
     });
 
     const data = await res.json();
-    const { status, url } = data.response;
+    const { status, url, error } = data.response;
+    // 失敗の理由を記録しておき、問い合わせの受付番号（renderId）から追えるようにする
+    if (status === "failed") await logError("export-render", error ?? "render failed", { userId: session.userId, detail: { renderId, sandbox: useSandbox } });
 
-    return NextResponse.json({ ok: true, status, url: url ?? null });
+    return NextResponse.json({ ok: true, status, url: url ?? null, error: error ?? null });
   } catch (error) {
     console.error("GET /api/export/status error:", error);
     return NextResponse.json({ ok: false, message: "サーバーエラーが発生しました" }, { status: 500 });

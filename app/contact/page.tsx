@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import ContactForm from "@/components/ContactForm";
-import PublicFooter from "@/components/PublicFooter";
+import PublicFooter, { LUVAS_CONTACT_URL } from "@/components/PublicFooter";
 
 export const metadata: Metadata = {
   title: "お問い合わせ | ヒスイAI",
@@ -13,7 +13,6 @@ export const metadata: Metadata = {
 
 const TEAL = "#169385";
 const INK = "#0f172a";
-const LUVAS_CONTACT_URL = "https://www.luvas.red/contact?service=video";
 
 const SIDE: { title: string; body: string; href: string; link: string; external?: boolean }[] = [
   { title: "使い方を調べる", body: "画面ごとの操作はマニュアルにまとめています。", href: "/manual", link: "マニュアルを見る" },

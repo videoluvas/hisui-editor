@@ -586,12 +586,18 @@ export default function SidePanelConteProject({
   const menuRef      = useRef<HTMLDivElement>(null);
   const renameRef    = useRef<HTMLInputElement>(null);
 
+  // ワークスペースが決まる前に読むと全ワークスペースの一覧が返り、後から届いた古い応答で上書きされるため、
+  // ワークスペースが決まってから読み、最後に出した読み込みの結果だけを使う
+  const loadSeq = useRef(0);
   const load = async () => {
+    const seq = ++loadSeq.current;
+    if (!workspaceId) { setItems([]); return; }
     setLoading(true);
     const [sbRes, prRes] = await Promise.all([
       listStoryboards(workspaceId),
       getProjects(workspaceId),
     ]);
+    if (seq !== loadSeq.current) return;
     const contes: ConteItem[] = (sbRes.ok ? sbRes.items : []).map((s) => ({ kind: "conte" as const, ...s }));
     const seqs:   SequenceItem[] = (prRes.ok && prRes.projects ? prRes.projects : []).map((p) => ({
       kind: "sequence" as const, id: p.id, title: p.title, updatedAt: p.updatedAt, project: p,

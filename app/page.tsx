@@ -34,6 +34,7 @@ import ConteTool from "@/components/ConteTool";
 import type { AppMode } from "@/components/SidePanel";
 import type { ToolType } from "@/lib/workspace.api";
 import type { ExportProgressInfo } from "@/components/SidePanelExport";
+import { GuidedError } from "@/lib/errorGuide";
 
 type FileItem = {
   id: string;
@@ -242,8 +243,8 @@ export default function Home() {
 
   const handleExportApi = async (onProgress: (info: ExportProgressInfo) => void): Promise<void> => {
     const project = selectedProjectRef.current;
-    if (!project)                         throw new Error("プロジェクトを選択してください");
-    if (isProjectLoading || !editorReady) throw new Error("プロジェクトの読み込み完了後に書き出してください");
+    if (!project)                         throw new GuidedError("NOT_READY", "プロジェクトを選択してください");
+    if (isProjectLoading || !editorReady) throw new GuidedError("NOT_READY", "プロジェクトの読み込み完了後に書き出してください");
 
     onProgress({ phase: "saving" });
     await handleSave();
@@ -255,17 +256,17 @@ export default function Home() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ projectId: project.id, renderSettings }),
     });
-    const data = await res.json();
-    if (!data.ok) throw new Error(data.message ?? "書き出し開始に失敗しました");
+    const data = await res.json().catch(() => ({ ok: false, message: `通信エラー（${res.status}）` }));
+    if (!data.ok) throw new GuidedError(data.code ?? "EXPORT_FAILED", data.message ?? "書き出し開始に失敗しました");
 
     const { renderId, sandbox } = data as { renderId: string; sandbox: boolean };
     onProgress({ phase: "queued" });
 
-    // ポーリング（最大5分 / 5秒間隔 / 60回）
-    for (let i = 0; i < 60; i++) {
+    // ポーリング（最大15分 / 5秒間隔 / 180回）
+    for (let i = 0; i < 180; i++) {
       await new Promise((r) => setTimeout(r, 5000));
-      const statusRes  = await fetch(`/api/export/status?renderId=${renderId}&sandbox=${sandbox ?? true}`);
-      const statusData = await statusRes.json() as { status: string; url?: string };
+      const statusRes  = await fetch(`/api/export/status?renderId=${renderId}&sandbox=${sandbox ?? true}`).catch(() => null);
+      const statusData = (await statusRes?.json().catch(() => null) ?? {}) as { status?: string; url?: string; error?: string | null };
       const { status, url } = statusData;
 
       if (status === "queued")    { onProgress({ phase: "queued" });        continue; }
@@ -273,9 +274,9 @@ export default function Home() {
       if (status === "rendering") { onProgress({ phase: "rendering" });     continue; }
       if (status === "saving")    { onProgress({ phase: "saving_render" }); continue; }
       if (status === "done")      { onProgress({ phase: "done", url });     return;   }
-      if (status === "failed")    throw new Error("レンダリングに失敗しました");
+      if (status === "failed")    throw new GuidedError("RENDER_FAILED", statusData.error ?? "書き出しサーバーで動画を作成できませんでした", renderId);
     }
-    throw new Error("タイムアウトしました（5分以上経過）");
+    throw new GuidedError("EXPORT_TIMEOUT", "15 分たっても書き出しが終わりませんでした", renderId);
   };
 
   const insertFileToTimeline = (file: FileItem, position: number) => {

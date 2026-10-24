@@ -77,7 +77,7 @@ export async function confirmNarration(job: Job, generate: boolean): Promise<{ o
 
   const manifest = job.manifestKey ? await getEditJsonFromR2<PptxManifest>(job.manifestKey) : null;
   if (!manifest) {
-    await prisma.importJob.update({ where: { id: job.id }, data: { status: "error", message: "変換結果を読み込めませんでした" } });
+    await prisma.importJob.update({ where: { id: job.id }, data: { status: "error", message: "変換結果を読み込めませんでした", errorCode: "CONVERT_FAILED" } });
     return { ok: false, message: "変換結果を読み込めませんでした", status: 500 };
   }
 
@@ -108,7 +108,7 @@ async function build(job: Job, manifest: PptxManifest, c: Charge | null) {
     if (c && !c.free && c.mult > refunded) await refund(job, c, c.mult - refunded);
     const message = e instanceof ImportError ? e.message : "ナレーションの生成中にエラーが発生しました";
     if (!(e instanceof ImportError)) await logError("import-pptx-narration", `${e}`, { userId: job.userId, detail: { jobId: job.id } });
-    await prisma.importJob.update({ where: { id: job.id }, data: { status: "error", message } });
+    await prisma.importJob.update({ where: { id: job.id }, data: { status: "error", message, errorCode: "NARRATION_FAILED" } });
   }
 }
 

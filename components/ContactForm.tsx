@@ -61,9 +61,16 @@ export default function ContactForm() {
   const [done, setDone] = useState(false);
 
   useEffect(() => {
-    const init = initialTopic(new URLSearchParams(window.location.search));
+    const q = new URLSearchParams(window.location.search);
+    const init = initialTopic(q);
     setTopic(init.topic);
     if (init.plan && PLANS.includes(init.plan)) setPlan(init.plan);
+    // エラーの案内から来たときは、起きた場所・エラーコード・受付番号を本文に入れておく
+    const code = q.get("code");
+    if (code) {
+      const lines = [q.get("where") && `起きた場所：${q.get("where")}`, `エラーコード：${code}`, q.get("ref") && `受付番号：${q.get("ref")}`, `起きた日時：${new Date().toLocaleString("ja-JP")}`];
+      setMessage(`${lines.filter(Boolean).join("\n")}\n\n（直前に行った操作や、気づいたことがあればご記入ください）\n`);
+    }
   }, []);
 
   const enterprise = topic === "enterprise";

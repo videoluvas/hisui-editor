@@ -9,6 +9,10 @@ import type { WorkspaceItem, SampleProject, ToolType } from "@/lib/workspace.api
 import WorkspaceSettingsModal from "@/components/WorkspaceSettingsModal";
 import { peekOpenWorkspace } from "@/lib/pptxHandoff";
 
+const LAST_WS_KEY = "hisui:lastWorkspace";
+const loadLastWorkspace = () => { try { return localStorage.getItem(LAST_WS_KEY); } catch { return null; } };
+const saveLastWorkspace = (id: string) => { try { localStorage.setItem(LAST_WS_KEY, id); } catch {} };
+
 const FONT = "'Noto Sans JP', sans-serif";
 
 function FolderIcon({ active }: { active?: boolean }) {
@@ -234,15 +238,19 @@ export default function WorkspaceBar({ selectedWorkspaceId, onSelectWorkspace, o
     listWorkspaces().then((res) => {
       if (res.ok) {
         const list = res.workspaces;
-        // スタートページで取り込んだ場合は、そのワークスペースを開く
+        // スタートページで取り込んだ場合はそのワークスペース、なければ最後に開いていたワークスペースを開く
         const openId = peekOpenWorkspace();
-        const pick = list.find((w) => w.id === openId) ?? list[0];
+        const pick = list.find((w) => w.id === openId) ?? list.find((w) => w.id === loadLastWorkspace()) ?? list[0];
         setWorkspaces(list);
         if (pick && !selectedWorkspaceId) onSelectWorkspace(pick.id, pick.name, pick.toolType);
       }
       setLoaded(true);
     });
   }, []);
+
+  useEffect(() => {
+    if (selectedWorkspaceId) saveLastWorkspace(selectedWorkspaceId);
+  }, [selectedWorkspaceId]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {

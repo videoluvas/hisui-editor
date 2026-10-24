@@ -6,6 +6,7 @@ import { getEditJsonFromR2 } from "@/lib/project.r2";
 import { buildEditJson, createProjectFromEditJson } from "@/lib/timeline.build";
 import type { TimelineClip, TimelineSegment } from "@/lib/timeline.build";
 import { logError } from "@/lib/log.error";
+import { IMPORT_GUIDES } from "@/lib/errorGuide";
 import { PPTX_MIME } from "@/lib/pptx.import.shared";
 import { RECOMMENDED_ANIMATIONS, STAGGER_SEC, animationToTransition, slideTransitionToTransition, withSpeed } from "@/lib/pptx.effects";
 import type { AnimSetting, AnimSettings, PptxAnimation, PptxTransition } from "@/lib/pptx.effects";
@@ -191,8 +192,13 @@ export async function runImport(jobId: string) {
       }),
       signal: AbortSignal.timeout(CONVERT_TIMEOUT_MS),
     });
-    const result = await res.json().catch(() => ({ ok: false, message: `変換サービスの応答が不正です（${res.status}）` }));
-    if (!result.ok) throw new ImportError(result.message ?? "変換に失敗しました");
+    const result = await res.json().catch(() => ({ ok: false, code: "INTERNAL", message: `変換サービスの応答が不正です（${res.status}）` }));
+    // ファイルの中身が原因のもの（枚数・縦横比の不一致など）はそのまま見せ、内部エラーは記録して一般的な文言にする
+    if (!result.ok) {
+      if (result.code && IMPORT_GUIDES[result.code]) throw new ImportError(result.message ?? "変換に失敗しました", result.code);
+      await logError("import-pptx", result.message ?? "変換に失敗しました", { userId: job.userId, detail: { jobId, code: result.code } });
+      throw new ImportError("変換中にエラーが発生しました");
+    }
 
     const manifest = await getEditJsonFromR2<PptxManifest>(result.manifestKey);
     if (!manifest) throw new ImportError("変換結果を読み込めませんでした");
@@ -204,9 +210,11 @@ export async function runImport(jobId: string) {
     }
     await finishImport(job, manifest, result.manifestKey, opts);
   } catch (e) {
-    const message = e instanceof ImportError ? e.message : "取り込み中にエラーが発生しました";
+    const timeout = e instanceof Error && e.name === "TimeoutError";
+    const message = e instanceof ImportError ? e.message : timeout ? "変換が時間内に終わりませんでした" : "取り込み中にエラーが発生しました";
+    const errorCode = e instanceof ImportError ? e.code : timeout ? "TIMEOUT" : "CONVERT_FAILED";
     if (!(e instanceof ImportError)) await logError("import-pptx", `${e}`, { userId: job.userId, detail: { jobId } });
-    await prisma.importJob.update({ where: { id: jobId }, data: { status: "error", message, inputPrefix: null } });
+    await prisma.importJob.update({ where: { id: jobId }, data: { status: "error", message, errorCode, inputPrefix: null } });
   } finally {
     await deleteInputs(job.inputPrefix);
   }
@@ -240,7 +248,11 @@ export async function finishImport(
   });
 }
 
-export class ImportError extends Error {}
+export class ImportError extends Error {
+  constructor(message: string, public code = "CONVERT_FAILED") {
+    super(message);
+  }
+}
 
 export const narrationFile = (no: number) => `narration/s${no}.wav`;
 

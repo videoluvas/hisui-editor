@@ -8,6 +8,8 @@ import { confirmPptxNarration, createPptxImport, getPptxImport, startPptxImport,
 import type { ConvertProgress, ImportWarning, NarrationEstimate } from "@/lib/pptxImport.api";
 import { GEMINI_VOICE_META } from "@/lib/ttsSettings";
 import ImportProgress from "@/components/ImportProgress";
+import ErrorGuideBox from "@/components/ErrorGuideBox";
+import { importGuide } from "@/lib/errorGuide";
 import { PPTX_MIME } from "@/lib/pptx.import.shared";
 import { ANIM_TARGETS, DEFAULT_EFFECTS, DEFAULT_IN_GROUPS, RECOMMENDED_ANIMATIONS, SPEEDS, SUPPORTED_ANIMATIONS, SUPPORTED_TRANSITIONS, sanitizeAnimSettings } from "@/lib/pptx.effects";
 import type { AnimSetting, AnimSettings, AnimTarget } from "@/lib/pptx.effects";
@@ -129,6 +131,8 @@ export default function PptxImportWizard({ isLoggedIn, workspaceId = null, initi
 
   const [phase, setPhase]       = useState<Phase>("form");
   const [message, setMessage]   = useState("");
+  const [errorCode, setErrorCode] = useState("");
+  const [errorRef, setErrorRef]   = useState<string | null>(null);
   const [warnings, setWarnings] = useState<ImportWarning[]>([]);
   const [result, setResult]     = useState<{ project: Project; workspaceId: string } | null>(null);
   const [uploadRatio, setUploadRatio] = useState(0);
@@ -206,8 +210,7 @@ export default function PptxImportWizard({ isLoggedIn, workspaceId = null, initi
         setConfirmError("");
         setPhase("confirm");
       } else if (res.status === "error") {
-        setMessage(res.message ?? "取り込みに失敗しました");
-        setPhase("error");
+        fail(res.errorCode ?? "CONVERT_FAILED", res.message ?? "取り込みに失敗しました", jobRef.current.jobId);
       }
     }, POLL_MS);
     return () => clearInterval(poll);
@@ -272,6 +275,22 @@ export default function PptxImportWizard({ isLoggedIn, workspaceId = null, initi
     }
   }
 
+  function fail(code: string, msg: string, ref: string | null = null) {
+    setErrorCode(code);
+    setMessage(msg);
+    setErrorRef(ref);
+    setPhase("error");
+    track("pptx_import_error", { code });
+  }
+
+  // 失敗の種類に合わせて、選び直すファイルのステップへ戻す
+  function backTo(target: "pptx" | "pdf" | null) {
+    if (target === "pptx") setPptx(null);
+    if (target === "pdf") setPdf(null);
+    setStep(target ?? step);
+    setPhase("form");
+  }
+
   async function handleStart() {
     if (!pptx || !pdf) return;
     track("pptx_upload_start", { narration: narrationOn, size_mb: Math.round((pptx.size + pdf.size) / 1024 / 1024) });
@@ -281,8 +300,7 @@ export default function PptxImportWizard({ isLoggedIn, workspaceId = null, initi
     if (wsChoice === NEW_WS) {
       const created = await createWorkspace(newWsName.trim() || "パワーポイント", "pptx");
       if (!created.ok || !created.workspace) {
-        setMessage("ワークスペースを作成できませんでした");
-        setPhase("error");
+        fail("WORKSPACE_FAILED", created.message ?? "ワークスペースを作成できませんでした");
         return;
       }
       wsId = created.workspace.id;
@@ -291,8 +309,7 @@ export default function PptxImportWizard({ isLoggedIn, workspaceId = null, initi
     }
     const job = await createPptxImport({ workspaceId: wsId, title, secPerSlide, animationMode, animations, stagger, pptxSize: pptx.size, pdfSize: pdf.size, ...(narrationOn ? { narration: { voice } } : {}) });
     if (!job.ok || !job.jobId || !job.pptxUrl || !job.pdfUrl) {
-      setMessage(job.message ?? "取り込みを開始できませんでした");
-      setPhase("error");
+      fail("START_FAILED", job.message ?? "取り込みを開始できませんでした");
       return;
     }
     const loaded = { pptx: 0, pdf: 0 };
@@ -304,14 +321,12 @@ export default function PptxImportWizard({ isLoggedIn, workspaceId = null, initi
       uploadToPresigned(job.pdfUrl, pdf, "application/pdf", (n) => { loaded.pdf = n; report(); }),
     ]);
     if (uploaded.includes(false)) {
-      setMessage("ファイルのアップロードに失敗しました");
-      setPhase("error");
+      fail("UPLOAD_FAILED", "ファイルのアップロードが途中で止まりました", job.jobId);
       return;
     }
     const started = await startPptxImport(job.jobId);
     if (!started.ok) {
-      setMessage(started.message ?? "変換を開始できませんでした");
-      setPhase("error");
+      fail("START_FAILED", started.message ?? "変換を開始できませんでした", job.jobId);
       return;
     }
     jobRef.current = { jobId: job.jobId, workspaceId: wsId };
@@ -381,7 +396,8 @@ export default function PptxImportWizard({ isLoggedIn, workspaceId = null, initi
               フォントやレイアウトをそのまま使うため、PowerPoint で書き出した PDF が必要です。<br />
               <b>Windows</b>：ファイル → エクスポート → PDF/XPS ドキュメントの作成 → 発行<br />
               <b>Mac</b>：ファイル → エクスポート → ファイル形式「PDF」→ エクスポート<br />
-              「スライド」のみを書き出してください（ノート付き・配布資料の形式は不可）。
+              「スライド」のみを書き出してください（ノート付き・配布資料の形式は不可）。<br />
+              非表示スライドは含めないでください（.pptx と枚数が合わなくなります）。「印刷 → PDF として保存」は使えません。
             </div>
             <DropBox accept=".pdf,application/pdf" file={pdf} onPick={setPdf} title="ここに PDF をドラッグ" hint={`またはクリックしてファイルを選択（${MAX_MB}MB まで）`} check={sizeCheck(".pdf")} />
             {pptx && <div style={{ fontSize: 11, color: "#94a3b8" }}>パワーポイント：{pptx.name}</div>}
@@ -722,15 +738,17 @@ export default function PptxImportWizard({ isLoggedIn, workspaceId = null, initi
           </>
         )}
 
-        {phase === "error" && (
-          <>
-            <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: "10px 12px", fontSize: 12, color: "#b91c1c", lineHeight: 1.6 }}>{message}</div>
-            <button type="button" onClick={() => setPhase("form")}
-              style={{ padding: "10px 0", borderRadius: 10, border: "1px solid #e2e8f0", background: "#fff", color: "#334155", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>
-              やり直す
-            </button>
-          </>
-        )}
+        {phase === "error" && (() => {
+          const guide = importGuide(errorCode);
+          const actions =
+            guide.action === "pdf" ? [{ label: "PDF を選び直す", onClick: () => backTo("pdf"), primary: true }] :
+            guide.action === "pptx" ? [{ label: "パワーポイントを選び直す", onClick: () => backTo("pptx"), primary: true }] :
+            [{ label: "もう一度取り込む", onClick: () => void handleStart(), primary: true }];
+          return (
+            <ErrorGuideBox guide={guide} code={errorCode || "CONVERT_FAILED"} detail={message} refId={errorRef} where="パワーポイントの取り込み" accent={TEAL}
+              actions={[...actions, { label: "設定に戻る", onClick: () => backTo(null) }]} />
+          );
+        })()}
       </div>
     </div>
   , document.body);

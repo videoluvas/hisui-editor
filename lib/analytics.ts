@@ -17,7 +17,9 @@ export type AnalyticsEvent =
   | "pptx_lp_view"
   | "pptx_upload_start"
   | "pptx_import_success"
+  | "pptx_import_error"
   | "video_export"
+  | "video_export_error"
   | "sign_up"
   | "contact_submit";
 

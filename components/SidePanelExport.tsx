@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import type { Project } from "@/lib/project.api";
 import { track } from "@/lib/analytics";
 import { loadVideoExportSettings, saveVideoExportSettings } from "@/lib/videoExportSettings";
+import { GuidedError, exportGuide } from "@/lib/errorGuide";
+import ErrorGuideBox from "@/components/ErrorGuideBox";
 
 const FONT   = "'Noto Sans JP', sans-serif";
 const ACCENT = "#5184F0";
@@ -39,7 +41,7 @@ const PHASE_INFO: Record<ExportProgressPhase, { main: string; sub: string }> = {
   rendering:     { main: "レンダリング中...",              sub: "サーバーで映像を合成・エンコードしています（数分かかる場合があります）" },
   saving_render: { main: "動画ファイルを保存中...",        sub: "レンダリング完了！ファイルに書き出しています" },
   done:          { main: "書き出し完了！",                 sub: "動画の準備ができました。下のボタンからダウンロードしてください" },
-  failed:        { main: "レンダリングに失敗しました",     sub: "しばらく経ってから再試行してください" },
+  failed:        { main: "書き出しに失敗しました",         sub: "下の案内をご確認ください" },
 };
 
 const STEP_LABELS = ["保存", "送信", "レンダリング", "完了"];
@@ -220,6 +222,8 @@ export default function SidePanelExport({
   const [elapsed,     setElapsed]     = useState(0);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [errorMsg,    setErrorMsg]    = useState<string | null>(null);
+  const [errorCode,   setErrorCode]   = useState("EXPORT_FAILED");
+  const [errorRef,    setErrorRef]    = useState<string | null>(null);
 
   const startRef = useRef<number>(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -242,8 +246,12 @@ export default function SidePanelExport({
         if (info.phase === "done") track("video_export", { watermark, duration_sec: selectedProject?.durationSec ?? undefined });
       });
     } catch (e: unknown) {
+      const code = e instanceof GuidedError ? e.code : "EXPORT_FAILED";
       setPhase("failed");
       setErrorMsg(e instanceof Error ? e.message : "書き出しに失敗しました");
+      setErrorCode(code);
+      setErrorRef(e instanceof GuidedError ? e.ref ?? null : null);
+      track("video_export_error", { code, watermark });
     } finally {
       if (timerRef.current) clearInterval(timerRef.current);
     }
@@ -387,32 +395,15 @@ export default function SidePanelExport({
               </button>
             )}
 
-            {/* エラー */}
+            {/* エラー：何をすればよいか・問い合わせ先 */}
             {phase === "failed" && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {errorMsg && (
-                  <div style={{ fontSize: 11, color: RED, background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 7, padding: "8px 10px", lineHeight: 1.6 }}>
-                    {errorMsg}
-                    {errorMsg.includes("クレジット") && onOpenDashboard && (
-                      <div style={{ marginTop: 6 }}>
-                        <button onClick={onOpenDashboard} style={{ fontSize: 11, fontWeight: 700, color: ACCENT, background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>
-                          クレジット残高を確認する →
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-                <button
-                  onClick={resetApi}
-                  style={{
-                    width: "100%", padding: "7px 0", fontSize: 12, fontWeight: 600,
-                    borderRadius: 7, border: `1px solid ${ACCENT}`,
-                    background: "#fff", color: ACCENT, cursor: "pointer", fontFamily: FONT,
-                  }}
-                >
-                  再試行
-                </button>
-              </div>
+              <ErrorGuideBox
+                guide={exportGuide(errorCode)} code={errorCode} detail={errorMsg} refId={errorRef} where="動画の書き出し" accent={ACCENT} compact
+                actions={[
+                  ...(errorCode === "CREDIT_SHORT" && onOpenDashboard ? [{ label: "クレジット残高を確認", onClick: onOpenDashboard, primary: true }] : []),
+                  { label: "もう一度書き出す", onClick: resetApi, primary: errorCode !== "CREDIT_SHORT" },
+                ]}
+              />
             )}
           </div>
         )}

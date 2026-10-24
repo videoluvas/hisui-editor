@@ -463,6 +463,7 @@ model ImportJob {
   workspaceId String   @map("workspace_id")
   status      String   @default("uploading") // uploading | converting | done | error
   message     String?
+  errorCode   String?  @map("error_code") // SLIDE_COUNT_MISMATCH など（lib/errorGuide.ts）
   options     Json     @default("{}")
   inputPrefix String?  @map("input_prefix") // 元ファイルの一時置き場（取り込み後に削除して null）
   outPrefix   String   @map("out_prefix")
