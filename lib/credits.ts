@@ -52,7 +52,7 @@ export const CREDIT_ACTION_LABEL: Record<CreditAction, string> = {
   conte_generate:         "コンテ生成",
   image_lite:             "AI画像生成（軽量）",
   image_premium:          "AI画像生成（上位）",
-  image_gpt_high:         "AI画像生成・GPT Image 2",
+  image_gpt_high:         "AI画像生成・GPT Image 2 / 2.5",
   image_gpt_1_5:          "AI画像生成・GPT Image 1.5",
   video_lite:             "AI動画生成・Lite",
   video_premium_no_audio: "AI動画生成・上位",
@@ -73,7 +73,7 @@ export const CREDIT_ACTION_LABEL: Record<CreditAction, string> = {
 // ─── Model → action helpers ───────────────────────────────────────────────────
 
 const IMAGE_LITE_MODELS     = new Set(["google-image-lite"]);
-const IMAGE_GPT_HIGH_MODELS = new Set(["gpt-image-2-high"]);
+const IMAGE_GPT_HIGH_MODELS = new Set(["gpt-image-2-high", "gpt-image-2-5-sunburst", "gpt-image-2-5-flare"]);
 const IMAGE_GPT_1_5_MODELS  = new Set(["gpt-image-1-5"]);
 
 export function imageModelToAction(model: string): CreditAction {
@@ -110,6 +110,17 @@ export function exportMultiplier(durationSec: number): number {
   return Math.max(1, Math.ceil(durationSec / 60));
 }
 
+// ─── 無料プラン ───────────────────────────────────────────────────────────────
+// 無料プランは .pptx の取り込みと透かし入りの書き出しだけ。AI 生成はすべて有料
+// 例外：ナレーションありの取り込みをアカウント累計 FREE_NARRATION_IMPORTS 回まで（lib/pptx.narration.ts）
+
+export const FREE_NARRATION_IMPORTS = 3;
+export const FREE_PLAN_MESSAGE = "AI 生成は有料プランでご利用いただけます。料金プランをご確認ください。";
+
+export function isFreePlan(plan: string | null | undefined): boolean {
+  return !plan || plan === "Free";
+}
+
 // ─── Core functions ───────────────────────────────────────────────────────────
 
 export async function consumeCredits(
@@ -123,10 +134,11 @@ export async function consumeCredits(
 
   try {
     const newBalance = await prisma.$transaction(async (tx) => {
-      const rows = await tx.$queryRaw<Array<{ credits: number }>>`
-        SELECT credits FROM users WHERE id = ${userId} FOR UPDATE
+      const rows = await tx.$queryRaw<Array<{ credits: number; plan: string | null }>>`
+        SELECT credits, plan FROM users WHERE id = ${userId} FOR UPDATE
       `;
       if (!rows[0]) throw new Error("USER_NOT_FOUND");
+      if (isFreePlan(rows[0].plan)) throw new Error("FREE_PLAN");
 
       const current = rows[0].credits;
       if (current < cost) throw new Error(`INSUFFICIENT:${current}:${cost}`);
@@ -156,6 +168,7 @@ export async function consumeCredits(
       };
     }
     if (msg === "USER_NOT_FOUND") return { ok: false, message: "ユーザーが見つかりません" };
+    if (msg === "FREE_PLAN") return { ok: false, message: FREE_PLAN_MESSAGE };
     throw e;
   }
 }

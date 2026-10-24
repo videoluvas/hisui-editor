@@ -1,7 +1,13 @@
 import type { AnimSettings } from "@/lib/pptx.effects";
 import type { Project } from "@/lib/project.api";
 
-export type ImportStatus = "uploading" | "converting" | "done" | "error";
+export type ImportStatus = "uploading" | "converting" | "confirm" | "narrating" | "done" | "error";
+
+// ナレーションを作る前に見せる、ノートの文字数と消費クレジット（無料プランは残り回数）
+export type NarrationEstimate = {
+  slides: number; withNotes: number; chars: number; credits: number; balance: number;
+  free: boolean; freeLeft: number; freeLimit: number;
+};
 export type ImportWarning = { slide: number; code: string; message: string };
 
 async function safeJson(res: Response) {
@@ -10,7 +16,7 @@ async function safeJson(res: Response) {
 
 export async function createPptxImport(p: {
   workspaceId: string; title: string; secPerSlide: number; pptxSize: number; pdfSize: number;
-  animationMode: "recommended" | "custom"; animations: AnimSettings; stagger: boolean;
+  animationMode: "recommended" | "custom"; animations: AnimSettings; stagger: boolean; narration?: { voice: string };
 }): Promise<{ ok: boolean; jobId?: string; pptxUrl?: string; pdfUrl?: string; message?: string }> {
   const res = await fetch("/api/projects/import-pptx", {
     method: "POST", credentials: "include",
@@ -33,7 +39,7 @@ export function uploadToPresigned(url: string, file: File, contentType: string, 
   });
 }
 
-export type ConvertProgress = { stage: "parse" | "render" | "objects" | "upload"; done: number; total: number; at: number };
+export type ConvertProgress = { stage: "parse" | "render" | "objects" | "upload" | "narration"; done: number; total: number; at: number };
 
 export async function startPptxImport(jobId: string): Promise<{ ok: boolean; message?: string }> {
   const res = await fetch(`/api/projects/import-pptx/${jobId}`, { method: "POST", credentials: "include" });
@@ -41,8 +47,17 @@ export async function startPptxImport(jobId: string): Promise<{ ok: boolean; mes
 }
 
 export async function getPptxImport(jobId: string): Promise<{
-  ok: boolean; status?: ImportStatus; message?: string | null; warnings?: ImportWarning[]; project?: Project | null; progress?: ConvertProgress | null;
+  ok: boolean; status?: ImportStatus; message?: string | null; warnings?: ImportWarning[]; project?: Project | null; progress?: ConvertProgress | null; estimate?: NarrationEstimate | null;
 }> {
   const res = await fetch(`/api/projects/import-pptx/${jobId}`, { credentials: "include", cache: "no-store" });
+  return safeJson(res);
+}
+
+export async function confirmPptxNarration(jobId: string, generate: boolean): Promise<{ ok: boolean; message?: string }> {
+  const res = await fetch(`/api/projects/import-pptx/${jobId}/narration`, {
+    method: "POST", credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ generate }),
+  });
   return safeJson(res);
 }

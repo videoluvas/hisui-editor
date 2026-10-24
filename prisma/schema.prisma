@@ -52,6 +52,12 @@ model User {
   credits        Int       @default(1000) @map("credits")
   creditsResetAt DateTime? @map("credits_reset_at")
 
+  // 無料プランでナレーションありの取り込みを使った回数（累計・リセットしない）
+  freeNarrationImports Int @default(0) @map("free_narration_imports")
+
+  // 登録時の流入元（utm_source など）
+  signupUtm Json? @map("signup_utm")
+
   // Stripe
   stripeCustomerId         String?   @unique @map("stripe_customer_id")
   stripePlanId             String?            @map("stripe_plan_id")

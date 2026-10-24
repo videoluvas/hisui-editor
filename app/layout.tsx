@@ -1,5 +1,6 @@
 import "./globals.css";
 import type { Metadata } from "next";
+import Analytics from "@/components/Analytics";
 
 const FAVICON_BASE = "https://assets.hisui-ai.com/system/img/favicons";
 const SITE_URL     = "https://hisui-ai.com";
@@ -100,7 +101,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link href={GF_GOTHIC}  rel="stylesheet" />
         <link href={GF_MINCHO}  rel="stylesheet" />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <Analytics />
+      </body>
     </html>
   );
 }

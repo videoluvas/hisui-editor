@@ -5,7 +5,7 @@ import { TEAL } from "@/components/icons";
 import { useAuthUser } from "@/lib/auth.user";
 import { updateWorkspace } from "@/lib/workspace.api";
 import type { ToolType } from "@/lib/workspace.api";
-import { loadImageSettings, saveImageSettings, DEFAULT_IMAGE_SETTINGS } from "@/lib/imageSettings";
+import { loadImageSettings, saveImageSettings } from "@/lib/imageSettings";
 import type { ImageSettings } from "@/lib/imageSettings";
 import { IMAGE_STYLE_TEMPLATES, getTemplateById, TEMPLATE_CATEGORY_LABELS } from "@/lib/imageTemplates";
 import type { ImageStyleTemplate } from "@/lib/imageTemplates";
@@ -254,25 +254,22 @@ const TABS: { id: WsSettingsTab; label: string; icon: React.ReactNode }[] = [
 
 // ─── Model definitions ────────────────────────────────────────────────────────
 
+// Google / Reve / Seedream は使用停止中（GPT Image のみ）
 const IMAGE_MODELS = [
-  { id: "google-image-lite", label: "Google AI",         sub: "Nano Banana 2",      color: "#4285F4", provider: "google"   as const },
-  { id: "google-image-pro",  label: "Google AI",         sub: "Nano Banana Pro",    color: "#1A73E8", provider: "google"   as const },
-  { id: "reve-1",            label: "Reve AI",           sub: "Reve-1",             color: "#7F5AF0", provider: "reve"     as const },
-  { id: "seedream-5-0-pro",  label: "BytePlus ModelArk", sub: "Seedream 5.0 Pro",   color: "#E67D30", provider: "byteplus" as const },
-  { id: "gpt-image-1-5",     label: "OpenAI",            sub: "GPT Image 1.5 (high)", color: "#10A37F", provider: "openai" as const },
+  { id: "gpt-image-2-5-sunburst", label: "OpenAI",       sub: "GPT Image 2.5 Sunburst", color: "#047857", provider: "openai" as const },
+  { id: "gpt-image-2-5-flare",    label: "OpenAI",       sub: "GPT Image 2.5 Flare",    color: "#0D9488", provider: "openai" as const },
   { id: "gpt-image-2-high",  label: "OpenAI",            sub: "GPT Image 2 (high)", color: "#059669", provider: "openai"   as const },
+  { id: "gpt-image-1-5",     label: "OpenAI",            sub: "GPT Image 1.5 (high)", color: "#10A37F", provider: "openai" as const },
 ] as const;
 
-const VIDEO_MODELS = [
-  { id: "veo-3-lite",       label: "Google AI",         sub: "Veo 3.1 Lite",      color: "#4285F4", provider: "google"   as const, veoLite: true,  supportsFirstFrame: true,  supportsLastFrame: false },
-  { id: "veo-3",            label: "Google AI",         sub: "Veo 3.1",           color: "#1A73E8", provider: "google"   as const, veoLite: false, supportsFirstFrame: true,  supportsLastFrame: false },
-  { id: "seedance-1-5-pro", label: "BytePlus ModelArk", sub: "Seedance 1.5 Pro",  color: "#E67D30", provider: "byteplus" as const, veoLite: false, supportsFirstFrame: true,  supportsLastFrame: true  },
+// Veo / Seedance は使用停止中（Kling のみ）
+const VIDEO_MODELS: { id: string; label: string; sub: string; color: string; provider: "google" | "byteplus" | "kling"; veoLite: boolean; supportsFirstFrame: boolean; supportsLastFrame: boolean }[] = [
   { id: "kling-v2",         label: "Kling AI",          sub: "Kling 2.0",         color: "#7C3AED", provider: "kling"    as const, veoLite: false, supportsFirstFrame: true,  supportsLastFrame: true  },
   { id: "kling-v2-master",  label: "Kling AI",          sub: "Kling 2.0 Master",  color: "#5B21B6", provider: "kling"    as const, veoLite: false, supportsFirstFrame: true,  supportsLastFrame: true  },
   { id: "kling-v3",         label: "Kling AI",          sub: "Kling 3.0",         color: "#0EA5E9", provider: "kling"    as const, veoLite: false, supportsFirstFrame: true,  supportsLastFrame: true  },
   { id: "kling-v3-turbo",   label: "Kling AI",          sub: "Kling 3.0 Turbo",   color: "#0284C7", provider: "kling"    as const, veoLite: false, supportsFirstFrame: true,  supportsLastFrame: true  },
   { id: "kling-v3-omni",    label: "Kling AI",          sub: "Kling 3.0 Omni",    color: "#0369A1", provider: "kling"    as const, veoLite: false, supportsFirstFrame: true,  supportsLastFrame: true  },
-] as const;
+];
 
 const TTS_MODELS = [
   { id: "gemini-tts-high",  label: "Google AI",   sub: "Gemini 3.1 Flash TTS",  color: "#1A73E8", provider: "google"     as const },
@@ -895,8 +892,8 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                   </>
                 )}
 
-                {/* ── GPT Image 2 (high) 設定 ── */}
-                {img.imageModel === "gpt-image-2-high" && (
+                {/* ── GPT Image 2 (high) / 2.5 設定 ── */}
+                {(img.imageModel === "gpt-image-2-high" || img.imageModel === "gpt-image-2-5-sunburst" || img.imageModel === "gpt-image-2-5-flare") && (
                   <>
                     <div style={SEC}>生成設定</div>
                     <div style={FIELD}>
@@ -1165,44 +1162,6 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                     <input ref={wsRefUploadRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleWsRefUpload} />
                   </div>
                 )}
-              </div>
-
-              {/* ── ①と② の区切りライン ── */}
-              <div style={{ margin: "8px 0 4px", borderTop: "2px solid #e2e8f0", position: "relative" }}>
-                <span style={{ position: "absolute", top: -9, left: "50%", transform: "translateX(-50%)", background: "#fff", padding: "0 10px", fontSize: 10, color: "#cbd5e1", fontFamily: FONT, letterSpacing: "0.1em" }}>
-                  ──────────
-                </span>
-              </div>
-
-              {/* ── ② 共通ルール（全モデル適用） ── */}
-              <div style={{ ...SEC, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <span>共通ルール（全モデル適用）</span>
-                <button type="button" onClick={() => setImg((s) => ({ ...s, imgCommonRules: DEFAULT_IMAGE_SETTINGS.imgCommonRules, imgNegativePrompt: DEFAULT_IMAGE_SETTINGS.imgNegativePrompt }))} style={{ fontSize: 10, fontWeight: 600, color: TEAL, background: "none", border: `1px solid ${TEAL}55`, borderRadius: 5, cursor: "pointer", padding: "1px 7px", textTransform: "none" as const, letterSpacing: 0, fontFamily: FONT }}>デフォルトに戻す</button>
-              </div>
-              <div style={FIELD}>
-                <label style={LBL}>生成ルール</label>
-                <textarea
-                  value={img.imgCommonRules}
-                  onChange={(e) => setImg((s) => ({ ...s, imgCommonRules: e.target.value }))}
-                  rows={3}
-                  style={{ ...INPUT, resize: "vertical", lineHeight: 1.6 }}
-                />
-                <div style={{ marginTop: 4, fontSize: 10, color: "#94a3b8", fontFamily: FONT }}>
-                  すべてのモデルのプロンプトに追加されるルールです。空にすると追加されません。
-                </div>
-              </div>
-              <div style={FIELD}>
-                <label style={LBL}>ネガティブプロンプト（除外指示）</label>
-                <textarea
-                  value={img.imgNegativePrompt}
-                  onChange={(e) => setImg((s) => ({ ...s, imgNegativePrompt: e.target.value }))}
-                  placeholder="例: ウォーターマーク、ぼかし、低品質、歪み"
-                  rows={2}
-                  style={{ ...INPUT, resize: "none", lineHeight: 1.6 }}
-                />
-                <div style={{ marginTop: 4, fontSize: 10, color: "#94a3b8", fontFamily: FONT }}>
-                  全モデル共通。「含めないでください: ...」としてプロンプトに追加されます。
-                </div>
               </div>
               </>
             )}
@@ -2451,7 +2410,7 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                 { label: "シーン再生成", cost: "10 cr" },
               ];
             } else if (activeTab === "image") {
-              const cost = img.imageModel === "google-image-lite" ? 100 : img.imageModel === "gpt-image-2-high" ? 2_000 : img.imageModel === "gpt-image-1-5" ? 1_500 : 400;
+              const cost = img.imageModel === "google-image-lite" ? 100 : img.imageModel === "gpt-image-1-5" ? 1_500 : img.imageModel.startsWith("gpt-image-") ? 2_000 : 400;
               items = [{ label: "1枚あたり", cost: `${cost.toLocaleString()} cr` }];
             } else if (activeTab === "video") {
               const isVeoModel    = vid.videoModel === "veo-3" || vid.videoModel === "veo-3-lite";

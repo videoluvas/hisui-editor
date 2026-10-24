@@ -62,3 +62,9 @@ export async function getPlanCreditsDefault(planId: string): Promise<number> {
     return FALLBACK[planId] ?? 1_000;
   }
 }
+
+// 料金ページ用。管理画面で変えた値があればそちらを使う
+export async function getPublicPlans(): Promise<PlanConfigRow[]> {
+  const rows = await prisma.$queryRaw<PlanConfigRow[]>`SELECT * FROM plan_configs`.catch(() => [] as PlanConfigRow[]);
+  return DEFAULTS.map((d) => ({ ...d, ...(rows.find((r) => r.id === d.id) ?? {}) }));
+}

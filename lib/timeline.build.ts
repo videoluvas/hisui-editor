@@ -9,7 +9,7 @@ export type TimelineClip = Record<string, unknown> & { length?: number; startOff
 export type TimelineSegment = {
   length: number;
   layers: TimelineClip[];
-  audio?: { src: string; volume: number; length?: number };
+  audio?: { src: string; volume: number; length?: number; offset?: number };
   telop?: string;
 };
 
@@ -44,7 +44,7 @@ export function buildEditJson(segments: TimelineSegment[], size: TimelineSize, t
     if (seg.audio) {
       audioClips.push({
         asset: { type: "audio", src: seg.audio.src, volume: seg.audio.volume },
-        start: cursor, length: seg.audio.length ?? seg.length,
+        start: cursor + (seg.audio.offset ?? 0), length: seg.audio.length ?? seg.length - (seg.audio.offset ?? 0),
       });
     }
 

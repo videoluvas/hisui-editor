@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { loadVideoSettings } from "@/lib/videoSettings";
+import { loadVideoSettings, isVideoModelEnabled } from "@/lib/videoSettings";
 import { videoTimeEstimate } from "@/lib/genTimeEstimate";
 import { saveGenMeta } from "@/lib/gen.meta";
 import type { GenMetaVideo } from "@/lib/gen.meta";
@@ -10,9 +10,6 @@ const GRAD = "linear-gradient(45deg, #5184F0, #169385)";
 const FONT = "'Noto Sans JP', sans-serif";
 
 const VIDEO_MODELS = [
-  { value: "seedance-1-5-pro", label: "Seedance 1.5 Pro" },
-  { value: "veo-3-lite",       label: "Google Veo 3 Lite" },
-  { value: "veo-3",            label: "Google Veo 3" },
   { value: "kling-v2",         label: "Kling 2.0" },
   { value: "kling-v2-master",  label: "Kling 2.0 Master" },
   { value: "kling-v3",         label: "Kling 3.0" },
@@ -39,7 +36,7 @@ type Props = {
 
 export default function EditorAIVideoModal({ open, workspaceId, playbackTime, onClose, onInsert, onOpenSettings, initialData, onGenerated }: Props) {
   const [prompt,            setPrompt]            = useState("");
-  const [model,             setModel]             = useState<string>("seedance-1-5-pro");
+  const [model,             setModel]             = useState<string>("kling-v3");
   const [ratio,             setRatio]             = useState("16:9");
   const [duration,          setDuration]          = useState(5);
   const [resolution,        setResolution]        = useState<string>("720p");
@@ -63,7 +60,7 @@ export default function EditorAIVideoModal({ open, workspaceId, playbackTime, on
     setVidNegativePrompt(s.vidNegativePrompt);
     if (initialData) {
       setPrompt(initialData.prompt);
-      setModel(initialData.model);
+      setModel(isVideoModelEnabled(initialData.model) ? initialData.model : s.videoModel);
       setRatio(["16:9", "9:16"].includes(initialData.ratio) ? initialData.ratio : "16:9");
       setDuration(initialData.duration > 0 ? initialData.duration : 5);
     } else {

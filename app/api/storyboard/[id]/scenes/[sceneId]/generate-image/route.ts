@@ -9,7 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { getEditorSessionFromCookie } from "@/lib/auth.backend";
 import { logError } from "@/lib/log.error";
 import { r2Client, R2_BUCKET_NAME, R2_PUBLIC_URL } from "@/lib/fileupload.r2";
-import { resolveSeedreamSize } from "@/lib/imageSettings";
+import { resolveSeedreamSize, isImageModelEnabled, GPT_IMAGE_API_MODEL, DEFAULT_IMAGE_SETTINGS } from "@/lib/imageSettings";
 import { consumeCredits, refundCredits, imageModelToAction } from "@/lib/credits";
 import { checkModelAccess } from "@/lib/model-config";
 
@@ -190,11 +190,14 @@ export async function POST(
     sceneContent = "",
     composition = "",
     imgUrl,
-    imageModel: requestedImageModel = "reve-1",
+    imageModel: requestedImageModel = DEFAULT_IMAGE_SETTINGS.imageModel,
   } = body;
 
   const imageModel = requestedImageModel;
   const workspaceId = sb.workspaceId ?? null;
+
+  if (!isImageModelEnabled(imageModel))
+    return NextResponse.json({ ok: false, message: "このモデルは現在使用できません。設定から GPT Image を選んでください" }, { status: 403 });
 
   const access = await checkModelAccess(imageModel, session.user.plan ?? null);
   if (!access.ok) return NextResponse.json({ ok: false, message: access.message }, { status: access.status ?? 403 });
@@ -323,13 +326,13 @@ export async function POST(
     return NextResponse.json({ ok: true, imgUrl: publicUrl });
   }
 
-  // ── GPT Image 2 (high) / GPT Image 1.5 (high) ──────────────────────────────
-  if (imageModel === "gpt-image-2-high" || imageModel === "gpt-image-1-5") {
+  // ── GPT Image 2.5 / 2 / 1.5 ─────────────────────────────────────────────────
+  if (imageModel in GPT_IMAGE_API_MODEL) {
     const openaiApiKey = process.env.OPENAI_API_KEY;
     if (!openaiApiKey)
       return NextResponse.json({ ok: false, message: "OPENAI_API_KEY が設定されていません" }, { status: 500 });
 
-    const openaiModel = imageModel === "gpt-image-2-high" ? "gpt-image-2" : "gpt-image-1.5";
+    const openaiModel = GPT_IMAGE_API_MODEL[imageModel];
     const { gptSize = "1536x1024", gptQuality = "high", gptBackground = "auto", gptCompression = 100, gptModeration = "auto", gptOutputFormat = "png" } = body;
     const prompt = buildGoogleImagePrompt(style, sceneContent, composition, undefined, body.imgNegativePrompt, undefined, body.imgCommonRules);
     if (!prompt.trim())

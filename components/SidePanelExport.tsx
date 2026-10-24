@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Project } from "@/lib/project.api";
+import { track } from "@/lib/analytics";
 import { loadVideoExportSettings, saveVideoExportSettings } from "@/lib/videoExportSettings";
 
 const FONT   = "'Noto Sans JP', sans-serif";
@@ -238,6 +239,7 @@ export default function SidePanelExport({
       await onExportApi((info) => {
         setPhase(info.phase);
         if (info.url) setDownloadUrl(info.url);
+        if (info.phase === "done") track("video_export", { watermark, duration_sec: selectedProject?.durationSec ?? undefined });
       });
     } catch (e: unknown) {
       setPhase("failed");
@@ -420,7 +422,7 @@ export default function SidePanelExport({
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: "#333" }}>ウォーターマーク</div>
             <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2, lineHeight: 1.5 }}>
-              {watermark ? "ロゴ入り・クレジット消費なし" : "ロゴなし・クレジットを消費します"}
+              {isFreePlan ? "無料プランは透かし入りで何度でも書き出せます" : watermark ? "ロゴ入り・クレジット消費なし" : "ロゴなし・クレジットを消費します"}
             </div>
           </div>
           {isFreePlan && (

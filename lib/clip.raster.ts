@@ -8,7 +8,7 @@ function loadImage(src: string, cors: boolean): Promise<HTMLImageElement> {
     if (cors) img.crossOrigin = "anonymous";
     img.onload = () => resolve(img);
     img.onerror = () => reject(new Error("画像を読み込めませんでした"));
-    img.src = src;
+    img.src = cors && /^https?:/.test(src) ? `${src}${src.includes("?") ? "&" : "?"}cors=1` : src;
   });
 }
 
@@ -30,6 +30,49 @@ export async function imageInfo(url: string): Promise<{ width: number; height: n
   } catch {
     return { width, height, hasAlpha: false };
   }
+}
+
+// 不透明な部分の範囲。透過が無い画像は null
+function alphaBox(img: HTMLImageElement): { x: number; y: number; w: number; h: number } | null {
+  const w = img.naturalWidth, h = img.naturalHeight;
+  const c = document.createElement("canvas");
+  c.width = w; c.height = h;
+  const ctx = c.getContext("2d")!;
+  ctx.drawImage(img, 0, 0);
+  const d = ctx.getImageData(0, 0, w, h).data;
+  let x0 = w, y0 = h, x1 = -1, y1 = -1, clear = false;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const a = d[(y * w + x) * 4 + 3];
+      if (a < 250) clear = true;
+      if (a > 8) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    }
+  }
+  if (!clear || x1 < 0) return null;
+  return { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 };
+}
+
+// AI で加工した透過画像を、元画像の中身と同じ位置・大きさに置き直す。
+// 光彩・影ではみ出す分は画像を縦横 grow 倍に広げる（表示側で scale を grow 倍する）。quality は解像度の倍率
+export async function alignToOriginal(origUrl: string, newUrl: string): Promise<{ blob: Blob; grow: number; quality: number } | null> {
+  const [o, n] = await Promise.all([loadImage(origUrl, true), loadImage(newUrl, true)]);
+  const ob = alphaBox(o), nb = alphaBox(n);
+  if (!ob || !nb) return null;
+  const iw = o.naturalWidth, ih = o.naturalHeight;
+  const k = ob.w >= ob.h ? ob.w / nb.w : ob.h / nb.h;
+  const dw = nb.w * k, dh = nb.h * k;
+  const left = ob.x + ob.w / 2 - dw / 2, top = ob.y + ob.h / 2 - dh / 2;
+  const grow = Math.max(1, Math.max(iw / 2 - left, left + dw - iw / 2) * 2 / iw, Math.max(ih / 2 - top, top + dh - ih / 2) * 2 / ih);
+  const quality = Math.min(3, Math.max(1, 1 / k), 4096 / (Math.max(iw, ih) * grow));
+  const c = document.createElement("canvas");
+  c.width = Math.round(iw * grow * quality);
+  c.height = Math.round(ih * grow * quality);
+  const ctx = c.getContext("2d")!;
+  ctx.imageSmoothingQuality = "high";
+  const ox = (iw * grow - iw) / 2, oy = (ih * grow - ih) / 2;
+  ctx.drawImage(n, nb.x, nb.y, nb.w, nb.h, (ox + left) * quality, (oy + top) * quality, dw * quality, dh * quality);
+  const blob = await new Promise<Blob>((resolve, reject) => c.toBlob((b) => (b ? resolve(b) : reject(new Error("画像にできませんでした"))), "image/png"));
+  return { blob, grow, quality };
 }
 
 const RATIOS = ["16:9", "9:16", "4:3", "3:4", "1:1"] as const;

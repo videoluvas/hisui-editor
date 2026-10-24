@@ -480,8 +480,6 @@ export default function ConteTool({
         sdOutputFormat: imgSettings.sdOutputFormat,
         sdWatermark: imgSettings.sdWatermark,
         sdOptimizePrompt: imgSettings.sdOptimizePrompt,
-        imgCommonRules: imgSettings.imgCommonRules,
-        imgNegativePrompt: imgSettings.imgNegativePrompt,
         googleAspectRatio: imgSettings.googleAspectRatio,
         googleOutputFormat: imgSettings.googleOutputFormat,
         googleQualityHint: imgSettings.googleQualityHint,

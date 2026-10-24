@@ -4,8 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { TEAL } from "@/components/icons";
 import type { Project } from "@/lib/project.api";
-import { createPptxImport, getPptxImport, startPptxImport, uploadToPresigned } from "@/lib/pptxImport.api";
-import type { ConvertProgress, ImportWarning } from "@/lib/pptxImport.api";
+import { confirmPptxNarration, createPptxImport, getPptxImport, startPptxImport, uploadToPresigned } from "@/lib/pptxImport.api";
+import type { ConvertProgress, ImportWarning, NarrationEstimate } from "@/lib/pptxImport.api";
+import { GEMINI_VOICE_META } from "@/lib/ttsSettings";
 import ImportProgress from "@/components/ImportProgress";
 import { PPTX_MIME } from "@/lib/pptx.import.shared";
 import { ANIM_TARGETS, DEFAULT_EFFECTS, DEFAULT_IN_GROUPS, RECOMMENDED_ANIMATIONS, SPEEDS, SUPPORTED_ANIMATIONS, SUPPORTED_TRANSITIONS, sanitizeAnimSettings } from "@/lib/pptx.effects";
@@ -15,6 +16,7 @@ import type { WorkspaceItem } from "@/lib/workspace.api";
 import { clearDraft, saveDraft } from "@/lib/pptxDraft";
 import Turnstile, { turnstileEnabled } from "@/components/Turnstile";
 import type { PptxDraft } from "@/lib/pptxDraft";
+import { flushSignup, track } from "@/lib/analytics";
 
 const FONT = "'Noto Sans JP', sans-serif";
 const POLL_MS = 2000;
@@ -29,7 +31,7 @@ const RECOMMENDED_ROWS: [string, string, string][] = [
 ];
 
 type StepId = "pptx" | "pdf" | "animation" | "narration" | "account" | "workspace";
-type Phase = "form" | "uploading" | "converting" | "done" | "error";
+type Phase = "form" | "uploading" | "converting" | "confirm" | "done" | "error";
 
 const STEP_LABEL: Record<StepId, string> = {
   pptx: "パワーポイント",
@@ -103,6 +105,9 @@ export default function PptxImportWizard({ isLoggedIn, workspaceId = null, initi
   const setAnim = (t: AnimTarget, patch: Partial<AnimSetting>) => setAnimations((prev) => ({ ...prev, [t]: { ...prev[t], ...patch } }));
   const [stagger, setStagger]                   = useState<boolean>(d.stagger ?? true);
   const [secPerSlide, setSecPerSlide]           = useState<number>(d.secPerSlide ?? 5);
+  const [narrationOn, setNarrationOn]           = useState<boolean>(d.narrationOn ?? false);
+  const [voice, setVoice]                       = useState<string>(d.voice ?? "Kore");
+  const sampleRef = useRef<HTMLAudioElement | null>(null);
 
   const [authTab, setAuthTab]   = useState<"register" | "login">("register");
   const [email, setEmail]       = useState("");
@@ -128,6 +133,9 @@ export default function PptxImportWizard({ isLoggedIn, workspaceId = null, initi
   const [result, setResult]     = useState<{ project: Project; workspaceId: string } | null>(null);
   const [uploadRatio, setUploadRatio] = useState(0);
   const [convProgress, setConvProgress] = useState<ConvertProgress | null>(null);
+  const [estimate, setEstimate] = useState<NarrationEstimate | null>(null);
+  const [confirmBusy, setConfirmBusy] = useState(false);
+  const [confirmError, setConfirmError] = useState("");
   const jobRef = useRef<{ jobId: string; workspaceId: string } | null>(null);
 
   useEffect(() => {
@@ -144,10 +152,18 @@ export default function PptxImportWizard({ isLoggedIn, workspaceId = null, initi
   useEffect(() => {
     if (phase !== "form" || !pptx) return;
     const t = setTimeout(() => {
-      void saveDraft({ step, pptx, pdf, settings: { animationMode, animations, stagger, secPerSlide, title, newWsName } });
+      void saveDraft({ step, pptx, pdf, settings: { animationMode, animations, stagger, secPerSlide, narrationOn, voice, title, newWsName } });
     }, 300);
     return () => clearTimeout(t);
-  }, [phase, step, pptx, pdf, animationMode, animations, stagger, secPerSlide, title, newWsName]);
+  }, [phase, step, pptx, pdf, animationMode, animations, stagger, secPerSlide, narrationOn, voice, title, newWsName]);
+
+  useEffect(() => () => sampleRef.current?.pause(), []);
+
+  function playSample(url: string) {
+    sampleRef.current?.pause();
+    sampleRef.current = new Audio(url);
+    void sampleRef.current.play().catch(() => {});
+  }
 
   const close = () => { void clearDraft(); onClose(); };
 
@@ -183,7 +199,12 @@ export default function PptxImportWizard({ isLoggedIn, workspaceId = null, initi
         setWarnings(res.warnings ?? []);
         setResult({ project: res.project, workspaceId: jobRef.current.workspaceId });
         setPhase("done");
+        track("pptx_import_success", { narration: narrationOn, duration_sec: res.project.durationSec ?? undefined });
         void clearDraft();
+      } else if (res.status === "confirm" && res.estimate) {
+        setEstimate(res.estimate);
+        setConfirmError("");
+        setPhase("confirm");
       } else if (res.status === "error") {
         setMessage(res.message ?? "取り込みに失敗しました");
         setPhase("error");
@@ -192,7 +213,7 @@ export default function PptxImportWizard({ isLoggedIn, workspaceId = null, initi
     return () => clearInterval(poll);
   }, [phase]);
 
-  const busy = phase === "uploading" || phase === "converting";
+  const busy = phase === "uploading" || phase === "converting" || phase === "confirm";
   const canNext =
     step === "pptx" ? !!pptx :
     step === "pdf" ? !!pdf :
@@ -200,6 +221,7 @@ export default function PptxImportWizard({ isLoggedIn, workspaceId = null, initi
     true;
 
   function loginDone() {
+    flushSignup();
     setWaiting(null);
     setLoggedIn(true);
     setStep("workspace");
@@ -252,6 +274,7 @@ export default function PptxImportWizard({ isLoggedIn, workspaceId = null, initi
 
   async function handleStart() {
     if (!pptx || !pdf) return;
+    track("pptx_upload_start", { narration: narrationOn, size_mb: Math.round((pptx.size + pdf.size) / 1024 / 1024) });
     setPhase("uploading");
     setMessage("");
     let wsId = wsChoice;
@@ -266,7 +289,7 @@ export default function PptxImportWizard({ isLoggedIn, workspaceId = null, initi
       setWorkspaces((prev) => [created.workspace!, ...(prev ?? [])]);
       setWsChoice(wsId);
     }
-    const job = await createPptxImport({ workspaceId: wsId, title, secPerSlide, animationMode, animations, stagger, pptxSize: pptx.size, pdfSize: pdf.size });
+    const job = await createPptxImport({ workspaceId: wsId, title, secPerSlide, animationMode, animations, stagger, pptxSize: pptx.size, pdfSize: pdf.size, ...(narrationOn ? { narration: { voice } } : {}) });
     if (!job.ok || !job.jobId || !job.pptxUrl || !job.pdfUrl) {
       setMessage(job.message ?? "取り込みを開始できませんでした");
       setPhase("error");
@@ -292,6 +315,18 @@ export default function PptxImportWizard({ isLoggedIn, workspaceId = null, initi
       return;
     }
     jobRef.current = { jobId: job.jobId, workspaceId: wsId };
+    setPhase("converting");
+  }
+
+  async function handleConfirm(generate: boolean) {
+    if (!jobRef.current) return;
+    setConfirmBusy(true);
+    setConfirmError("");
+    const res = await confirmPptxNarration(jobRef.current.jobId, generate);
+    setConfirmBusy(false);
+    if (!res.ok) { setConfirmError(res.message ?? "続けられませんでした"); return; }
+    if (!generate) setNarrationOn(false);
+    setConvProgress(null);
     setPhase("converting");
   }
 
@@ -452,18 +487,38 @@ export default function PptxImportWizard({ isLoggedIn, workspaceId = null, initi
             <div style={{ fontSize: 14, fontWeight: 700, color: "#1e293b" }}>ナレーションとシーンの秒数</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <span style={labelStyle}>ナレーション</span>
-              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#334155", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${TEAL}`, background: `${TEAL}0b` }}>
-                <input type="radio" checked readOnly />
-                生成しない（1 枚の秒数で並べる）
-              </label>
-              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#cbd5e1", padding: "10px 12px", borderRadius: 8, border: "1.5px solid #f1f5f9", cursor: "not-allowed" }}>
-                <input type="radio" disabled />
-                ノートから生成する
-                <span style={{ marginLeft: "auto", fontSize: 10, fontWeight: 700, color: "#94a3b8", background: "#f1f5f9", borderRadius: 4, padding: "2px 6px" }}>準備中</span>
-              </label>
+              {([[false, "生成しない（1 枚の秒数で並べる）"], [true, "ノートから生成する（スライドの長さを読み上げに合わせる）"]] as const).map(([v, label]) => (
+                <label key={String(v)} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#334155", padding: "10px 12px", borderRadius: 8, cursor: "pointer", border: `1.5px solid ${narrationOn === v ? TEAL : "#e2e8f0"}`, background: narrationOn === v ? `${TEAL}0b` : "#fff" }}>
+                  <input type="radio" checked={narrationOn === v} onChange={() => setNarrationOn(v)} />
+                  {label}
+                </label>
+              ))}
             </div>
+            {narrationOn && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <span style={labelStyle}>声</span>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <select value={voice} onChange={(e) => setVoice(e.target.value)} style={{ ...inputStyle, flex: 1 }}>
+                    {(["女性", "男性"] as const).map((g) => (
+                      <optgroup key={g} label={g}>
+                        {GEMINI_VOICE_META.filter((v) => v.gender === g).map((v) => <option key={v.name} value={v.name}>{v.name}（{v.trait}）</option>)}
+                      </optgroup>
+                    ))}
+                  </select>
+                  <button type="button" onClick={() => { const m = GEMINI_VOICE_META.find((v) => v.name === voice); if (m) playSample(m.sampleUrl); }}
+                    style={{ padding: "0 14px", borderRadius: 8, border: `1px solid ${TEAL}`, background: "#fff", color: TEAL, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT, whiteSpace: "nowrap" }}>
+                    ▶ 試聴
+                  </button>
+                </div>
+                <div style={{ fontSize: 11, color: "#64748b", lineHeight: 1.7, background: "#f8fafc", borderRadius: 8, padding: "8px 12px" }}>
+                  ノート（発表者メモ）を読み上げ、スライドの長さを「読み上げ＋前後 0.5 秒」に合わせます。<br />
+                  取り込み後、作る前にノートの文字数と消費クレジットを確認できます。<br />
+                  無料プランはアカウントごとに 3 回まで無料です（作り直しは有料プラン）。
+                </div>
+              </div>
+            )}
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <span style={labelStyle}>1 枚（1 シーン）の秒数</span>
+              <span style={labelStyle}>{narrationOn ? "ノートが空のスライドの秒数" : "1 枚（1 シーン）の秒数"}</span>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <input type="number" min={1} max={60} value={secPerSlide}
                   onChange={(e) => setSecPerSlide(Math.min(60, Math.max(1, Number(e.target.value) || 1)))}
@@ -600,12 +655,61 @@ export default function PptxImportWizard({ isLoggedIn, workspaceId = null, initi
         )}
 
         {(phase === "uploading" || phase === "converting") && (
-          <ImportProgress phase={phase} uploadRatio={uploadRatio} progress={convProgress} />
+          <ImportProgress phase={phase} uploadRatio={uploadRatio} progress={convProgress} withNarration={narrationOn} />
         )}
+
+        {phase === "confirm" && estimate && (() => {
+          const short = estimate.free ? estimate.freeLeft <= 0 : estimate.balance < estimate.credits;
+          const rows: [string, string][] = [
+            ["ノートのあるスライド", `${estimate.withNotes} / ${estimate.slides} 枚`],
+            ["読み上げる文字数", `${estimate.chars.toLocaleString()} 文字`],
+            estimate.free
+              ? ["無料のナレーション生成", `残り ${estimate.freeLeft} / ${estimate.freeLimit} 回（今回 1 回使います）`]
+              : ["消費クレジット", `${estimate.credits.toLocaleString()}（残り ${estimate.balance.toLocaleString()}）`],
+          ];
+          return (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "#1e293b" }}>ナレーションを作る前の確認</div>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, color: "#334155" }}>
+                <tbody>
+                  {rows.map(([k, v]) => (
+                    <tr key={k} style={{ borderTop: "1px solid #f1f5f9" }}>
+                      <td style={{ padding: "8px 0", color: "#64748b" }}>{k}</td>
+                      <td style={{ padding: "8px 0", fontWeight: 700, textAlign: "right" }}>{v}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {short && (
+                <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: "10px 12px", fontSize: 12, color: "#78350f", lineHeight: 1.7 }}>
+                  {estimate.free ? `無料プランのナレーション生成は ${estimate.freeLimit} 回まで使いました。` : "クレジットが足りません。"}
+                  <a href="/pricing" target="_blank" rel="noreferrer" style={{ color: TEAL, fontWeight: 700, marginLeft: 4 }}>料金プランを見る</a>
+                  <br />ナレーションなしで続けることもできます。
+                </div>
+              )}
+              {confirmError && <div role="alert" style={{ fontSize: 12, color: "#b91c1c", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: "8px 10px" }}>{confirmError}</div>}
+              <div style={{ display: "flex", gap: 8 }}>
+                <button type="button" onClick={() => handleConfirm(false)} disabled={confirmBusy}
+                  style={{ padding: "11px 14px", borderRadius: 10, border: "1px solid #e2e8f0", background: "#fff", color: "#334155", fontSize: 13, fontWeight: 700, cursor: confirmBusy ? "wait" : "pointer", fontFamily: FONT }}>
+                  ナレーションなしで続ける
+                </button>
+                <button type="button" onClick={() => handleConfirm(true)} disabled={confirmBusy || short}
+                  style={{ flex: 1, padding: "11px 0", borderRadius: 10, border: "none", background: confirmBusy || short ? "#cbd5e1" : TEAL, color: "#fff", fontSize: 14, fontWeight: 700, cursor: confirmBusy ? "wait" : short ? "not-allowed" : "pointer", fontFamily: FONT }}>
+                  ナレーションを作って続ける
+                </button>
+              </div>
+            </div>
+          );
+        })()}
 
         {phase === "done" && result && (
           <>
             <div style={{ fontSize: 14, fontWeight: 700, color: TEAL }}>取り込みが完了しました</div>
+            {result.project.aspectRatio && result.project.aspectRatio !== "16:9" && (
+              <div style={{ background: `${TEAL}0b`, border: `1px solid ${TEAL}44`, borderRadius: 8, padding: "10px 12px", fontSize: 12, color: "#334155", lineHeight: 1.7 }}>
+                動画の画角をスライドに合わせて <b>{result.project.aspectRatio}</b> にしました。16:9 がよければ、動画編集画面で画面サイズを変更してください。
+              </div>
+            )}
             {warnings.length > 0 && (
               <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: "10px 12px", display: "flex", flexDirection: "column", gap: 4, maxHeight: 180, overflowY: "auto" }}>
                 {warnings.map((w, i) => <div key={i} style={{ fontSize: 11, color: "#92400e" }}>・{w.message}</div>)}

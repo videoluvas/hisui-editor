@@ -6,6 +6,8 @@ import PptxImportWizard from "@/components/PptxImportWizard";
 import { setOpenProject } from "@/lib/pptxHandoff";
 import { loadDraft } from "@/lib/pptxDraft";
 import type { PptxDraft } from "@/lib/pptxDraft";
+import { track } from "@/lib/analytics";
+import PublicFooter from "@/components/PublicFooter";
 
 const FONT   = "'Noto Sans JP', sans-serif";
 const TEAL   = "#169385";
@@ -87,6 +89,7 @@ export default function PowerpointStart() {
   const [draft, setDraft]       = useState<PptxDraft | null>(null);
 
   useEffect(() => {
+    track("pptx_lp_view");
     fetch("/api/me", { credentials: "include", cache: "no-store" })
       .then((r) => setLoggedIn(r.ok))
       .catch(() => setLoggedIn(false));
@@ -221,9 +224,12 @@ export default function PowerpointStart() {
             <div>・PDF は「スライドのみ」で書き出してください。ノート付きや配布資料の形式では読み込めません。</div>
             <div>・Google スライドや Keynote から書き出した .pptx と PDF も使えますが、位置やアニメーションがずれることがあります。</div>
             <div>・強調や軌跡のアニメーションは反映されず、そのまま表示されます。</div>
+            <div>・無料プランでも取り込みと書き出しは無制限です（書き出した動画には透かしが入ります）。ノートからのナレーション生成は 3 回まで無料です。<a href="/pricing" style={{ color: TEAL, fontWeight: 700 }}>料金プラン</a></div>
           </div>
         </section>
       </main>
+
+      <PublicFooter />
 
       {file && loggedIn !== null && (
         <PptxImportWizard

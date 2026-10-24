@@ -1,12 +1,31 @@
-export type ImageModel = "reve-1" | "seedream-5-0-pro" | "google-image-lite" | "google-image-pro" | "gpt-image-2-high" | "gpt-image-1-5";
+export type ImageModel = "reve-1" | "seedream-5-0-pro" | "google-image-lite" | "google-image-pro" | "gpt-image-2-high" | "gpt-image-1-5" | "gpt-image-2-5-sunburst" | "gpt-image-2-5-flare";
+
+// GPT Image 以外は使用停止中
+export const GPT_IMAGE_API_MODEL: Record<string, string> = {
+  "gpt-image-2-5-sunburst": "gpt-image-2.5-sunburst",
+  "gpt-image-2-5-flare":    "gpt-image-2.5-flare",
+  "gpt-image-2-high":       "gpt-image-2",
+  "gpt-image-1-5":          "gpt-image-1.5",
+};
+
+export function isImageModelEnabled(model: string): boolean {
+  return model in GPT_IMAGE_API_MODEL;
+}
+
+// 透過画像を参照した生成はこのモデル・設定に固定する
+export const TRANSPARENT_IMAGE_MODEL: ImageModel = "gpt-image-2-5-sunburst";
+export const TRANSPARENT_PROMPT = "背景の透明を維持してください。白背景や市松模様は描かないでください。";
+
+export function gptSizeForRatio(aspectRatio: string): string {
+  const [w, h] = aspectRatio.split(":").map(Number);
+  if (!(w > 0 && h > 0) || Math.abs(Math.log(w / h)) < 0.18) return "1024x1024";
+  return w > h ? "1536x1024" : "1024x1536";
+}
 
 export type RefStyle = "none" | "template" | "upload";
 
 export type ImageSettings = {
   imageModel: ImageModel;
-  // 全モデル共通
-  imgCommonRules: string;
-  imgNegativePrompt: string;
   // Reve AI (reve-1) 専用
   aspectRatio: string;
   version: string;
@@ -39,9 +58,7 @@ export type ImageSettings = {
 };
 
 export const DEFAULT_IMAGE_SETTINGS: ImageSettings = {
-  imageModel: "google-image-lite",
-  imgCommonRules: "プロンプト内に文字を表示する明確な指示がない限り、画像内に文字、字幕、テロップなどのテキスト要素を一切含めないでください。\n人物を描写する場合は、プロンプト内に国籍・人種・地域などの指定がない限り、日本人として描写してください。",
-  imgNegativePrompt: "",
+  imageModel: "gpt-image-2-5-sunburst",
   aspectRatio: "16:9",
   version: "latest",
   testTimeScaling: 1,
@@ -74,7 +91,11 @@ export function loadImageSettings(): ImageSettings {
   if (typeof window === "undefined") return { ...DEFAULT_IMAGE_SETTINGS };
   try {
     const stored = localStorage.getItem(LS_KEY);
-    if (stored) return { ...DEFAULT_IMAGE_SETTINGS, ...JSON.parse(stored) };
+    if (stored) {
+      const s: ImageSettings = { ...DEFAULT_IMAGE_SETTINGS, ...JSON.parse(stored) };
+      if (!isImageModelEnabled(s.imageModel)) s.imageModel = DEFAULT_IMAGE_SETTINGS.imageModel;
+      return s;
+    }
   } catch {}
   return { ...DEFAULT_IMAGE_SETTINGS };
 }

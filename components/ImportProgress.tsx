@@ -6,7 +6,7 @@ import type { ConvertProgress } from "@/lib/pptxImport.api";
 const TEAL = "#169385";
 const FONT = "'Noto Sans JP', sans-serif";
 
-type StageKey = "upload" | "start" | "render" | "objects" | "save" | "timeline";
+type StageKey = "upload" | "start" | "render" | "objects" | "save" | "narration" | "timeline";
 
 const STAGES: { key: StageKey; label: string }[] = [
   { key: "upload",   label: "ファイルをアップロード" },
@@ -14,12 +14,13 @@ const STAGES: { key: StageKey; label: string }[] = [
   { key: "render",   label: "スライドを描画" },
   { key: "objects",  label: "オブジェクトを切り出し" },
   { key: "save",     label: "画像を保存" },
+  { key: "narration", label: "ナレーションを生成" },
   { key: "timeline", label: "タイムラインを作成" },
 ];
 
 // 段階ごとの進捗バーの範囲（%）。段階の中では時間に合わせて少しずつ進め、止まって見えないようにする
 const RANGE: Record<StageKey, [number, number]> = {
-  upload: [0, 12], start: [12, 18], render: [18, 38], objects: [38, 90], save: [90, 96], timeline: [96, 99],
+  upload: [0, 12], start: [12, 18], render: [18, 38], objects: [38, 90], save: [90, 96], narration: [60, 96], timeline: [96, 99],
 };
 
 function currentStage(phase: "uploading" | "converting", p: ConvertProgress | null): StageKey {
@@ -28,6 +29,7 @@ function currentStage(phase: "uploading" | "converting", p: ConvertProgress | nu
   if (p.stage === "parse") return "start";
   if (p.stage === "render") return "render";
   if (p.stage === "objects") return "objects";
+  if (p.stage === "narration") return p.done >= p.total ? "timeline" : "narration";
   return p.done >= p.total ? "timeline" : "save";
 }
 
@@ -53,11 +55,13 @@ function LayersIcon() {
   );
 }
 
-export default function ImportProgress({ phase, uploadRatio, progress }: {
+export default function ImportProgress({ phase, uploadRatio, progress, withNarration = false }: {
   phase: "uploading" | "converting";
   uploadRatio: number;
   progress: ConvertProgress | null;
+  withNarration?: boolean;
 }) {
+  const stages = withNarration ? STAGES : STAGES.filter((s) => s.key !== "narration");
   const stage = currentStage(phase, progress);
   const stageStart = useRef<{ key: StageKey; at: number }>({ key: stage, at: Date.now() });
   const [percent, setPercent] = useState(0);
@@ -72,7 +76,7 @@ export default function ImportProgress({ phase, uploadRatio, progress }: {
       const inStage = (Date.now() - stageStart.current.at) / 1000;
       let ratio: number;
       if (stage === "upload") ratio = uploadRatio;
-      else if ((stage === "objects" || stage === "save") && progress && progress.total > 0) {
+      else if ((stage === "objects" || stage === "save" || stage === "narration") && progress && progress.total > 0) {
         ratio = Math.min(1, (progress.done + Math.min(0.9, inStage / 3)) / progress.total);
       } else {
         const expect = stage === "render" ? Math.max(8, (progress?.total ?? 10) * 1.2) : 10;
@@ -87,10 +91,10 @@ export default function ImportProgress({ phase, uploadRatio, progress }: {
     return () => clearInterval(t);
   }, [stage, uploadRatio, progress]);
 
-  const index = STAGES.findIndex((s) => s.key === stage);
+  const index = stages.findIndex((s) => s.key === stage);
   const detail =
     stage === "upload" ? "" :
-    (stage === "objects" || stage === "save") && progress?.total ? `${Math.min(progress.done + 1, progress.total)} / ${progress.total}${stage === "objects" ? " 枚" : ""}` :
+    (stage === "objects" || stage === "save" || stage === "narration") && progress?.total ? `${Math.min(progress.done + 1, progress.total)} / ${progress.total}${stage !== "save" ? " 枚" : ""}` :
     "";
 
   return (
@@ -98,7 +102,7 @@ export default function ImportProgress({ phase, uploadRatio, progress }: {
       <LayersIcon />
       <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 6 }}>
         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, fontWeight: 700, color: "#334155" }}>
-          <span>{STAGES[index].label}{detail && <span style={{ color: TEAL, marginLeft: 6 }}>{detail}</span>}</span>
+          <span>{stages[index].label}{detail && <span style={{ color: TEAL, marginLeft: 6 }}>{detail}</span>}</span>
           <span style={{ color: TEAL }}>{Math.floor(percent)}%</span>
         </div>
         <div role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.floor(percent)} style={{ height: 10, borderRadius: 999, background: "#e2e8f0", overflow: "hidden" }}>
@@ -106,7 +110,7 @@ export default function ImportProgress({ phase, uploadRatio, progress }: {
         </div>
       </div>
       <ol style={{ listStyle: "none", margin: 0, padding: 0, width: "100%", display: "flex", flexDirection: "column", gap: 4 }}>
-        {STAGES.map((s, i) => {
+        {stages.map((s, i) => {
           const done = i < index;
           const active = i === index;
           return (

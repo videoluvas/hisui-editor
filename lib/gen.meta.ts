@@ -3,6 +3,7 @@ export type GenMetaImage = {
   prompt: string;
   model: string;
   aspectRatio: string;
+  sourceKind?: string;  // AI で装飾で文字・図形などから作った画像は、元の種類のまま扱う
 };
 
 export type GenMetaVideo = {

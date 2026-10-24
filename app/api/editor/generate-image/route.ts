@@ -8,7 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { getEditorSessionFromCookie } from "@/lib/auth.backend";
 import { logError } from "@/lib/log.error";
 import { r2Client, R2_BUCKET_NAME, R2_PUBLIC_URL } from "@/lib/fileupload.r2";
-import { resolveSeedreamSize } from "@/lib/imageSettings";
+import { resolveSeedreamSize, isImageModelEnabled, GPT_IMAGE_API_MODEL, TRANSPARENT_IMAGE_MODEL, TRANSPARENT_PROMPT, gptSizeForRatio, DEFAULT_IMAGE_SETTINGS } from "@/lib/imageSettings";
 import { consumeCredits, refundCredits, imageModelToAction } from "@/lib/credits";
 import { checkModelAccess } from "@/lib/model-config";
 
@@ -97,19 +97,25 @@ export async function POST(request: NextRequest) {
     imgNegativePrompt?: string;
     // 参照画像（img to img）
     imgUrl?: string;
+    // 参照画像が透過 PNG（透過を保ったまま加工する）
+    transparent?: boolean;
   };
 
   const basePrompt = (body.prompt ?? "").trim();
   if (!basePrompt) return NextResponse.json({ ok: false, message: "プロンプトを入力してください" }, { status: 400 });
 
+  const transparent = !!body.transparent && !!body.imgUrl;
+
   // ワークスペースの共通ルール・ネガティブプロンプトを結合
   const rules = body.imgCommonRules?.trim();
   const neg   = body.imgNegativePrompt?.trim();
-  const prompt = [basePrompt, rules, neg ? `以下の要素は含めないでください: ${neg}` : ""].filter(Boolean).join(" ");
+  const prompt = [basePrompt, rules, neg ? `以下の要素は含めないでください: ${neg}` : "", transparent ? TRANSPARENT_PROMPT : ""].filter(Boolean).join(" ");
 
-  const imageModel = body.imageModel ?? "google-image-lite";
+  const imageModel = transparent ? TRANSPARENT_IMAGE_MODEL : (body.imageModel ?? DEFAULT_IMAGE_SETTINGS.imageModel);
   const userId = session.userId;
   const workspaceId = body.workspaceId ?? null;
+
+  if (!isImageModelEnabled(imageModel)) return NextResponse.json({ ok: false, message: "このモデルは現在使用できません。設定から GPT Image を選んでください" }, { status: 403 });
 
   const access = await checkModelAccess(imageModel, session.user.plan ?? null);
   if (!access.ok) return NextResponse.json({ ok: false, message: access.message }, { status: access.status ?? 403 });
@@ -165,13 +171,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, url });
   }
 
-  // ── GPT Image 2 (high) / GPT Image 1.5 (high) ──────────────────────────────
-  if (imageModel === "gpt-image-2-high" || imageModel === "gpt-image-1-5") {
+  // ── GPT Image 2.5 / 2 / 1.5 ─────────────────────────────────────────────────
+  if (imageModel in GPT_IMAGE_API_MODEL) {
     const openaiApiKey = process.env.OPENAI_API_KEY;
     if (!openaiApiKey) return NextResponse.json({ ok: false, message: "OPENAI_API_KEY が設定されていません" }, { status: 500 });
 
-    const openaiModel = imageModel === "gpt-image-2-high" ? "gpt-image-2" : "gpt-image-1.5";
-    const { gptSize = "1536x1024", gptQuality = "high", gptBackground = "auto", gptCompression = 100, gptModeration = "auto", gptOutputFormat = "png" } = body;
+    const openaiModel = GPT_IMAGE_API_MODEL[imageModel];
+    const { gptCompression = 100, gptModeration = "auto" } = body;
+    const gptSize         = transparent ? gptSizeForRatio(body.aspectRatio ?? "16:9") : (body.gptSize ?? "1536x1024");
+    const gptQuality      = transparent ? "high"        : (body.gptQuality ?? "high");
+    const gptBackground   = transparent ? "transparent" : (body.gptBackground ?? "auto");
+    const gptOutputFormat = transparent ? "png"         : (body.gptOutputFormat ?? "png");
     const ext = gptOutputFormat === "jpeg" ? "jpg" : gptOutputFormat;
     const contentType = gptOutputFormat === "jpeg" ? "image/jpeg" : gptOutputFormat === "webp" ? "image/webp" : "image/png";
 

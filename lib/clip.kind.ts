@@ -60,6 +60,23 @@ export const CLIP_KIND_LABEL: Record<ClipKind, string> = {
   "audio":           "音声",
 };
 
+// 再生成・AI で装飾のネガティブプロンプトの初期値（ユーザーが編集できる）
+const TEXT_NEGATIVE  = "文字の内容・字形・行の並びの変更、文字の追加・削除・言い換え・翻訳、文字が読みにくくなる装飾、背景や新しいモチーフ";
+const SHAPE_NEGATIVE = "図形の形・輪郭・向き・配置の変更、文字、新しい要素、背景";
+const PHOTO_NEGATIVE = "被写体・構図・色調の大きな変更、指示のない文字・ロゴ・透かし";
+
+export const DEFAULT_IMAGE_NEGATIVE = "指示のない文字・字幕・テロップ、ロゴ・透かし";
+
+export const CLIP_KIND_NEGATIVE: Partial<Record<ClipKind, string>> = {
+  "text":            TEXT_NEGATIVE,
+  "pptx-text":       TEXT_NEGATIVE,
+  "shape":           SHAPE_NEGATIVE,
+  "pptx-shape":      SHAPE_NEGATIVE,
+  "image":           PHOTO_NEGATIVE,
+  "pptx-picture":    PHOTO_NEGATIVE,
+  "pptx-background": "構図・色調の大きな変更、上に重ねる文字を読みにくくする派手な柄や強いコントラスト、文字・ロゴ・透かし",
+};
+
 // converter の kind（text / shape / picture / media / table / chart / diagram / group / connector / other）を振り分ける
 export function pptxObjectKind(kind: string, media?: "video" | "audio"): PptxObjectKind {
   if (media === "video") return "pptx-video";
@@ -79,7 +96,10 @@ export function classifyClip(clip: ClipLike, pptxKinds: Record<string, PptxObjec
   if (!src) return null;
   if (pptxKinds[src]) return pptxKinds[src];
   const meta = loadGenMeta(src);
-  if (type === "image") return meta?.type === "deco-telop" ? "deco-telop" : meta?.type === "ai-image" ? "ai-image" : "image";
+  if (type === "image") {
+    if (meta?.type === "ai-image" && meta.sourceKind && meta.sourceKind in CLIP_MENU) return meta.sourceKind as ClipKind;
+    return meta?.type === "deco-telop" ? "deco-telop" : meta?.type === "ai-image" ? "ai-image" : "image";
+  }
   if (type === "video") return meta?.type === "ai-video" ? "ai-video" : "video";
   if (type === "audio") return meta?.type === "ai-narration" ? "narration" : meta?.type === "bgm" ? "bgm" : "audio";
   return null;

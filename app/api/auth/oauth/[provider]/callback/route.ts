@@ -38,7 +38,7 @@ export async function GET(req: NextRequest, { params }: { params: { provider: st
 
   try {
     const profile = await exchangeCode(req, p, code);
-    const { user } = await findOrCreateUserByEmail(profile.email, profile.name, profile.picture);
+    const { user } = await findOrCreateUserByEmail(profile.email, profile.name, profile.picture, p);
     return attachSession(finish(true, "", next), user.id);
   } catch (e) {
     await logError("auth", `OAuth ログイン失敗 (${p}): ${e}`, { level: "warn" });

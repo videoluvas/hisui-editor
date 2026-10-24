@@ -19,7 +19,12 @@ export type ImportOptions = {
   animationMode?: "recommended" | "custom";
   animations?: AnimSettings;   // カスタマイズ時の対象ごとの設定
   stagger?: boolean;
+  narration?: { voice: string };   // ノートからナレーションを作る（変換後に確認画面を挟む）
 };
+
+// ナレーションありのスライドは、前後に余白を付けた長さにする
+export const NARRATION_PAD_SEC = 0.5;
+export type SlideNarration = Map<number, { src: string; sec: number }>;
 
 type ManifestObject = {
   id: string; name: string; kind: string; z: number; text: string; placeholder: string | null;
@@ -28,7 +33,7 @@ type ManifestObject = {
   animations: PptxAnimation[];
 };
 
-type ImportWarning = { slide: number; code: string; message: string };
+export type ImportWarning = { slide: number; code: string; message: string };
 
 export type PptxManifest = {
   version: number;
@@ -94,7 +99,7 @@ function animSettings(opts: ImportOptions): AnimSettings {
 }
 
 function resolve(s: AnimSetting): { in: string; effect: string | null } {
-  return { in: withSpeed(s.in, s.speed), effect: s.effect !== "none" ? s.effect : null };
+  return { in: withSpeed(s.in, s.speed), effect: s.effect !== "none" ? `${s.effect}Slow` : null };
 }
 
 function autoAnimation(o: ManifestObject, opts: ImportOptions): { in: string; effect: string | null } {
@@ -104,11 +109,12 @@ function autoAnimation(o: ManifestObject, opts: ImportOptions): { in: string; ef
   return resolve(o.kind === "picture" ? set.image : set.text);
 }
 
-export function manifestToSegments(m: PptxManifest, outPrefix: string, opts: ImportOptions) {
+export function manifestToSegments(m: PptxManifest, outPrefix: string, opts: ImportOptions, narration?: SlideNarration) {
   const url = (file: string) => `${R2_PUBLIC_URL}/${outPrefix}/${file}`;
   const warnings: ImportWarning[] = [];
   const segments: TimelineSegment[] = m.slides.map((s) => {
-    const len = opts.secPerSlide;
+    const voice = narration?.get(s.no);
+    const len = voice ? Math.round((voice.sec + NARRATION_PAD_SEC * 2) * 100) / 100 : opts.secPerSlide;
     const slideIn = s.transition ? slideTransitionToTransition(s.transition) : "";
     if (slideIn == null)
       warnings.push({ slide: s.no, code: "TRANSITION_UNSUPPORTED", message: `${s.no} 枚目の画面切り替え効果は反映できないため、切り替えなしにしました` });
@@ -155,7 +161,7 @@ export function manifestToSegments(m: PptxManifest, outPrefix: string, opts: Imp
     }
     if (skipped > 0)
       warnings.push({ slide: s.no, code: "ANIMATION_UNSUPPORTED", message: `${s.no} 枚目のアニメーションのうち ${skipped} 件は反映できないため、そのまま表示します` });
-    return { length: len, layers };
+    return { length: len, layers, ...(voice ? { audio: { src: voice.src, volume: 1, offset: NARRATION_PAD_SEC, length: voice.sec } } : {}) };
   });
   return { segments, warnings };
 }
@@ -191,24 +197,12 @@ export async function runImport(jobId: string) {
     const manifest = await getEditJsonFromR2<PptxManifest>(result.manifestKey);
     if (!manifest) throw new ImportError("変換結果を読み込めませんでした");
 
-    const size = { width: manifest.width, height: manifest.height, fps: 30, backgroundColor: "#000000" };
-    const { segments, warnings } = manifestToSegments(manifest, job.outPrefix, opts);
-    const { editJson, duration } = buildEditJson(segments, size);
-    const project = await createProjectFromEditJson({
-      userId: job.userId,
-      workspaceId: job.workspaceId,
-      title: opts.title?.trim() || manifest.slides[0]?.title || "パワーポイント",
-      size,
-      editJson,
-      duration,
-    });
-
-    await registerFiles(manifest, job, project.id);
-
-    await prisma.importJob.update({
-      where: { id: jobId },
-      data: { status: "done", manifestKey: result.manifestKey, projectId: project.id, warnings: [...manifest.warnings, ...warnings].sort((a, b) => a.slide - b.slide), inputPrefix: null },
-    });
+    // ナレーションを作る場合は、ノートの文字数と消費クレジットを画面で確認してから続ける（lib/pptx.narration.ts）
+    if (opts.narration && manifest.slides.some((s) => s.notes?.trim())) {
+      await prisma.importJob.update({ where: { id: jobId }, data: { status: "confirm", manifestKey: result.manifestKey, inputPrefix: null } });
+      return;
+    }
+    await finishImport(job, manifest, result.manifestKey, opts);
   } catch (e) {
     const message = e instanceof ImportError ? e.message : "取り込み中にエラーが発生しました";
     if (!(e instanceof ImportError)) await logError("import-pptx", `${e}`, { userId: job.userId, detail: { jobId } });
@@ -218,7 +212,37 @@ export async function runImport(jobId: string) {
   }
 }
 
-class ImportError extends Error {}
+export async function finishImport(
+  job: { id: string; userId: string; workspaceId: string; outPrefix: string },
+  manifest: PptxManifest,
+  manifestKey: string,
+  opts: ImportOptions,
+  narration?: SlideNarration,
+  extraWarnings: ImportWarning[] = [],
+) {
+  const size = { width: manifest.width, height: manifest.height, fps: 30, backgroundColor: "#000000" };
+  const { segments, warnings } = manifestToSegments(manifest, job.outPrefix, opts, narration);
+  const { editJson, duration } = buildEditJson(segments, size);
+  const project = await createProjectFromEditJson({
+    userId: job.userId,
+    workspaceId: job.workspaceId,
+    title: opts.title?.trim() || manifest.slides[0]?.title || "パワーポイント",
+    size,
+    editJson,
+    duration,
+  });
+
+  await registerFiles(manifest, job, project.id, narration);
+
+  await prisma.importJob.update({
+    where: { id: job.id },
+    data: { status: "done", manifestKey, projectId: project.id, warnings: [...manifest.warnings, ...warnings, ...extraWarnings].sort((a, b) => a.slide - b.slide), inputPrefix: null },
+  });
+}
+
+export class ImportError extends Error {}
+
+export const narrationFile = (no: number) => `narration/s${no}.wav`;
 
 const MIME: Record<string, string> = {
   png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif",
@@ -227,7 +251,7 @@ const MIME: Record<string, string> = {
 };
 
 // 変換した画像・メディアをファイル一覧に登録する（画面側でプロジェクト名のフォルダに振り分け）
-async function registerFiles(m: PptxManifest, job: { userId: string; workspaceId: string; outPrefix: string }, projectId: string) {
+async function registerFiles(m: PptxManifest, job: { userId: string; workspaceId: string; outPrefix: string }, projectId: string, narration?: SlideNarration) {
   const rows: { file: string; name: string; width?: number; height?: number }[] = [];
   for (const s of m.slides) {
     const no = String(s.no).padStart(2, "0");
@@ -237,6 +261,7 @@ async function registerFiles(m: PptxManifest, job: { userId: string; workspaceId
       if (o.file) rows.push({ file: o.file, name: `${no}_${label}.png`, width: o.w, height: o.h });
       if (o.media) rows.push({ file: o.media.file, name: `${no}_${label}.${o.media.file.split(".").pop()}` });
     }
+    if (narration?.has(s.no)) rows.push({ file: narrationFile(s.no), name: `${no}_ナレーション.wav` });
   }
   const base = Date.now();
   await prisma.file.createMany({

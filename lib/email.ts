@@ -20,6 +20,8 @@ async function send(to: string, subject: string, html: string): Promise<void> {
   }
 }
 
+const escapeHtml = (v: string) => v.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" })[c]!);
+
 const baseUrl = () => process.env.APP_URL ?? "http://localhost:3000";
 
 const wrap = (content: string) => `<!DOCTYPE html>
@@ -83,6 +85,7 @@ export async function sendContactInquiryEmail(opts: {
   email: string;
   message: string;
 }): Promise<void> {
+  const h = Object.fromEntries(Object.entries(opts).map(([k, v]) => [k, escapeHtml(v)])) as typeof opts;
   // 運営宛て通知
   await send(
     "info@hisui-ai.com",
@@ -90,10 +93,10 @@ export async function sendContactInquiryEmail(opts: {
     wrap(`
       <p><strong>新しいお問い合わせが届きました。</strong></p>
       <table style="width:100%;border-collapse:collapse;font-size:13px;margin:8px 0 16px">
-        <tr><td style="padding:8px 10px;background:#f8fafc;color:#94a3b8;width:120px;font-weight:700">会社名</td><td style="padding:8px 10px;border-bottom:1px solid #f1f5f9">${opts.companyName}</td></tr>
-        <tr><td style="padding:8px 10px;background:#f8fafc;color:#94a3b8;font-weight:700">担当者名</td><td style="padding:8px 10px;border-bottom:1px solid #f1f5f9">${opts.name}</td></tr>
-        <tr><td style="padding:8px 10px;background:#f8fafc;color:#94a3b8;font-weight:700">メール</td><td style="padding:8px 10px;border-bottom:1px solid #f1f5f9"><a href="mailto:${opts.email}">${opts.email}</a></td></tr>
-        <tr><td style="padding:8px 10px;background:#f8fafc;color:#94a3b8;font-weight:700;vertical-align:top">ご要望</td><td style="padding:8px 10px;white-space:pre-wrap">${opts.message || "（記載なし）"}</td></tr>
+        <tr><td style="padding:8px 10px;background:#f8fafc;color:#94a3b8;width:120px;font-weight:700">会社名</td><td style="padding:8px 10px;border-bottom:1px solid #f1f5f9">${h.companyName}</td></tr>
+        <tr><td style="padding:8px 10px;background:#f8fafc;color:#94a3b8;font-weight:700">担当者名</td><td style="padding:8px 10px;border-bottom:1px solid #f1f5f9">${h.name}</td></tr>
+        <tr><td style="padding:8px 10px;background:#f8fafc;color:#94a3b8;font-weight:700">メール</td><td style="padding:8px 10px;border-bottom:1px solid #f1f5f9"><a href="mailto:${h.email}">${h.email}</a></td></tr>
+        <tr><td style="padding:8px 10px;background:#f8fafc;color:#94a3b8;font-weight:700;vertical-align:top">ご要望</td><td style="padding:8px 10px;white-space:pre-wrap">${h.message || "（記載なし）"}</td></tr>
       </table>
     `),
   );
@@ -102,14 +105,14 @@ export async function sendContactInquiryEmail(opts: {
     opts.email,
     "【Hisui AI】お問い合わせを受け付けました",
     wrap(`
-      <p>${opts.name} 様</p>
+      <p>${h.name} 様</p>
       <p>この度はヒスイAIへのお問い合わせありがとうございます。<br>
       内容を確認のうえ、担当者より <strong>1〜2営業日以内</strong> にご連絡いたします。</p>
       <p style="margin-top:16px;padding:14px;background:#f8fafc;border-radius:8px;font-size:13px">
         <strong>受付内容</strong><br>
-        会社名：${opts.companyName}<br>
-        担当者：${opts.name}<br>
-        ご要望：${opts.message || "（記載なし）"}
+        会社名：${h.companyName}<br>
+        担当者：${h.name}<br>
+        ご要望：${h.message || "（記載なし）"}
       </p>
       <p class="note">このメールは自動送信です。返信は受け付けておりません。<br>
       お急ぎの場合は <a href="mailto:info@hisui-ai.com">info@hisui-ai.com</a> へ直接ご連絡ください。</p>

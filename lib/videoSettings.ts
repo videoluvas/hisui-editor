@@ -19,8 +19,13 @@ export type VideoSettings = {
   vidNegativePrompt: string;
 };
 
+// Veo / Seedance は使用停止中（Kling のみ）
+export function isVideoModelEnabled(model: string): boolean {
+  return model.startsWith("kling-");
+}
+
 export const DEFAULT_VIDEO_SETTINGS: VideoSettings = {
-  videoModel: "veo-3-lite",
+  videoModel: "kling-v3",
   resolution: "720p",
   ratio: "16:9",
   duration: 8,
@@ -48,7 +53,9 @@ export function loadVideoSettings(): VideoSettings {
     if (stored) {
       const parsed = JSON.parse(stored);
       if (parsed.resolution === "480p") parsed.resolution = "720p";
-      return { ...DEFAULT_VIDEO_SETTINGS, ...parsed };
+      const s: VideoSettings = { ...DEFAULT_VIDEO_SETTINGS, ...parsed };
+      if (!isVideoModelEnabled(s.videoModel)) s.videoModel = DEFAULT_VIDEO_SETTINGS.videoModel;
+      return s;
     }
   } catch {}
   return { ...DEFAULT_VIDEO_SETTINGS };

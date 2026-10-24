@@ -3,6 +3,8 @@ export function imageTimeEstimate(modelId: string, testTimeScaling?: number): st
     case "google-image-lite":  return "約15〜30秒";
     case "google-image-pro":   return "約30〜60秒";
     case "seedream-5-0-pro":   return "約30〜60秒";
+    case "gpt-image-2-5-sunburst":
+    case "gpt-image-2-5-flare":
     case "gpt-image-2-high":
     case "gpt-image-1-5":      return "約30〜60秒";
     case "reve-1": {

@@ -2,8 +2,12 @@ export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
 import { sendContactInquiryEmail } from "@/lib/email";
+import { clientIp, overLimit } from "@/lib/auth.guard";
 
 export async function POST(request: NextRequest) {
+  if (overLimit(`contact:${clientIp(request) ?? "-"}`, 5, 60 * 60 * 1000))
+    return NextResponse.json({ ok: false, message: "短時間に送信が多すぎます。しばらく待ってからお試しください" }, { status: 429 });
+
   const body = await request.json().catch(() => ({})) as {
     companyName?: string;
     name?: string;

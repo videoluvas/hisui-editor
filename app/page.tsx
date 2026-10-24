@@ -22,12 +22,12 @@ import EditorRegenImageModal from "@/components/editor.RegenImageModal";
 import EditorRegenVideoModal from "@/components/editor.RegenVideoModal";
 import EditorRegenNarrationModal from "@/components/editor.RegenNarrationModal";
 import EditorImageToVideoModal from "@/components/editor.ImageToVideoModal";
-import { CLIP_MENU, classifyClip, fetchPptxClipKinds } from "@/lib/clip.kind";
-import type { PptxObjectKind } from "@/lib/clip.kind";
-import { imageInfo, nearestRatio, rasterizeClip, uploadBlob } from "@/lib/clip.raster";
+import { CLIP_MENU, CLIP_KIND_NEGATIVE, classifyClip, fetchPptxClipKinds } from "@/lib/clip.kind";
+import type { ClipKind, PptxObjectKind } from "@/lib/clip.kind";
+import { imageInfo, nearestRatio, rasterizeClip, uploadBlob, alignToOriginal } from "@/lib/clip.raster";
 import { saveProjectEditJson } from "@/lib/project.api";
 import type { AutoSaveMode, AutoSaveInterval, SaveLog } from "@/components/editor.SavePanel";
-import { loadGenMeta } from "@/lib/gen.meta";
+import { loadGenMeta, saveGenMeta } from "@/lib/gen.meta";
 import type { GenMeta, GenMetaImage, GenMetaVideo, GenMetaNarration } from "@/lib/gen.meta";
 import type { DecoSettings } from "@/components/editor.DecoTelopModal";
 import ConteTool from "@/components/ConteTool";
@@ -102,7 +102,7 @@ export default function Home() {
   const [pptxKinds, setPptxKinds] = useState<Record<string, PptxObjectKind>>({});
   const [canToVideo, setCanToVideo] = useState(false);
   const [clipBusy, setClipBusy] = useState(false);
-  const [imgEdit, setImgEdit] = useState<{ target: ClipTarget; fileUrl: string; title: string; aspectRatio: string; meta?: GenMetaImage } | null>(null);
+  const [imgEdit, setImgEdit] = useState<{ target: ClipTarget; fileUrl: string; title: string; aspectRatio: string; kind: ClipKind | null; negativePrompt?: string; meta?: GenMetaImage } | null>(null);
   const [toVideo, setToVideo] = useState<{ target: ClipTarget; imageUrl: string; ratio: string } | null>(null);
   const [bulkEditOpen, setBulkEditOpen] = useState(false);
   const [bgmOpen, setBgmOpen] = useState(false);
@@ -309,7 +309,7 @@ export default function Home() {
     return null;
   };
 
-  const replaceClipAsset = async (t: ClipTarget, asset: Record<string, unknown>) => {
+  const replaceClipAsset = async (t: ClipTarget, asset: Record<string, unknown>, aligned?: { grow: number; quality: number }) => {
     if (!editRef.current) return;
     const updated = structuredClone(editRef.current.getEdit() as any);
     const clip = locateClip(updated, t);
@@ -317,6 +317,8 @@ export default function Home() {
     const wasText = clip.asset?.type === "rich-text" || clip.asset?.type === "text" || clip.asset?.type === "svg";
     clip.asset = asset;
     if (wasText && asset.type !== "audio") clip.fit = "contain";
+    // 画像を広げた分だけ拡大して、中身の見た目の大きさを元と揃える（fit:none は実ピクセル表示なので解像度倍率で戻す）
+    if (aligned) clip.scale = Math.round((clip.scale ?? 1) * (clip.fit === "none" ? 1 / aligned.quality : aligned.grow) * 100000) / 100000;
     await editRef.current.loadEdit(updated);
     selectedClipRef.current = null;
     setSelectedClip(null);
@@ -365,7 +367,8 @@ export default function Home() {
     if (a.type === "image" && a.src) fileUrl = a.src;
     else fileUrl = await uploadBlob(await rasterizeClip(target.clip), `decorate-${Date.now()}.png`, selectedProjectRef.current?.id, selectedWorkspaceId);
     const info = await imageInfo(fileUrl);
-    setImgEdit({ target, fileUrl, title: "AI で装飾", aspectRatio: nearestRatio(info.width, info.height) });
+    const kind = classifyClip(target.clip, pptxKinds);
+    setImgEdit({ target, fileUrl, title: "AI で装飾", aspectRatio: nearestRatio(info.width, info.height), kind, negativePrompt: kind ? CLIP_KIND_NEGATIVE[kind] : undefined });
   });
 
   const handleRegenImage = () => withBusy(async () => {
@@ -374,7 +377,8 @@ export default function Home() {
     if (!target || !src) return;
     const meta = loadGenMeta(src);
     const info = await imageInfo(src);
-    setImgEdit({ target, fileUrl: src, title: "画像を再生成", aspectRatio: nearestRatio(info.width, info.height), meta: meta?.type === "ai-image" ? meta : undefined });
+    const kind = classifyClip(target.clip, pptxKinds);
+    setImgEdit({ target, fileUrl: src, title: "画像を再生成", aspectRatio: nearestRatio(info.width, info.height), kind, negativePrompt: kind ? CLIP_KIND_NEGATIVE[kind] : undefined, meta: meta?.type === "ai-image" ? meta : undefined });
   });
 
   const handleImageToVideo = () => withBusy(async () => {
@@ -863,12 +867,20 @@ export default function Home() {
           meta={imgEdit.meta}
           title={imgEdit.title}
           aspectRatio={imgEdit.aspectRatio}
+          negativePrompt={imgEdit.negativePrompt}
           workspaceId={selectedWorkspaceId}
           playbackTime={editRef.current?.playbackTime ?? 0}
           fromTimeline={true}
           onClose={() => setImgEdit(null)}
           onInsert={(asset, start) => { if (!editRef.current) return; editRef.current.addTrack(0, { clips: [clampClipSize({ asset, start, length: 10 })] }); }}
-          onReplace={async (newUrl) => { await replaceClipAsset(imgEdit.target, { type: "image", src: newUrl }); setImgEdit(null); }}
+          onReplace={(newUrl) => withBusy(async () => {
+            const aligned = await alignToOriginal(imgEdit.fileUrl, newUrl).catch(() => null);
+            const src = aligned ? await uploadBlob(aligned.blob, `decorated-${Date.now()}.png`, selectedProjectRef.current?.id, selectedWorkspaceId) : newUrl;
+            const genMeta = loadGenMeta(newUrl);
+            if (genMeta?.type === "ai-image") saveGenMeta(src, { ...genMeta, sourceKind: imgEdit.kind && CLIP_MENU[imgEdit.kind] === "decorate" ? imgEdit.kind : undefined });
+            await replaceClipAsset(imgEdit.target, { type: "image", src }, aligned ?? undefined);
+            setImgEdit(null);
+          })}
         />
       )}
       {toVideo && (

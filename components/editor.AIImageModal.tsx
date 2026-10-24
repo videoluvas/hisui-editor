@@ -1,20 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { loadImageSettings } from "@/lib/imageSettings";
+import { loadImageSettings, isImageModelEnabled, DEFAULT_IMAGE_SETTINGS } from "@/lib/imageSettings";
 import { imageTimeEstimate } from "@/lib/genTimeEstimate";
+import { DEFAULT_IMAGE_NEGATIVE } from "@/lib/clip.kind";
 import { saveGenMeta } from "@/lib/gen.meta";
 import type { GenMetaImage } from "@/lib/gen.meta";
 
 const GRAD = "linear-gradient(45deg, #5184F0, #169385)";
 const FONT = "'Noto Sans JP', sans-serif";
-
-const IMAGE_MODELS = [
-  { value: "google-image-lite", label: "Google Image Lite（推奨）" },
-  { value: "google-image-pro",  label: "Google Image Pro" },
-  { value: "seedream-5-0-pro",  label: "Seedream 5.0 Pro" },
-  { value: "reve-1",            label: "Reve AI" },
-] as const;
 
 const ASPECT_RATIOS = ["16:9", "9:16", "1:1", "4:3", "3:4"] as const;
 
@@ -31,10 +25,9 @@ type Props = {
 
 export default function EditorAIImageModal({ open, workspaceId, playbackTime, onClose, onInsert, onOpenSettings, initialData, onGenerated }: Props) {
   const [prompt,            setPrompt]            = useState("");
-  const [model,             setModel]             = useState<string>("google-image-lite");
+  const [model,             setModel]             = useState<string>(DEFAULT_IMAGE_SETTINGS.imageModel);
   const [aspectRatio,       setAspectRatio]       = useState("16:9");
-  const [imgCommonRules,    setImgCommonRules]    = useState("");
-  const [imgNegativePrompt, setImgNegativePrompt] = useState("");
+  const [imgNegativePrompt, setImgNegativePrompt] = useState(DEFAULT_IMAGE_NEGATIVE);
   const [status,            setStatus]            = useState<"idle" | "generating" | "done" | "error">("idle");
   const [errorMsg,          setErrorMsg]          = useState("");
   const [imageUrl,          setImageUrl]          = useState<string | null>(null);
@@ -45,11 +38,10 @@ export default function EditorAIImageModal({ open, workspaceId, playbackTime, on
     if (!open) return;
     const s = loadImageSettings();
     setImgSettings(s);
-    setImgCommonRules(s.imgCommonRules);
-    setImgNegativePrompt(s.imgNegativePrompt);
+    setImgNegativePrompt(DEFAULT_IMAGE_NEGATIVE);
     if (initialData) {
       setPrompt(initialData.prompt);
-      setModel(initialData.model);
+      setModel(isImageModelEnabled(initialData.model) ? initialData.model : s.imageModel);
       setAspectRatio(initialData.aspectRatio);
     } else {
       setModel(s.imageModel);
@@ -62,8 +54,6 @@ export default function EditorAIImageModal({ open, workspaceId, playbackTime, on
   }, [open]);
 
   if (!open) return null;
-
-  const hasWsRules = !!(imgCommonRules.trim() || imgNegativePrompt.trim());
 
   const handleGenerate = async () => {
     if (!prompt.trim()) { setErrorMsg("プロンプトを入力してください"); return; }
@@ -87,7 +77,6 @@ export default function EditorAIImageModal({ open, workspaceId, playbackTime, on
           gptCompression: imgSettings.gptCompression,
           gptModeration: imgSettings.gptModeration,
           gptOutputFormat: imgSettings.gptOutputFormat,
-          imgCommonRules,
           imgNegativePrompt,
           workspaceId: workspaceId ?? undefined,
         }),
@@ -144,17 +133,6 @@ export default function EditorAIImageModal({ open, workspaceId, playbackTime, on
           </div>
         </div>
 
-        {/* ワークスペース設定バッジ */}
-        {hasWsRules && (
-          <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "7px 12px", fontSize: 12, color: "#15803d" }}>
-            <span>✓</span>
-            <span>ワークスペース設定（共通ルール・NG）を適用中</span>
-            {onOpenSettings && (
-              <button onClick={onOpenSettings} style={{ marginLeft: "auto", fontSize: 11, color: "#15803d", fontWeight: 600, background: "none", border: "none", cursor: "pointer", textDecoration: "underline", padding: 0 }}>変更</button>
-            )}
-          </div>
-        )}
-
         {/* Aspect ratio */}
         <Section label="アスペクト比">
           <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
@@ -172,6 +150,15 @@ export default function EditorAIImageModal({ open, workspaceId, playbackTime, on
             placeholder="例：東京のビル群を背景に、スーツを着たビジネスマンが颯爽と歩いているシーン"
             rows={4}
             style={{ width: "100%", boxSizing: "border-box", border: "1.5px solid #e2e8f0", borderRadius: 10, padding: "9px 12px", fontSize: 13, fontFamily: FONT, resize: "vertical", outline: "none", color: "#334155", lineHeight: 1.6 }}
+          />
+        </Section>
+
+        <Section label="ネガティブプロンプト" sub="含めたくない要素（空にすると指定なし）">
+          <textarea
+            value={imgNegativePrompt}
+            onChange={(e) => setImgNegativePrompt(e.target.value)}
+            rows={2}
+            style={{ width: "100%", boxSizing: "border-box", border: "1.5px solid #e2e8f0", borderRadius: 10, padding: "9px 12px", fontSize: 12, fontFamily: FONT, resize: "vertical", outline: "none", color: "#334155", lineHeight: 1.6 }}
           />
         </Section>
 

@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { loadImageSettings } from "@/lib/imageSettings";
+import { loadImageSettings, isImageModelEnabled, TRANSPARENT_IMAGE_MODEL } from "@/lib/imageSettings";
 import { imageTimeEstimate } from "@/lib/genTimeEstimate";
+import { imageInfo } from "@/lib/clip.raster";
+import { DEFAULT_IMAGE_NEGATIVE } from "@/lib/clip.kind";
 import { saveGenMeta } from "@/lib/gen.meta";
 import type { GenMetaImage } from "@/lib/gen.meta";
 
@@ -10,6 +12,10 @@ const GRAD = "linear-gradient(45deg, #5184F0, #169385)";
 const FONT = "'Noto Sans JP', sans-serif";
 
 const MODEL_LABELS: Record<string, string> = {
+  "gpt-image-2-5-sunburst": "GPT Image 2.5 Sunburst",
+  "gpt-image-2-5-flare":    "GPT Image 2.5 Flare",
+  "gpt-image-2-high":       "GPT Image 2 (high)",
+  "gpt-image-1-5":          "GPT Image 1.5 (high)",
   "google-image-lite": "Google Image Lite",
   "google-image-pro":  "Google Image Pro",
   "seedream-5-0-pro":  "Seedream 5.0 Pro",
@@ -22,6 +28,7 @@ type Props = {
   meta?: GenMetaImage;      // ない場合（パワポの画像・アップロード画像・図形など）は画像設定のモデルで参照生成
   title?: string;
   aspectRatio?: string;     // meta がないときの出力比率
+  negativePrompt?: string;  // 選択中のコンテンツ向けのネガティブプロンプト初期値
   workspaceId?: string | null;
   playbackTime: number;
   fromTimeline?: boolean;
@@ -30,16 +37,19 @@ type Props = {
   onReplace?: (newUrl: string) => void;
 };
 
-export default function EditorRegenImageModal({ open, fileUrl, meta: givenMeta, title = "AI 画像を再生成", aspectRatio, workspaceId, playbackTime, fromTimeline, onClose, onInsert, onReplace }: Props) {
+export default function EditorRegenImageModal({ open, fileUrl, meta: givenMeta, title = "AI 画像を再生成", aspectRatio, negativePrompt, workspaceId, playbackTime, fromTimeline, onClose, onInsert, onReplace }: Props) {
   const [defaultModel] = useState(() => loadImageSettings().imageModel);
   const meta: GenMetaImage = givenMeta ?? { type: "ai-image", prompt: "", model: defaultModel, aspectRatio: aspectRatio ?? "16:9" };
   const [prompt,      setPrompt]      = useState(meta.prompt);
   const [useRefImage, setUseRefImage] = useState(true);
+  // 元画像が透過あり → GPT Image 2.5 Sunburst で透過のまま加工
+  const [transparent, setTransparent] = useState(false);
+  const keepAlpha = transparent && useRefImage;
+  const model = keepAlpha ? TRANSPARENT_IMAGE_MODEL : isImageModelEnabled(meta.model) ? meta.model : defaultModel;
   const [status,      setStatus]      = useState<"idle" | "generating" | "done" | "error">("idle");
   const [errorMsg,    setErrorMsg]    = useState("");
   const [newUrl,      setNewUrl]      = useState<string | null>(null);
-  const [wsRules,     setWsRules]     = useState("");
-  const [wsNeg,       setWsNeg]       = useState("");
+  const [negative,    setNegative]    = useState("");
 
   const [imgSettings, setImgSettings] = useState(() => loadImageSettings());
 
@@ -52,9 +62,12 @@ export default function EditorRegenImageModal({ open, fileUrl, meta: givenMeta, 
     setNewUrl(null);
     const s = loadImageSettings();
     setImgSettings(s);
-    setWsRules(s.imgCommonRules);
-    setWsNeg(s.imgNegativePrompt);
-  }, [open]);
+    setNegative(negativePrompt ?? DEFAULT_IMAGE_NEGATIVE);
+    setTransparent(false);
+    let alive = true;
+    imageInfo(fileUrl).then((i) => { if (alive) setTransparent(i.hasAlpha); }).catch(() => {});
+    return () => { alive = false; };
+  }, [open, fileUrl]);
 
   if (!open) return null;
 
@@ -68,7 +81,7 @@ export default function EditorRegenImageModal({ open, fileUrl, meta: givenMeta, 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           prompt,
-          imageModel: meta.model,
+          imageModel: model,
           aspectRatio: meta.aspectRatio,
           googleAspectRatio: meta.aspectRatio,
           sdAspectRatio: meta.aspectRatio,
@@ -80,15 +93,15 @@ export default function EditorRegenImageModal({ open, fileUrl, meta: givenMeta, 
           gptModeration: imgSettings.gptModeration,
           gptOutputFormat: imgSettings.gptOutputFormat,
           imgUrl: useRefImage ? fileUrl : undefined,
-          imgCommonRules: wsRules,
-          imgNegativePrompt: wsNeg,
+          transparent: keepAlpha,
+          imgNegativePrompt: negative,
           workspaceId: workspaceId ?? undefined,
         }),
       });
       const data = await res.json() as { ok: boolean; url?: string; message?: string };
       if (!data.ok) throw new Error(data.message ?? "生成に失敗しました");
       if (data.url) {
-        saveGenMeta(data.url, { type: "ai-image", prompt, model: meta.model, aspectRatio: meta.aspectRatio });
+        saveGenMeta(data.url, { type: "ai-image", prompt, model, aspectRatio: meta.aspectRatio });
         setNewUrl(data.url);
       }
       setStatus("done");
@@ -162,11 +175,10 @@ export default function EditorRegenImageModal({ open, fileUrl, meta: givenMeta, 
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <span style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8", letterSpacing: "0.06em" }}>生成時の設定</span>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <Badge label="モデル"       value={MODEL_LABELS[meta.model] ?? meta.model} />
+            <Badge label="モデル"       value={MODEL_LABELS[model] ?? model} />
             <Badge label="アスペクト比" value={meta.aspectRatio} />
+            {keepAlpha && <Badge label="背景" value="透過を維持" />}
           </div>
-          {wsRules && <InfoBlock label="共通ルール（WS設定）" value={wsRules} />}
-          {wsNeg   && <InfoBlock label="NGワード（WS設定）"   value={wsNeg} />}
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -179,11 +191,23 @@ export default function EditorRegenImageModal({ open, fileUrl, meta: givenMeta, 
             style={{ width: "100%", boxSizing: "border-box", border: "1.5px solid #e2e8f0", borderRadius: 10, padding: "9px 12px", fontSize: 13, fontFamily: FONT, resize: "vertical", outline: "none", color: "#334155", lineHeight: 1.6 }} />
         </div>
 
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>ネガティブプロンプト</span>
+            <span style={{ fontSize: 11, color: "#94a3b8" }}>含めたくない要素（空にすると指定なし）</span>
+            {negative !== (negativePrompt ?? DEFAULT_IMAGE_NEGATIVE) && (
+              <button onClick={() => setNegative(negativePrompt ?? DEFAULT_IMAGE_NEGATIVE)} style={{ marginLeft: "auto", fontSize: 11, color: "#5184F0", fontWeight: 600, background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: FONT }}>初期値に戻す</button>
+            )}
+          </div>
+          <textarea value={negative} onChange={e => setNegative(e.target.value)} rows={2}
+            style={{ width: "100%", boxSizing: "border-box", border: "1.5px solid #e2e8f0", borderRadius: 10, padding: "9px 12px", fontSize: 12, fontFamily: FONT, resize: "vertical", outline: "none", color: "#334155", lineHeight: 1.6 }} />
+        </div>
+
         {errorMsg && <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "#b91c1c" }}>{errorMsg}</div>}
 
         <button onClick={handleRegen} disabled={status === "generating"}
           style={{ background: status === "generating" ? "#cbd5e1" : GRAD, color: "#fff", border: "none", borderRadius: 10, padding: "13px 0", fontWeight: 700, fontSize: 14, cursor: status === "generating" ? "not-allowed" : "pointer", fontFamily: FONT }}>
-          {status === "generating" ? `生成中…（${imageTimeEstimate(meta.model)}）` : "再生成する"}
+          {status === "generating" ? `生成中…（${imageTimeEstimate(model)}）` : "再生成する"}
         </button>
       </div>
     </div>
@@ -195,15 +219,6 @@ function Badge({ label, value }: { label: string; value: string }) {
     <div style={{ display: "flex", alignItems: "center", gap: 5, background: "#f1f5f9", borderRadius: 20, padding: "4px 12px" }}>
       <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 600 }}>{label}</span>
       <span style={{ fontSize: 12, color: "#334155", fontWeight: 700 }}>{value}</span>
-    </div>
-  );
-}
-
-function InfoBlock({ label, value }: { label: string; value: string }) {
-  return (
-    <div style={{ background: "#f8fafc", borderRadius: 8, padding: "8px 12px" }}>
-      <div style={{ fontSize: 10, color: "#94a3b8", fontWeight: 600, marginBottom: 3 }}>{label}</div>
-      <div style={{ fontSize: 12, color: "#475569", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{value}</div>
     </div>
   );
 }

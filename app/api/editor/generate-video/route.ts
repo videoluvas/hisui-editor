@@ -2,6 +2,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { isVideoModelEnabled } from "@/lib/videoSettings";
 import { getEditorSessionFromCookie } from "@/lib/auth.backend";
 import { logError } from "@/lib/log.error";
 import { consumeCredits, refundCredits, videoModelToAction } from "@/lib/credits";
@@ -54,11 +55,12 @@ export async function POST(request: NextRequest) {
   const neg   = body.vidNegativePrompt?.trim();
   const prompt = [basePrompt, rules, neg ? `以下の要素は含めないでください: ${neg}` : ""].filter(Boolean).join(" ");
 
-  const videoModel    = body.videoModel ?? "veo-3-lite";
+  const videoModel    = body.videoModel ?? "kling-v3";
   const isVeoModel    = videoModel === "veo-3" || videoModel === "veo-3-lite";
   const isKlingModel  = videoModel.startsWith("kling-");
   const isKlingV3     = videoModel === "kling-v3" || videoModel === "kling-v3-turbo" || videoModel === "kling-v3-omni";
 
+  if (!isVideoModelEnabled(videoModel)) return NextResponse.json({ ok: false, message: "このモデルは現在使用できません。設定から Kling を選んでください" }, { status: 403 });
   const access = await checkModelAccess(videoModel, session.user.plan ?? null);
   if (!access.ok) return NextResponse.json({ ok: false, message: access.message }, { status: access.status ?? 403 });
 

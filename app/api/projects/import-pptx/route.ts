@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { getEditorSessionFromCookie } from "@/lib/auth.backend";
 import { IMPORT_MAX_BYTES, importPrefix, presignInputs } from "@/lib/pptx.import";
 import { sanitizeAnimSettings } from "@/lib/pptx.effects";
+import { GEMINI_VOICES } from "@/lib/ttsSettings";
 
 // 取り込みジョブを作り、.pptx / .pdf のアップロード先を返す
 export async function POST(req: NextRequest) {
@@ -18,6 +19,8 @@ export async function POST(req: NextRequest) {
   const animationMode = body.animationMode === "custom" ? "custom" : "recommended";
   const animations = sanitizeAnimSettings(body.animations);
   const stagger = !!body.stagger;
+  const voice = body.narration?.voice;
+  const narration = typeof voice === "string" && (GEMINI_VOICES as readonly string[]).includes(voice) ? { voice } : undefined;
 
   if (!workspaceId) return NextResponse.json({ ok: false, message: "workspaceIdが必要です" }, { status: 400 });
   const ws = await prisma.workspace.findFirst({ where: { id: workspaceId, userId: session.userId } });
@@ -36,7 +39,7 @@ export async function POST(req: NextRequest) {
       id: jobId,
       userId: session.userId,
       workspaceId,
-      options: { title: title ?? "", secPerSlide, animationMode, animations, stagger },
+      options: { title: title ?? "", secPerSlide, animationMode, animations, stagger, ...(narration ? { narration } : {}) },
       inputPrefix: `${prefix}/in`,
       outPrefix: `${prefix}/out`,
     },
