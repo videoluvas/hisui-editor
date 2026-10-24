@@ -20,13 +20,17 @@ const MODEL_DEFINITIONS = [
   { modelId: "kling-v3",            modelType: "video",  modelLabel: "Kling 3.0" },
   { modelId: "kling-v3-turbo",      modelType: "video",  modelLabel: "Kling 3.0 Turbo" },
   { modelId: "kling-v3-omni",       modelType: "video",  modelLabel: "Kling 3.0 Omni" },
-  { modelId: "gemini-tts-high",     modelType: "tts",    modelLabel: "Gemini TTS High" },
+  { modelId: "gemini-tts-high",     modelType: "tts",    modelLabel: "Gemini 3.8 Flash TTS" },
+  { modelId: "elevenlabs",          modelType: "tts",    modelLabel: "ElevenLabs" },
   { modelId: "lyria-2",             modelType: "bgm",    modelLabel: "Lyria 2" },
   { modelId: "lyria-3-pro-preview", modelType: "bgm",    modelLabel: "Lyria 3 Pro" },
   { modelId: "claude-haiku-4-5",    modelType: "script", modelLabel: "Claude Haiku 4.5" },
   { modelId: "claude-sonnet-4-6",   modelType: "script", modelLabel: "Claude Sonnet 4.6" },
   { modelId: "claude-opus-4-7",     modelType: "script", modelLabel: "Claude Opus 4.7" },
 ];
+
+// ElevenLabs は未実装なので、行がなくても一時停止扱い
+const defaultAvail = (modelId: string) => modelId === "elevenlabs" ? "suspended" : "paid";
 
 async function isAdmin(userId: string): Promise<boolean> {
   const adminEmails = (process.env.ADMIN_EMAIL ?? "")
@@ -46,7 +50,7 @@ export async function GET() {
 
   const configs = MODEL_DEFINITIONS.map((def) => ({
     ...def,
-    availability: (rowMap[def.modelId] ?? "paid") as "free" | "paid" | "suspended",
+    availability: (rowMap[def.modelId] ?? defaultAvail(def.modelId)) as "free" | "paid" | "suspended",
   }));
 
   return NextResponse.json({ ok: true, configs });
@@ -79,7 +83,7 @@ export async function PATCH(request: NextRequest) {
   const rowMap = Object.fromEntries(rows.map((r) => [r.modelId, r.availability]));
   const configs = MODEL_DEFINITIONS.map((d) => ({
     ...d,
-    availability: (rowMap[d.modelId] ?? "paid") as "free" | "paid" | "suspended",
+    availability: (rowMap[d.modelId] ?? defaultAvail(d.modelId)) as "free" | "paid" | "suspended",
   }));
 
   return NextResponse.json({ ok: true, configs });

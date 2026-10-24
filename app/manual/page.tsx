@@ -452,7 +452,7 @@ export default function ManualPage() {
                   ["AI画像生成", "20回まで", "コンテ内の画像生成・エディタからの生成を含む。使用モデルはGoogle Nano Banana 2 Lite固定"],
                   ["AI台本作成（スクリプト自動生成）", "5回まで", "コンテ作成モードでのシーン別スクリプト生成"],
                   ["AI動画生成", "10回まで", "使用モデルはGoogle Veo 3.1 Lite固定"],
-                  ["AIナレーション", "20回まで", "使用モデルはGoogle Gemini 3.1 Flash TTS固定"],
+                  ["AIナレーション", "20回まで", "使用モデルはGoogle Gemini 3.8 Flash TTS固定"],
                   ["BGM生成", "5回まで", "使用モデルはGoogle Lyria 2固定（Lyria 3 Proは有料プランのみ）"],
                   ["装飾テロップ", "制限なし", ""],
                   ["動画編集エディタ", "制限なし", "タイムライン編集・書き出しを含む"],
@@ -767,7 +767,7 @@ export default function ManualPage() {
 
             <SubSection title="ナレーションモデル">
               <ModelTable rows={[
-                ["Google Gemini 3.1 Flash TTS","豊富な音声バリエーション（30種以上）・9トーン・5話速に対応した汎用モデル",      "free"],
+                ["Google Gemini 3.8 Flash TTS","豊富な音声バリエーション（30種以上）・9トーン・5話速に対応した汎用モデル",      "free"],
                 ["SpeechifyAI Simba 3.2",      "自然な息づかいと感情表現が得意。プロナレーターに近い音声質",                    "paid"],
                 ["Cartesia Sonic 3.5",         "超低遅延でクリアな音質。鮮明で聞き取りやすい声質",                              "paid"],
               ]} />

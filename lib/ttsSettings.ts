@@ -20,8 +20,8 @@ export const GEMINI_TTS_MODELS: TtsModelDef[] = [
   {
     key: "gemini-tts-high",
     provider: "google-gemini",
-    label: "Gemini 3.1 Flash TTS",
-    providerModelId: "gemini-3.1-flash-tts-preview",
+    label: "Gemini 3.8 Flash TTS",
+    providerModelId: "gemini-3.8-flash-tts",
     quality: "high",
     supportsStreaming: true,
     supportsMultiSpeaker: true,

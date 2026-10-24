@@ -5,7 +5,7 @@ import { getEditJsonFromR2, putEditJsonToR2 } from "@/lib/project.r2";
 import { logError } from "@/lib/log.error";
 import { CREDIT_COST, FREE_NARRATION_IMPORTS, consumeCredits, isFreePlan, narrationMultiplier, refundCredits } from "@/lib/credits";
 import { GEMINI_TTS_MODELS, GEMINI_VOICES } from "@/lib/ttsSettings";
-import { buildPrompt, callGeminiTts, chunkText, mergeWavs, wavSeconds } from "@/lib/tts.gemini";
+import { callGeminiTts, chunkText, mergeWavs, wavSeconds } from "@/lib/tts.gemini";
 import { ImportError, finishImport, narrationFile } from "@/lib/pptx.import";
 import type { ImportOptions, ImportWarning, PptxManifest, SlideNarration } from "@/lib/pptx.import";
 
@@ -133,7 +133,7 @@ async function generateAll(job: Job, manifest: PptxManifest, voiceName: string) 
       const text = s.notes.trim();
       try {
         const wavs: Buffer[] = [];
-        for (const chunk of chunkText(text, 500)) wavs.push(await callGeminiTts(model, buildPrompt(chunk, {}), voice, apiKey, 2));
+        for (const chunk of chunkText(text, 500)) wavs.push(await callGeminiTts(model, chunk, "", voice, apiKey, 2));
         const wav = mergeWavs(wavs);
         const key = `${job.outPrefix}/${narrationFile(s.no)}`;
         await r2Client.send(new PutObjectCommand({ Bucket: R2_BUCKET_NAME, Key: key, Body: wav, ContentType: "audio/wav" }));

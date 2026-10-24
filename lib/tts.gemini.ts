@@ -48,7 +48,8 @@ export function chunkText(text: string, maxLen: number): string[] {
   return chunks.length > 0 ? chunks : [text];
 }
 
-export function buildPrompt(transcript: string, opts: {
+// Gemini 3.8 TTS は本文をそのまま読み上げるので、演出指示は speech_metadata.style に分けて渡す
+export function buildStyle(opts: {
   style?: string;
   pacing?: string;
   tone?: string;
@@ -56,36 +57,31 @@ export function buildPrompt(transcript: string, opts: {
   commonRules?: string;
   negativePrompt?: string;
 }): string {
-  const lines = [
-    "Generate spoken audio using the performance instructions below.",
-    "Read only the text inside the TRANSCRIPT section.",
-    "Do not read the instructions or section headings aloud.",
-  ];
   const notes: string[] = [];
-  if (opts.style?.trim()) notes.push(`Style: ${opts.style.trim()}`);
+  if (opts.style?.trim()) notes.push(opts.style.trim());
   if (opts.pacing && PACING_TO_INSTRUCTION[opts.pacing]) notes.push(`Pacing: ${PACING_TO_INSTRUCTION[opts.pacing]}`);
   if (opts.tone && TONE_TO_INSTRUCTION[opts.tone]) notes.push(`Tone: ${TONE_TO_INSTRUCTION[opts.tone]}`);
   if (opts.accent?.trim()) notes.push(`Accent: ${opts.accent.trim()}`);
   if (opts.commonRules?.trim()) notes.push(`Additional rules: ${opts.commonRules.trim()}`);
   if (opts.negativePrompt?.trim()) notes.push(`Avoid: ${opts.negativePrompt.trim()}`);
-  if (notes.length > 0) { lines.push("", "# DIRECTOR'S NOTES"); lines.push(...notes); }
-  lines.push("", "# TRANSCRIPT", transcript);
-  return lines.join("\n");
+  return notes.join("\n");
 }
 
-export async function callGeminiTts(providerModelId: string, prompt: string, voice: string, apiKey: string, maxRetry: number): Promise<Buffer> {
-  const url = `${GOOGLE_AI_BASE}/models/${providerModelId}:generateContent?key=${apiKey}`;
+export async function callGeminiTts(providerModelId: string, text: string, style: string, voice: string, apiKey: string, maxRetry: number): Promise<Buffer> {
+  const url = `${GOOGLE_AI_BASE}/interactions`;
   const body = JSON.stringify({
-    contents: [{ role: "user", parts: [{ text: prompt }] }],
-    generationConfig: {
-      responseModalities: ["AUDIO"],
-      speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } },
-    },
+    model: providerModelId,
+    input: [{
+      type: "user_input",
+      content: [{ type: "text", text, ...(style ? { annotations: [{ type: "speech_metadata", style }] } : {}) }],
+    }],
+    response_format: { type: "audio", mime_type: "audio/l16", sample_rate: TTS_SAMPLE_RATE },
+    generation_config: { speech_config: [{ voice }] },
   });
   let lastErr: Error = new Error("Unknown error");
   for (let attempt = 0; attempt <= maxRetry; attempt++) {
     if (attempt > 0) await new Promise((r) => setTimeout(r, 1200 * attempt));
-    const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body });
+    const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey }, body });
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
       if (NON_RETRYABLE.has(res.status)) throw new Error(`Gemini TTS ${res.status}: ${errText}`);
@@ -94,9 +90,10 @@ export async function callGeminiTts(providerModelId: string, prompt: string, voi
     }
     let data: unknown;
     try { data = await res.json(); } catch { lastErr = new Error("Gemini TTS: JSON parse error"); continue; }
-    const inlineData = (data as any)?.candidates?.[0]?.content?.parts?.[0]?.inlineData;
-    if (!inlineData?.data) { lastErr = new Error("Gemini TTS: 音声データが返されませんでした"); continue; }
-    return buildWav(Buffer.from(inlineData.data as string, "base64"));
+    const steps: any[] = (data as any)?.steps ?? [];
+    const audio = steps.filter((s) => s?.type === "model_output").flatMap((s) => s.content ?? []).filter((c: any) => c?.type === "audio" && c.data).pop();
+    if (!audio) { lastErr = new Error("Gemini TTS: 音声データが返されませんでした"); continue; }
+    return buildWav(Buffer.from(audio.data as string, "base64"), audio.sample_rate ?? TTS_SAMPLE_RATE);
   }
   throw lastErr;
 }

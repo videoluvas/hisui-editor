@@ -11,7 +11,7 @@ import { v4 as uuidv4 } from "uuid";
 import { consumeCredits, refundCredits, narrationMultiplier } from "@/lib/credits";
 import { GEMINI_TTS_MODELS, GEMINI_VOICES } from "@/lib/ttsSettings";
 import type { TtsProvider, GeminiTtsModelKey } from "@/lib/ttsSettings";
-import { buildPrompt, callGeminiTts, chunkText, mergeWavs } from "@/lib/tts.gemini";
+import { buildStyle, callGeminiTts, chunkText, mergeWavs } from "@/lib/tts.gemini";
 
 export async function POST(request: NextRequest) {
   const session = await getEditorSessionFromCookie();
@@ -69,8 +69,8 @@ export async function POST(request: NextRequest) {
     const chunks = autoChunk ? chunkText(transcript, maxChunkLen) : [transcript];
     const wavBuffers: Buffer[] = [];
     for (const chunk of chunks) {
-      const prompt = buildPrompt(chunk, { style, pacing, tone, accent, commonRules: body.ttsCommonRules, negativePrompt: body.ttsNegativePrompt });
-      wavBuffers.push(await callGeminiTts(modelDef.providerModelId, prompt, voice, apiKey, retryCount));
+      const styleText = buildStyle({ style, pacing, tone, accent, commonRules: body.ttsCommonRules, negativePrompt: body.ttsNegativePrompt });
+      wavBuffers.push(await callGeminiTts(modelDef.providerModelId, chunk, styleText, voice, apiKey, retryCount));
     }
     const finalWav = mergeWavs(wavBuffers);
 

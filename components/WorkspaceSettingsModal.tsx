@@ -272,7 +272,7 @@ const VIDEO_MODELS: { id: string; label: string; sub: string; color: string; pro
 ];
 
 const TTS_MODELS = [
-  { id: "gemini-tts-high",  label: "Google AI",   sub: "Gemini 3.1 Flash TTS",  color: "#1A73E8", provider: "google"     as const },
+  { id: "gemini-tts-high",  label: "Google AI",   sub: "Gemini 3.8 Flash TTS",  color: "#1A73E8", provider: "google"     as const },
   { id: "elevenlabs",       label: "ElevenLabs",  sub: "ElevenLabs",            color: "#6C47FF", provider: "elevenlabs" as const },
 ] as const;
 
@@ -1501,8 +1501,10 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
 
             {/* ── AIナレーション生成 ── */}
             {activeTab === "narration" && (() => {
+              // 管理画面で一時停止にしたモデルは選択肢から隠す
+              const ttsModels = TTS_MODELS.filter((m) => (availMap[m.id] ?? (m.id === "elevenlabs" ? "suspended" : "paid")) !== "suspended");
               const isGoogle = tts.provider === "google-gemini";
-              const currentTtsModel = TTS_MODELS.find((m) => m.id === (tts.provider === "elevenlabs" ? "elevenlabs" : tts.model)) ?? TTS_MODELS[0];
+              const currentTtsModel = ttsModels.find((m) => m.id === (tts.provider === "elevenlabs" ? "elevenlabs" : tts.model)) ?? TTS_MODELS[0];
               const ttsColor = currentTtsModel.color;
               const currentModelDef2 = GEMINI_TTS_MODELS.find((m) => m.key === tts.model) ?? GEMINI_TTS_MODELS[0];
               return (
@@ -1511,7 +1513,7 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                 <div style={SEC}>使用モデル</div>
                 <div style={FIELD}>
                   <ModelDropdown
-                    models={TTS_MODELS}
+                    models={ttsModels}
                     value={tts.provider === "elevenlabs" ? "elevenlabs" : tts.model}
                     onChange={(id) => {
                       if (id === "elevenlabs") {
@@ -1520,7 +1522,7 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                         setTts((s) => ({ ...s, provider: "google-gemini", model: id as typeof tts.model }));
                       }
                     }}
-                    lockedIds={lockedIds(TTS_MODELS.map((m) => m.id))}
+                    lockedIds={lockedIds(ttsModels.map((m) => m.id))}
                   />
                   {tts.provider === "elevenlabs" && (
                     <div style={{ marginTop: 6, fontSize: 10, color: "#94a3b8", fontFamily: FONT }}>
