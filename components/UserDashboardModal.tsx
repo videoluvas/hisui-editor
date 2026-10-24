@@ -122,6 +122,8 @@ const CHECKOUT_STATUS_LABEL: Record<string, { label: string; color: string }> = 
 
 function planLabel(plan: string | null): string {
   if (!plan || plan === "Free") return "無料プラン";
+  if (plan === "Business") return "スタンダード";
+  if (plan === "Pro") return "プロ";
   return plan;
 }
 

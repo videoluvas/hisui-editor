@@ -10,7 +10,7 @@ export type ContactTopicId = "enterprise" | "plan" | "usage" | "bug" | "account"
 
 export const CONTACT_TOPICS: { id: ContactTopicId; label: string; desc: string }[] = [
   { id: "enterprise", label: "法人向けオプションの相談", desc: "AI コンテツール・AI アバター・チーム編集・専用の学習モデルなど" },
-  { id: "plan",       label: "有料プランの申し込み",     desc: "Business / Pro プランのお申し込み・お見積り" },
+  { id: "plan",       label: "有料プランの申し込み",     desc: "スタンダード / プロ プランのお申し込み" },
   { id: "usage",      label: "使い方・機能について",     desc: "パワーポイントの取り込み・ナレーション・書き出しなど" },
   { id: "bug",        label: "不具合の報告",             desc: "エラーが出る・取り込みが終わらない など" },
   { id: "account",    label: "アカウント・請求",         desc: "プラン変更・解約・アカウント削除・請求書" },
@@ -20,11 +20,11 @@ export const CONTACT_TOPICS: { id: ContactTopicId; label: string; desc: string }
 const ENTERPRISE_FEATURES = ["AI コンテツール", "AI アバター", "多彩な学習モデル", "チームでの共同編集", "専門スタッフによる技術サポート", "研修・社内向けの大量制作"];
 const SEATS = ["1〜5 名", "6〜20 名", "21〜100 名", "101 名以上", "未定"];
 const TIMING = ["すぐにでも", "1〜3 か月以内", "半年以内", "情報収集中"];
-const PLANS = ["Business", "Pro", "まだ決めていない"];
+const PLANS = ["スタンダード", "プロ", "まだ決めていない"];
 
 const PLACEHOLDER: Record<ContactTopicId, string> = {
   enterprise: "使いたい用途（例：新人研修の動画を毎月 20 本作りたい）や、気になっている点をご記入ください。",
-  plan:       "お支払い方法（カード / 請求書払い）のご希望などがあればご記入ください。",
+  plan:       "月払い / 年払い、お支払い方法（カード / 請求書払い）のご希望などがあればご記入ください。担当者からメールでお手続きをご案内します。",
   usage:      "どの画面で、何をしようとしているかをご記入ください。",
   bug:        "起きたこと・操作の手順・表示されたエラーメッセージ・起きた日時をご記入ください。ご登録のメールアドレスで送っていただくと調査が早くなります。",
   account:    "ご登録のメールアドレスと、ご希望の手続きをご記入ください。",
@@ -37,7 +37,8 @@ function initialTopic(q: URLSearchParams): { topic: ContactTopicId; plan?: strin
   if (t && CONTACT_TOPICS.some((x) => x.id === t)) return { topic: t as ContactTopicId, plan: q.get("plan") ?? undefined };
   const plan = q.get("plan");
   if (plan === "special") return { topic: "enterprise" };
-  if (plan === "Business" || plan === "Pro") return { topic: "plan", plan };
+  if (plan === "Business") return { topic: "plan", plan: "スタンダード" };
+  if (plan === "Pro") return { topic: "plan", plan: "プロ" };
   return { topic: "usage" };
 }
 

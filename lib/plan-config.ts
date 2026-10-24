@@ -3,8 +3,8 @@ import type { PlanConfigRow } from "@/lib/email";
 
 const DEFAULTS = [
   { id: "Free",     label: "無料プラン",     price_jpy: 0,     credits_default: 1_000,   credit_img_max: 15,  credit_script_max: 5,   credit_video_max: 10, credit_audio_max: 20,  credit_bgm_max: 5,  free_model_img: "google-image-lite", free_model_video: "veo-3-lite", max_workspaces: 3  },
-  { id: "Business", label: "Businessプラン", price_jpy: 4800,  credits_default: 150_000, credit_img_max: 100, credit_script_max: 50,  credit_video_max: 30, credit_audio_max: 50,  credit_bgm_max: 10, free_model_img: "google-image-pro",  free_model_video: "veo-3",      max_workspaces: 10 },
-  { id: "Pro",      label: "Proプラン",      price_jpy: 9800,  credits_default: 500_000, credit_img_max: 200, credit_script_max: 100, credit_video_max: 50, credit_audio_max: 100, credit_bgm_max: 20, free_model_img: "google-image-pro",  free_model_video: "veo-3",      max_workspaces: 20 },
+  { id: "Business", label: "スタンダードプラン", price_jpy: 2980,  credits_default: 150_000, credit_img_max: 100, credit_script_max: 50,  credit_video_max: 30, credit_audio_max: 50,  credit_bgm_max: 10, free_model_img: "google-image-pro",  free_model_video: "veo-3",      max_workspaces: 10 },
+  { id: "Pro",      label: "プロプラン",      price_jpy: 9800,  credits_default: 500_000, credit_img_max: 200, credit_script_max: 100, credit_video_max: 50, credit_audio_max: 100, credit_bgm_max: 20, free_model_img: "google-image-pro",  free_model_video: "veo-3",      max_workspaces: 20 },
 ];
 
 export async function ensurePlanConfigsTable(): Promise<void> {
@@ -61,10 +61,4 @@ export async function getPlanCreditsDefault(planId: string): Promise<number> {
   } catch {
     return FALLBACK[planId] ?? 1_000;
   }
-}
-
-// 料金ページ用。管理画面で変えた値があればそちらを使う
-export async function getPublicPlans(): Promise<PlanConfigRow[]> {
-  const rows = await prisma.$queryRaw<PlanConfigRow[]>`SELECT * FROM plan_configs`.catch(() => [] as PlanConfigRow[]);
-  return DEFAULTS.map((d) => ({ ...d, ...(rows.find((r) => r.id === d.id) ?? {}) }));
 }

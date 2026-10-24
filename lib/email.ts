@@ -135,44 +135,37 @@ export type PlanConfigRow = {
 export type QuoteEstimate = { label: string; condition: string; count: string };
 
 export type QuotePlan = {
-  id:             string;
-  name:           string;
-  priceJpy:       number;
-  monthlyCredits: number;
-  estimates:      QuoteEstimate[];
+  id:       string;
+  name:     string;
+  priceJpy: number;
+  summary:  string;
+  estimates: QuoteEstimate[];
 };
 
+// 仕様シート「料金設計 2. プラン案」の値（税込）
 export const QUOTE_PLANS: Record<string, QuotePlan> = {
   Business: {
-    id:             "Business",
-    name:           "Business",
-    priceJpy:       99_800,
-    monthlyCredits: 150_000,
+    id:       "Business",
+    name:     "スタンダード",
+    priceJpy: 2_980,
+    summary:  "年払い 29,800円（2か月分おトク）",
     estimates: [
-      { label: "台本生成",          condition: "1コンテ分",   count: "約7,500本"   },
-      { label: "画像生成（ライト）", condition: "1枚",         count: "約1,500枚"   },
-      { label: "画像生成（高品質）", condition: "1枚",         count: "約375枚"     },
-      { label: "動画生成（ライト）", condition: "8秒・1本",    count: "約150本"     },
-      { label: "動画生成（高品質）", condition: "8秒・1本",    count: "約60本"      },
-      { label: "AIナレーション生成", condition: "200文字程度", count: "約15,000回"  },
-      { label: "AI BGM生成",        condition: "1曲",         count: "約1,000曲"   },
-      { label: "動画書き出し",       condition: "1080p・1分",  count: "約500分"     },
+      { label: "書き出し",       condition: "1080p・透かしなし",       count: "月60分"      },
+      { label: "ナレーション",   condition: "ノート読み上げ・作り直し", count: "月18,000字（約60分）" },
+      { label: "AIクレジット",   condition: "AI画像・AI動画",           count: "月30,000（画像6枚 または 動画6秒）" },
+      { label: "ワークスペース", condition: "",                         count: "10個"        },
     ],
   },
   Pro: {
-    id:             "Pro",
-    name:           "Pro",
-    priceJpy:       298_000,
-    monthlyCredits: 500_000,
+    id:       "Pro",
+    name:     "プロ",
+    priceJpy: 9_800,
+    summary:  "年払い 98,000円（2か月分おトク）",
     estimates: [
-      { label: "台本生成",          condition: "1コンテ分",   count: "約25,000本"  },
-      { label: "画像生成（ライト）", condition: "1枚",         count: "約5,000枚"   },
-      { label: "画像生成（高品質）", condition: "1枚",         count: "約1,250枚"   },
-      { label: "動画生成（ライト）", condition: "8秒・1本",    count: "約500本"     },
-      { label: "動画生成（高品質）", condition: "8秒・1本",    count: "約200本"     },
-      { label: "AIナレーション生成", condition: "200文字程度", count: "約50,000回"  },
-      { label: "AI BGM生成",        condition: "1曲",         count: "約3,333曲"   },
-      { label: "動画書き出し",       condition: "1080p・1分",  count: "約1,666分"   },
+      { label: "書き出し",       condition: "1080p・透かしなし",       count: "月180分"     },
+      { label: "ナレーション",   condition: "ノート読み上げ・作り直し", count: "月45,000字（約150分）" },
+      { label: "AIクレジット",   condition: "AI画像・AI動画",           count: "月200,000（画像40枚 または 動画40秒）" },
+      { label: "ワークスペース", condition: "",                         count: "無制限"      },
     ],
   },
 };
@@ -181,13 +174,13 @@ const QUOTE_SERVICE_FEATURES = [
   "利用できるAIモデルにプランごとの制限はありません",
   "専任担当者によるサポート（チャット・メール対応）",
   "契約期間の縛りなし・初期費用なし",
-  "1か月単位の自動更新（解約は次回更新日前に申請するだけ）",
+  "1か月単位のご契約（解約は次回更新日前にご連絡いただくだけ）",
 ];
 
 const QUOTE_NOTES = [
-  "生成・出力可能数は、月間クレジットを対象機能だけにすべて使用した場合の最大目安です。",
-  "動画生成数は8秒動画1本を基準にしています。高品質動画は上位モデル・生成音声なしを想定。",
-  "ナレーションは1回200文字まで、BGMは高品質モデルで1曲、動画書き出しは1080p・完成動画1分あたりの目安です。",
+  "書き出しの分数・ナレーションの文字数・AIクレジットは、毎月の更新日に戻ります。",
+  "AIクレジットの目安は、AI画像かAI動画のどちらか一方だけに使った場合です。",
+  "ナレーションは1分300文字として計算しています。",
   "掲載されていないAIモデルについても、ご希望があれば担当者までお申し付けください。",
 ];
 
@@ -201,7 +194,6 @@ export async function sendQuoteEmail(opts: {
   const { toEmail, toName, plan, validUntil, customNote } = opts;
   const name  = toName ?? "お客様";
   const price = plan.priceJpy.toLocaleString("ja-JP");
-  const cr    = plan.monthlyCredits.toLocaleString("ja-JP");
 
   const estimateRows = plan.estimates.map((e) => `
     <tr>
@@ -248,22 +240,22 @@ export async function sendQuoteEmail(opts: {
       <table style="width:100%;border-collapse:collapse">
         <thead><tr style="background:#f1f5f9">
           <th style="padding:10px 16px;text-align:left;font-size:11px;font-weight:700;color:#64748b">品目</th>
-          <th style="padding:10px 16px;text-align:right;font-size:11px;font-weight:700;color:#64748b;white-space:nowrap">単価（税抜）</th>
+          <th style="padding:10px 16px;text-align:right;font-size:11px;font-weight:700;color:#64748b;white-space:nowrap">単価（税込）</th>
           <th style="padding:10px 16px;text-align:right;font-size:11px;font-weight:700;color:#64748b">数量</th>
           <th style="padding:10px 16px;text-align:right;font-size:11px;font-weight:700;color:#64748b">金額</th>
         </tr></thead>
         <tbody>
           <tr>
             <td style="padding:14px 16px;color:#1e293b;font-weight:600;font-size:14px;border-bottom:1px solid #f1f5f9">
-              Hisui AI ${plan.name}<br>
-              <span style="font-size:11px;font-weight:400;color:#94a3b8">月間クレジット ${cr} cr</span>
+              Hisui AI ${plan.name}プラン<br>
+              <span style="font-size:11px;font-weight:400;color:#94a3b8">${plan.summary}</span>
             </td>
             <td style="padding:14px 16px;text-align:right;color:#334155;font-size:14px;border-bottom:1px solid #f1f5f9;white-space:nowrap">¥${price}</td>
             <td style="padding:14px 16px;text-align:right;color:#334155;font-size:14px;border-bottom:1px solid #f1f5f9;white-space:nowrap">1ヶ月</td>
             <td style="padding:14px 16px;text-align:right;color:#1e293b;font-weight:700;font-size:14px;border-bottom:1px solid #f1f5f9;white-space:nowrap">¥${price}</td>
           </tr>
           <tr style="background:#f8fafc">
-            <td colspan="3" style="padding:12px 16px;text-align:right;font-size:12px;color:#64748b">合計（税抜）</td>
+            <td colspan="3" style="padding:12px 16px;text-align:right;font-size:12px;color:#64748b">合計（税込）</td>
             <td style="padding:12px 16px;text-align:right;color:#169385;font-weight:800;font-size:22px;white-space:nowrap">¥${price}</td>
           </tr>
         </tbody>
@@ -276,18 +268,15 @@ export async function sendQuoteEmail(opts: {
 
     <!-- 生成・出力可能数の目安 -->
     <div style="margin-bottom:24px">
-      <div style="font-size:13px;font-weight:700;color:#1e293b;margin-bottom:10px">生成・出力可能数の目安</div>
+      <div style="font-size:13px;font-weight:700;color:#1e293b;margin-bottom:10px">プランの内容</div>
       <table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">
         <thead><tr style="background:#f8fafc">
           <th style="padding:9px 14px;text-align:left;font-size:11px;font-weight:700;color:#64748b">機能</th>
           <th style="padding:9px 14px;text-align:center;font-size:11px;font-weight:700;color:#64748b">想定条件</th>
-          <th style="padding:9px 14px;text-align:right;font-size:11px;font-weight:700;color:#169385">最大目安</th>
+          <th style="padding:9px 14px;text-align:right;font-size:11px;font-weight:700;color:#169385">毎月の上限</th>
         </tr></thead>
         <tbody>${estimateRows}</tbody>
       </table>
-      <div style="margin-top:8px;font-size:11px;color:#94a3b8;line-height:1.6;padding:0 2px">
-        ※上記は月間クレジット（${cr} cr）を対象機能だけにすべて使用した場合の最大目安です。実際は各機能の利用分だけクレジットが消費されます。
-      </div>
     </div>
 
     <!-- サービス概要 -->
