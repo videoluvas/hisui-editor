@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { FREE_NARRATION_IMPORTS, FREE_PLAN_CODE } from "@/lib/pricing";
 
 // ─── Action types ─────────────────────────────────────────────────────────────
 
@@ -114,8 +115,9 @@ export function exportMultiplier(durationSec: number): number {
 // 無料プランは .pptx の取り込みと透かし入りの書き出しだけ。AI 生成はすべて有料
 // 例外：ナレーションありの取り込みをアカウント累計 FREE_NARRATION_IMPORTS 回まで（lib/pptx.narration.ts）
 
-export const FREE_NARRATION_IMPORTS = 3;
+export { FREE_NARRATION_IMPORTS, FREE_PLAN_CODE };
 export const FREE_PLAN_MESSAGE = "AI 生成は有料プランでご利用いただけます。料金プランをご確認ください。";
+export const FREE_PLAN_BODY = { ok: false, code: FREE_PLAN_CODE, message: FREE_PLAN_MESSAGE };
 
 export function isFreePlan(plan: string | null | undefined): boolean {
   return !plan || plan === "Free";
@@ -128,7 +130,7 @@ export async function consumeCredits(
   action: CreditAction,
   workspaceId?: string | null,
   multiplier: number = 1,
-): Promise<{ ok: boolean; message?: string; creditsRemaining?: number }> {
+): Promise<{ ok: boolean; code?: string; message?: string; creditsRemaining?: number }> {
   const cost = CREDIT_COST[action] * multiplier;
   if (cost === 0) return { ok: true };
 
@@ -168,7 +170,7 @@ export async function consumeCredits(
       };
     }
     if (msg === "USER_NOT_FOUND") return { ok: false, message: "ユーザーが見つかりません" };
-    if (msg === "FREE_PLAN") return { ok: false, message: FREE_PLAN_MESSAGE };
+    if (msg === "FREE_PLAN") return { ok: false, code: FREE_PLAN_CODE, message: FREE_PLAN_MESSAGE };
     throw e;
   }
 }

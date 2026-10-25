@@ -71,6 +71,7 @@ type UiOn = (event: string, handler: (payload: { position: number }) => void) =>
 type ClipTarget = { trackIndex: number; clipIndex: number; clip: any };
 
 const ICON = (body: string) => `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+const AI_ICON = (id: string, body: string) => `<svg viewBox="0 0 20 20" fill="none" stroke="url(#ai-g-${id})" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><defs><linearGradient id="ai-g-${id}" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#5184F0"/><stop offset="1" stop-color="#169385"/></linearGradient></defs>${body}</svg>`;
 
 export default function Home() {
   const isMobile = useIsMobile();
@@ -241,7 +242,7 @@ export default function Home() {
     }
   };
 
-  const handleExportApi = async (onProgress: (info: ExportProgressInfo) => void): Promise<void> => {
+  const handleExportApi = async (onProgress: (info: ExportProgressInfo) => void): Promise<string> => {
     const project = selectedProjectRef.current;
     if (!project)                         throw new GuidedError("NOT_READY", "プロジェクトを選択してください");
     if (isProjectLoading || !editorReady) throw new GuidedError("NOT_READY", "プロジェクトの読み込み完了後に書き出してください");
@@ -259,24 +260,8 @@ export default function Home() {
     const data = await res.json().catch(() => ({ ok: false, message: `通信エラー（${res.status}）` }));
     if (!data.ok) throw new GuidedError(data.code ?? "EXPORT_FAILED", data.message ?? "書き出し開始に失敗しました");
 
-    const { renderId, sandbox } = data as { renderId: string; sandbox: boolean };
     onProgress({ phase: "queued" });
-
-    // ポーリング（最大15分 / 5秒間隔 / 180回）
-    for (let i = 0; i < 180; i++) {
-      await new Promise((r) => setTimeout(r, 5000));
-      const statusRes  = await fetch(`/api/export/status?renderId=${renderId}&sandbox=${sandbox ?? true}`).catch(() => null);
-      const statusData = (await statusRes?.json().catch(() => null) ?? {}) as { status?: string; url?: string; error?: string | null };
-      const { status, url } = statusData;
-
-      if (status === "queued")    { onProgress({ phase: "queued" });        continue; }
-      if (status === "fetching")  { onProgress({ phase: "fetching" });      continue; }
-      if (status === "rendering") { onProgress({ phase: "rendering" });     continue; }
-      if (status === "saving")    { onProgress({ phase: "saving_render" }); continue; }
-      if (status === "done")      { onProgress({ phase: "done", url });     return;   }
-      if (status === "failed")    throw new GuidedError("RENDER_FAILED", statusData.error ?? "書き出しサーバーで動画を作成できませんでした", renderId);
-    }
-    throw new GuidedError("EXPORT_TIMEOUT", "15 分たっても書き出しが終わりませんでした", renderId);
+    return (data as { renderId: string }).renderId;
   };
 
   const insertFileToTimeline = (file: FileItem, position: number) => {
@@ -521,12 +506,12 @@ export default function Home() {
           });
         });
 
-        ui.registerButton({ id: "bulkedit", icon: ICON('<path d="M12 3.5l4 4L6 17H3v-3L12 3.5z"/><path d="M9 6.5l4 4"/>'), tooltip: "プロンプトで全体編集" });
+        ui.registerButton({ id: "bulkedit", icon: AI_ICON("bulkedit", '<path d="M12 3.5l4 4L6 17H3v-3L12 3.5z"/><path d="M9 6.5l4 4"/>'), tooltip: "プロンプトで全体編集" });
         ui.registerButton({ id: "decotelop", icon: ICON('<path d="M3 4h14"/><path d="M10 4v12"/><path d="M15 11l.6 1.4L17 13l-1.4.6L15 15l-.6-1.4L13 13l1.4-.6z"/>'), tooltip: "装飾テロップを追加" });
-        ui.registerButton({ id: "aiimage", icon: ICON('<rect x="2" y="4" width="16" height="12" rx="2"/><circle cx="7" cy="8.5" r="1.5"/><path d="M2 14l4-4 3 3 3-3 4 4"/>'), tooltip: "AI 画像を生成" });
-        ui.registerButton({ id: "aivideo", icon: ICON('<rect x="2" y="5" width="12" height="10" rx="2"/><path d="M14 8l4-2v8l-4-2V8z"/>'), tooltip: "AI 動画を生成" });
-        ui.registerButton({ id: "ainarration", icon: ICON('<rect x="7" y="2" width="6" height="9" rx="3"/><path d="M3 10c0 3.866 3.134 7 7 7s7-3.134 7-7"/><path d="M10 17v3"/>'), tooltip: "AI ナレーションを生成" });
-        ui.registerButton({ id: "bgm", icon: ICON('<path d="M7 16V5l10-2.5v11"/><circle cx="5" cy="16" r="2.5"/><circle cx="15" cy="13.5" r="2.5"/>'), tooltip: "BGM を生成" });
+        ui.registerButton({ id: "aiimage", icon: AI_ICON("aiimage", '<rect x="2" y="4" width="16" height="12" rx="2"/><circle cx="7" cy="8.5" r="1.5"/><path d="M2 14l4-4 3 3 3-3 4 4"/>'), tooltip: "AI 画像を生成" });
+        ui.registerButton({ id: "aivideo", icon: AI_ICON("aivideo", '<rect x="2" y="5" width="12" height="10" rx="2"/><path d="M14 8l4-2v8l-4-2V8z"/>'), tooltip: "AI 動画を生成" });
+        ui.registerButton({ id: "ainarration", icon: AI_ICON("ainarration", '<rect x="7" y="2" width="6" height="9" rx="3"/><path d="M3 10c0 3.866 3.134 7 7 7s7-3.134 7-7"/><path d="M10 17v3"/>'), tooltip: "AI ナレーションを生成" });
+        ui.registerButton({ id: "bgm", icon: AI_ICON("bgm", '<path d="M7 16V5l10-2.5v11"/><circle cx="5" cy="16" r="2.5"/><circle cx="15" cy="13.5" r="2.5"/>'), tooltip: "BGM を生成" });
         (ui.on as UiOn)("button:bulkedit", () => setBulkEditOpen(true));
         (ui.on as UiOn)("button:decotelop", ({ position }) => { setDecoTelopPosition(position); setDecoTelopOpen(true); });
         (ui.on as UiOn)("button:aiimage", () => setAiImageOpen(true));

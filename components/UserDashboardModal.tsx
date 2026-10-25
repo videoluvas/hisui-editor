@@ -47,6 +47,26 @@ type CheckoutLog = {
   createdAt: string;
 };
 
+type ImportLog = {
+  id: string;
+  status: string;
+  message: string | null;
+  title: string | null;
+  narration: boolean;
+  createdAt: string;
+};
+
+type OutputLog = {
+  id: string;
+  status: string;
+  outputUrl: string | null;
+  durationSec: number | null;
+  sandbox: boolean;
+  completedAt: string | null;
+  createdAt: string;
+  title: string | null;
+};
+
 type WorkspaceConsumption = {
   id: string;
   name: string;
@@ -59,6 +79,8 @@ type DashboardData = {
   errorLogs: ErrorLog[];
   checkoutLogs: CheckoutLog[];
   workspaceConsumption: WorkspaceConsumption[];
+  importLogs?: ImportLog[];
+  outputLogs?: OutputLog[];
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -110,6 +132,9 @@ const SOURCE_LABEL: Record<string, string> = {
   "generate-narration":           "ナレーション生成（コンテ）",
   "generate-script":              "台本生成",
   "export":                       "エクスポート",
+  "export-render":                "書き出し",
+  "import-pptx":                  "PowerPoint読み込み",
+  "import-pptx-narration":        "ナレーション生成（読み込み時）",
 };
 
 const CHECKOUT_STATUS_LABEL: Record<string, { label: string; color: string }> = {
@@ -194,6 +219,57 @@ function ErrorEntry({ log }: { log: ErrorLog }) {
   );
 }
 
+const IMPORT_STATUS: Record<string, { label: string; color: string }> = {
+  uploading:  { label: "アップロード中",       color: "#f59e0b" },
+  converting: { label: "変換中",               color: "#f59e0b" },
+  confirm:    { label: "確認待ち",             color: "#f59e0b" },
+  narrating:  { label: "ナレーション生成中",   color: "#f59e0b" },
+  done:       { label: "完了",                 color: "#22c55e" },
+  error:      { label: "失敗",                 color: "#ef4444" },
+};
+
+const OUTPUT_STATUS: Record<string, { label: string; color: string }> = {
+  done:   { label: "完了", color: "#22c55e" },
+  failed: { label: "失敗", color: "#ef4444" },
+};
+
+const OUTPUT_URL_TTL_MS = 24 * 60 * 60 * 1000;
+
+function ActivityRow({ kind, title, sub, status, at, link }: {
+  kind: string; title: string | null; sub?: string | null;
+  status: { label: string; color: string }; at: string; link?: string | null;
+}) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 8, background: "#f8fafc", marginBottom: 4 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ fontSize: 10, fontWeight: 700, color: TEAL, flexShrink: 0 }}>{kind}</span>
+          <span style={{ fontSize: 11, color: "#475569", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title ?? "（無題）"}</span>
+        </div>
+        {sub && <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sub}</div>}
+      </div>
+      <div style={{ textAlign: "right", flexShrink: 0 }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: status.color }}>{status.label}</span>
+        {link && <a href={link} target="_blank" rel="noopener noreferrer" style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, color: TEAL }}>ダウンロード</a>}
+        <div style={{ fontSize: 10, color: "#94a3b8" }}>{fmtDate(at)}</div>
+      </div>
+    </div>
+  );
+}
+
+function ImportEntry({ log }: { log: ImportLog }) {
+  const st = IMPORT_STATUS[log.status] ?? { label: log.status, color: "#94a3b8" };
+  const sub = log.status === "error" ? log.message : log.narration ? "ノートからナレーション生成あり" : null;
+  return <ActivityRow kind="PowerPoint読み込み" title={log.title} sub={sub} status={st} at={log.createdAt} />;
+}
+
+function OutputEntry({ log }: { log: OutputLog }) {
+  const st = OUTPUT_STATUS[log.status] ?? { label: "書き出し中", color: "#f59e0b" };
+  const fresh = log.status === "done" && !!log.outputUrl && !!log.completedAt && Date.now() - new Date(log.completedAt).getTime() < OUTPUT_URL_TTL_MS;
+  const sub = [log.durationSec ? `${log.durationSec}秒` : null, log.sandbox ? "透かしあり" : null].filter(Boolean).join("・") || null;
+  return <ActivityRow kind="書き出し" title={log.title} sub={sub} status={st} at={log.createdAt} link={fresh ? log.outputUrl : null} />;
+}
+
 type Tab = "log" | "checkout";
 
 // ─── Main component ────────────────────────────────────────────────────────────
@@ -214,7 +290,7 @@ export default function UserDashboardModal({
   const [data, setData]         = useState<DashboardData | null>(null);
   const [loading, setLoading]   = useState(true);
   const [tab, setTab]           = useState<Tab>("log");
-  const [filter, setFilter]     = useState<"all" | "credit" | "error">("all");
+  const [filter, setFilter]     = useState<"all" | "activity" | "credit" | "error">("all");
   const [profileOpen, setProfileOpen] = useState(false);
 
   useEffect(() => {
@@ -230,7 +306,11 @@ export default function UserDashboardModal({
   const unified = useMemo(() => {
     const credits = (data?.creditLogs ?? []).map((d) => ({ kind: "credit" as const, data: d, ts: new Date(d.createdAt).getTime() }));
     const errors  = (data?.errorLogs  ?? []).map((d) => ({ kind: "error"  as const, data: d, ts: new Date(d.createdAt).getTime() }));
-    const all = [...credits, ...errors].sort((a, b) => b.ts - a.ts);
+    const imports = (data?.importLogs ?? []).map((d) => ({ kind: "import" as const, data: d, ts: new Date(d.createdAt).getTime() }));
+    const outputs = (data?.outputLogs ?? []).map((d) => ({ kind: "output" as const, data: d, ts: new Date(d.createdAt).getTime() }));
+    const activity = [...imports, ...outputs, ...credits];
+    const all = [...activity, ...errors].sort((a, b) => b.ts - a.ts);
+    if (filter === "activity") return activity.sort((a, b) => b.ts - a.ts);
     if (filter === "credit") return credits.sort((a, b) => b.ts - a.ts);
     if (filter === "error")  return errors.sort((a, b) => b.ts - a.ts);
     return all;
@@ -377,13 +457,13 @@ export default function UserDashboardModal({
               {tab === "log" && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   <div style={{ display: "flex", gap: 4 }}>
-                    {(["all", "credit", "error"] as const).map((f) => (
+                    {(["all", "activity", "credit", "error"] as const).map((f) => (
                       <button key={f} onClick={() => setFilter(f)}
                         style={{ fontSize: 10, fontWeight: 600, padding: "3px 10px", borderRadius: 20, border: "none", cursor: "pointer", fontFamily: FONT,
                           background: filter === f ? TEAL : "#f1f5f9",
                           color:      filter === f ? "#fff" : "#64748b",
                         }}>
-                        {f === "all" ? "すべて" : f === "credit" ? "クレジット" : "エラー・警告"}
+                        {f === "all" ? "すべて" : f === "activity" ? "作業履歴" : f === "credit" ? "クレジット" : "エラー・警告"}
                       </button>
                     ))}
                   </div>
@@ -391,9 +471,10 @@ export default function UserDashboardModal({
                   {unified.length === 0 ? (
                     <EmptyMsg text={filter === "credit" ? "まだクレジットの利用履歴がありません" : filter === "error" ? "エラーログはありません" : "まだ生成・書き出しの履歴がありません"} />
                   ) : unified.map((entry) =>
-                    entry.kind === "credit"
-                      ? <CreditEntry key={entry.data.id} log={entry.data} />
-                      : <ErrorEntry  key={entry.data.id} log={entry.data} />
+                    entry.kind === "credit" ? <CreditEntry key={entry.data.id} log={entry.data} />
+                    : entry.kind === "import" ? <ImportEntry key={entry.data.id} log={entry.data} />
+                    : entry.kind === "output" ? <OutputEntry key={entry.data.id} log={entry.data} />
+                    : <ErrorEntry key={entry.data.id} log={entry.data} />
                   )}
                 </div>
               )}
@@ -425,6 +506,22 @@ export default function UserDashboardModal({
 
         {/* Footer */}
         <div style={{ padding: "12px 18px", borderTop: "1px solid #f1f5f9", flexShrink: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+          <a
+            href="/contact"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
+              width: "100%", padding: "9px 0", fontSize: 13, fontWeight: 600,
+              border: "1.5px solid #e2e8f0", borderRadius: 8, background: "#fff", color: "#475569",
+              cursor: "pointer", fontFamily: FONT, textDecoration: "none",
+              transition: "background 0.15s, color 0.15s, border-color 0.15s",
+            }}
+            onMouseEnter={(e) => { const a = e.currentTarget as HTMLAnchorElement; a.style.background=`${TEAL}10`; a.style.color=TEAL; a.style.borderColor=`${TEAL}66`; }}
+            onMouseLeave={(e) => { const a = e.currentTarget as HTMLAnchorElement; a.style.background="#fff"; a.style.color="#475569"; a.style.borderColor="#e2e8f0"; }}
+          >
+            <MailIcon /> お問い合わせ
+          </a>
           <a
             href="/manual"
             target="_blank"
@@ -472,6 +569,15 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function EmptyMsg({ text = "データがありません" }: { text?: string }) {
   return (
     <div style={{ textAlign: "center", padding: "20px 0", color: "#cbd5e1", fontSize: 12, fontFamily: FONT }}>{text}</div>
+  );
+}
+
+function MailIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="3.5" width="12" height="9" rx="1.5"/>
+      <path d="M2.5 4.5 8 9l5.5-4.5"/>
+    </svg>
   );
 }
 

@@ -1171,7 +1171,7 @@ export default function AdminPage() {
             </div>
 
             <div style={{ background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 10, padding: "12px 16px", fontSize: 13, color: "#92400e", lineHeight: 1.7 }}>
-              ⚠️ デフォルトサンプルは<strong>新規ユーザー登録時</strong>に自動コピーされます。既存ユーザーには適用されません。
+              ⚠️ デフォルトサンプルは<strong>コンテのワークスペースを作成したとき</strong>に自動コピーされます（新規登録時には作られません）。既存ユーザーには適用されません。
             </div>
           </div>
         )}

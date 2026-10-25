@@ -7,7 +7,7 @@ import { buildEditJson, createProjectFromEditJson } from "@/lib/timeline.build";
 import type { TimelineClip, TimelineSegment } from "@/lib/timeline.build";
 import { logError } from "@/lib/log.error";
 import { IMPORT_GUIDES } from "@/lib/errorGuide";
-import { PPTX_MIME } from "@/lib/pptx.import.shared";
+import { NARRATION_PAD_AFTER, NARRATION_PAD_BEFORE, PPTX_MIME } from "@/lib/pptx.import.shared";
 import { RECOMMENDED_ANIMATIONS, STAGGER_SEC, animationToTransition, slideTransitionToTransition, withSpeed } from "@/lib/pptx.effects";
 import type { AnimSetting, AnimSettings, PptxAnimation, PptxTransition } from "@/lib/pptx.effects";
 
@@ -20,11 +20,9 @@ export type ImportOptions = {
   animationMode?: "recommended" | "custom";
   animations?: AnimSettings;   // カスタマイズ時の対象ごとの設定
   stagger?: boolean;
-  narration?: { voice: string };   // ノートからナレーションを作る（変換後に確認画面を挟む）
+  narration?: { voice: string; padBefore?: number; padAfter?: number };   // ノートからナレーションを作る（変換後に確認画面を挟む）
 };
 
-// ナレーションありのスライドは、前後に余白を付けた長さにする
-export const NARRATION_PAD_SEC = 0.5;
 export type SlideNarration = Map<number, { src: string; sec: number }>;
 
 type ManifestObject = {
@@ -113,9 +111,12 @@ function autoAnimation(o: ManifestObject, opts: ImportOptions): { in: string; ef
 export function manifestToSegments(m: PptxManifest, outPrefix: string, opts: ImportOptions, narration?: SlideNarration) {
   const url = (file: string) => `${R2_PUBLIC_URL}/${outPrefix}/${file}`;
   const warnings: ImportWarning[] = [];
+  // ナレーションありのスライドは、前後に余白を付けた長さにする
+  const padBefore = opts.narration?.padBefore ?? NARRATION_PAD_BEFORE;
+  const padAfter = opts.narration?.padAfter ?? NARRATION_PAD_AFTER;
   const segments: TimelineSegment[] = m.slides.map((s) => {
     const voice = narration?.get(s.no);
-    const len = voice ? Math.round((voice.sec + NARRATION_PAD_SEC * 2) * 100) / 100 : opts.secPerSlide;
+    const len = voice ? Math.round((voice.sec + padBefore + padAfter) * 100) / 100 : opts.secPerSlide;
     const slideIn = s.transition ? slideTransitionToTransition(s.transition) : "";
     if (slideIn == null)
       warnings.push({ slide: s.no, code: "TRANSITION_UNSUPPORTED", message: `${s.no} 枚目の画面切り替え効果は反映できないため、切り替えなしにしました` });
@@ -162,7 +163,7 @@ export function manifestToSegments(m: PptxManifest, outPrefix: string, opts: Imp
     }
     if (skipped > 0)
       warnings.push({ slide: s.no, code: "ANIMATION_UNSUPPORTED", message: `${s.no} 枚目のアニメーションのうち ${skipped} 件は反映できないため、そのまま表示します` });
-    return { length: len, layers, ...(voice ? { audio: { src: voice.src, volume: 1, offset: NARRATION_PAD_SEC, length: voice.sec } } : {}) };
+    return { length: len, layers, ...(voice ? { audio: { src: voice.src, volume: 1, offset: padBefore, length: voice.sec } } : {}) };
   });
   return { segments, warnings };
 }

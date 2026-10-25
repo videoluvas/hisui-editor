@@ -25,7 +25,7 @@ export type ExportProgressInfo = { phase: ExportProgressPhase; url?: string };
 
 type Props = {
   selectedProject:  Project | null;
-  onExportApi:      (cb: (info: ExportProgressInfo) => void) => Promise<void>;
+  onExportApi:      (cb: (info: ExportProgressInfo) => void) => Promise<string>;
   isProjectLoading: boolean;
   onOpenDashboard?: () => void;
   isFreePlan:       boolean;
@@ -40,7 +40,7 @@ const PHASE_INFO: Record<ExportProgressPhase, { main: string; sub: string }> = {
   fetching:      { main: "アセットを取得中...",            sub: "動画・音声・画像ファイルをダウンロードしています" },
   rendering:     { main: "レンダリング中...",              sub: "サーバーで映像を合成・エンコードしています（数分かかる場合があります）" },
   saving_render: { main: "動画ファイルを保存中...",        sub: "レンダリング完了！ファイルに書き出しています" },
-  done:          { main: "書き出し完了！",                 sub: "動画の準備ができました。下のボタンからダウンロードしてください" },
+  done:          { main: "書き出し完了！",                 sub: "動画の準備ができました。ダウンロードが始まらない場合は下のボタンを押してください（24時間有効）" },
   failed:        { main: "書き出しに失敗しました",         sub: "下の案内をご確認ください" },
 };
 
@@ -68,6 +68,38 @@ function phaseToPercent(phase: ExportProgressPhase, elapsedSec: number): number 
     case "done":          return 100;
     default:              return 0;
   }
+}
+
+type HistoryItem = { id: string; renderId: string | null; status: string; sandbox: boolean; createdAt: string; expiresAt: string | null; available: boolean };
+
+const STATUS_PHASE: Record<string, ExportProgressPhase> = { queued: "queued", fetching: "fetching", rendering: "rendering", saving: "saving_render" };
+const POLL_LIMIT_MS = 15 * 60 * 1000;
+const AUTO_DL_KEY = (renderId: string) => `hisui-export-autodl:${renderId}`;
+
+function storageGet(key: string) { try { return localStorage.getItem(key); } catch { return null; } }
+function storageSet(key: string, v: string) { try { localStorage.setItem(key, v); } catch {} }
+function storageDel(key: string) { try { localStorage.removeItem(key); } catch {} }
+
+const downloadPath = (logId: string) => `/api/export/download?id=${encodeURIComponent(logId)}`;
+
+function startDownload(logId: string) {
+  const a = document.createElement("a");
+  a.href = downloadPath(logId);
+  a.download = "";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+function fmtDateTime(iso: string) {
+  const d = new Date(iso);
+  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+function fmtRemaining(iso: string) {
+  const ms = new Date(iso).getTime() - Date.now();
+  const h = Math.floor(ms / 3600000);
+  return h >= 1 ? `あと${h}時間` : `あと${Math.max(1, Math.floor(ms / 60000))}分`;
 }
 
 function fmtElapsed(s: number): string {
@@ -224,42 +256,127 @@ export default function SidePanelExport({
   const [errorMsg,    setErrorMsg]    = useState<string | null>(null);
   const [errorCode,   setErrorCode]   = useState("EXPORT_FAILED");
   const [errorRef,    setErrorRef]    = useState<string | null>(null);
+  const [doneLogId,   setDoneLogId]   = useState<string | null>(null);
+  const [history,     setHistory]     = useState<HistoryItem[]>([]);
 
   const startRef = useRef<number>(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // プロジェクトを切り替えた・画面を離れたら、前の確認ループを止める
+  const runRef   = useRef(0);
 
-  const handleApiExport = async () => {
-    startRef.current = Date.now();
-    setElapsed(0);
-    setDownloadUrl(null);
-    setErrorMsg(null);
-    setPhase("saving");
+  const projectId = selectedProject?.id ?? null;
 
+  const loadHistory = async (): Promise<HistoryItem[]> => {
+    if (!projectId) { setHistory([]); return []; }
+    const res = await fetch(`/api/export/history?projectId=${encodeURIComponent(projectId)}`).catch(() => null);
+    const data = (await res?.json().catch(() => null)) as { ok?: boolean; items?: HistoryItem[] } | null;
+    const items = data?.ok ? data.items ?? [] : [];
+    setHistory(items);
+    return items;
+  };
+
+  const startTimer = (startedAt: number) => {
+    startRef.current = startedAt;
+    setElapsed(Math.floor((Date.now() - startedAt) / 1000));
+    if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = setInterval(() => {
       setElapsed(Math.floor((Date.now() - startRef.current) / 1000));
     }, 1000);
+  };
+
+  const stopTimer = () => { if (timerRef.current) clearInterval(timerRef.current); timerRef.current = null; };
+
+  const fail = (e: unknown) => {
+    const code = e instanceof GuidedError ? e.code : "EXPORT_FAILED";
+    setPhase("failed");
+    setErrorMsg(e instanceof Error ? e.message : "書き出しに失敗しました");
+    setErrorCode(code);
+    setErrorRef(e instanceof GuidedError ? e.ref ?? null : null);
+    track("video_export_error", { code, watermark });
+  };
+
+  // 書き出しサーバーの状態を5秒ごとに確認する（開始から最大15分）
+  const pollRender = async (renderId: string, startedAt: number, run: number) => {
+    try {
+      while (Date.now() - startedAt < POLL_LIMIT_MS) {
+        await new Promise((r) => setTimeout(r, 5000));
+        if (runRef.current !== run) return;
+        const res  = await fetch(`/api/export/status?renderId=${encodeURIComponent(renderId)}`).catch(() => null);
+        const data = (await res?.json().catch(() => null) ?? {}) as { status?: string; url?: string | null; error?: string | null; logId?: string | null };
+        if (runRef.current !== run) return;
+        const { status } = data;
+        if (status && STATUS_PHASE[status]) { setPhase(STATUS_PHASE[status]); continue; }
+        if (status === "done") {
+          setPhase("done");
+          setDownloadUrl(data.url ?? null);
+          setDoneLogId(data.logId ?? null);
+          track("video_export", { watermark, duration_sec: selectedProject?.durationSec ?? undefined });
+          // 完了したら1回だけ自動でダウンロードする（このブラウザで書き出しを始めたものに限る）
+          if (data.logId && storageGet(AUTO_DL_KEY(renderId))) { storageDel(AUTO_DL_KEY(renderId)); startDownload(data.logId); }
+          loadHistory();
+          return;
+        }
+        if (status === "failed") {
+          storageDel(AUTO_DL_KEY(renderId));
+          loadHistory();
+          throw new GuidedError("RENDER_FAILED", data.error ?? "書き出しサーバーで動画を作成できませんでした", renderId);
+        }
+      }
+      throw new GuidedError("EXPORT_TIMEOUT", "15 分たっても書き出しが終わりませんでした", renderId);
+    } catch (e) {
+      if (runRef.current === run) fail(e);
+    } finally {
+      if (runRef.current === run) stopTimer();
+    }
+  };
+
+  // 開いたとき・プロジェクトを切り替えたとき：履歴を読み、途中の書き出しがあれば続きを表示する
+  useEffect(() => {
+    const run = ++runRef.current;
+    stopTimer();
+    setPhase("idle");
+    setDownloadUrl(null);
+    setDoneLogId(null);
+    setErrorMsg(null);
+    setElapsed(0);
+    loadHistory().then((items) => {
+      if (runRef.current !== run) return;
+      const active = items.find((h) => h.renderId && STATUS_PHASE[h.status]);
+      if (!active?.renderId) return;
+      const startedAt = new Date(active.createdAt).getTime();
+      setPhase(STATUS_PHASE[active.status]);
+      startTimer(startedAt);
+      pollRender(active.renderId, startedAt, run);
+    });
+    return () => { runRef.current++; stopTimer(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId]);
+
+  const handleApiExport = async () => {
+    const run = ++runRef.current;
+    setDownloadUrl(null);
+    setDoneLogId(null);
+    setErrorMsg(null);
+    setPhase("saving");
+    startTimer(Date.now());
 
     try {
-      await onExportApi((info) => {
-        setPhase(info.phase);
-        if (info.url) setDownloadUrl(info.url);
-        if (info.phase === "done") track("video_export", { watermark, duration_sec: selectedProject?.durationSec ?? undefined });
-      });
+      const renderId = await onExportApi((info) => { if (runRef.current === run) setPhase(info.phase); });
+      storageSet(AUTO_DL_KEY(renderId), "1");
+      if (runRef.current !== run) return;
+      loadHistory();
+      await pollRender(renderId, startRef.current, run);
     } catch (e: unknown) {
-      const code = e instanceof GuidedError ? e.code : "EXPORT_FAILED";
-      setPhase("failed");
-      setErrorMsg(e instanceof Error ? e.message : "書き出しに失敗しました");
-      setErrorCode(code);
-      setErrorRef(e instanceof GuidedError ? e.ref ?? null : null);
-      track("video_export_error", { code, watermark });
-    } finally {
-      if (timerRef.current) clearInterval(timerRef.current);
+      if (runRef.current === run) { fail(e); stopTimer(); }
     }
   };
 
   const resetApi = () => {
+    runRef.current++;
+    stopTimer();
     setPhase("idle");
     setDownloadUrl(null);
+    setDoneLogId(null);
     setErrorMsg(null);
     setElapsed(0);
   };
@@ -369,9 +486,8 @@ export default function SidePanelExport({
             {phase === "done" && downloadUrl && (
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 <a
-                  href={downloadUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  href={doneLogId ? downloadPath(doneLogId) : downloadUrl}
+                  {...(doneLogId ? { download: "" } : { target: "_blank", rel: "noopener noreferrer" })}
                   style={{
                     display: "block", textAlign: "center", padding: "11px 0",
                     borderRadius: 8, background: GREEN, color: "#fff",
@@ -405,6 +521,42 @@ export default function SidePanelExport({
                 ]}
               />
             )}
+          </div>
+        )}
+
+        {/* ── 書き出し履歴（URLが有効な24時間はダウンロードできる） ── */}
+        {history.length > 0 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingTop: 10, borderTop: "1px solid #f1f5f9" }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "#333" }}>書き出し履歴</div>
+            {history.map((h) => {
+              const running = !!STATUS_PHASE[h.status];
+              const note = h.available && h.expiresAt ? fmtRemaining(h.expiresAt)
+                : running ? "書き出し中" : h.status === "failed" ? "失敗" : "期限切れ";
+              return (
+                <div key={h.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", borderRadius: 7, background: "#f8fafc", border: "1px solid #eef2f7" }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: "#334155" }}>
+                      {fmtDateTime(h.createdAt)}
+                      <span style={{ marginLeft: 6, fontSize: 9, fontWeight: 600, color: "#94a3b8" }}>{h.sandbox ? "透かし入り" : "透かしなし"}</span>
+                    </div>
+                    <div style={{ fontSize: 10, color: h.status === "failed" ? RED : "#94a3b8", marginTop: 1 }}>{note}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => startDownload(h.id)}
+                    disabled={!h.available}
+                    title={h.available ? "ダウンロード" : "ダウンロードできません"}
+                    style={{
+                      padding: "5px 10px", fontSize: 11, fontWeight: 700, borderRadius: 6, border: "none", flexShrink: 0,
+                      background: h.available ? GREEN : "#e2e8f0", color: h.available ? "#fff" : "#94a3b8",
+                      cursor: h.available ? "pointer" : "not-allowed", fontFamily: FONT,
+                    }}
+                  >
+                    ↓ 保存
+                  </button>
+                </div>
+              );
+            })}
           </div>
         )}
 

@@ -8,6 +8,8 @@ import { loadDraft } from "@/lib/pptxDraft";
 import type { PptxDraft } from "@/lib/pptxDraft";
 import { entryParams, track } from "@/lib/analytics";
 import PublicFooter from "@/components/PublicFooter";
+import UserDashboardModal from "@/components/UserDashboardModal";
+import { useAuthUser } from "@/lib/auth.user";
 
 const FONT   = "'Noto Sans JP', sans-serif";
 const TEAL   = "#169385";
@@ -84,15 +86,14 @@ export default function PowerpointStart() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [state, setState]       = useState<DropState>("idle");
   const [message, setMessage]   = useState("");
-  const [loggedIn, setLoggedIn] = useState<boolean | null>(null);
+  const { user, loading, isLoggedIn, logoutUser, refreshUser } = useAuthUser();
+  const loggedIn = loading ? null : isLoggedIn;
+  const [dashboardOpen, setDashboardOpen] = useState(false);
   const [file, setFile]         = useState<File | null>(null);
   const [draft, setDraft]       = useState<PptxDraft | null>(null);
 
   useEffect(() => {
     track("pptx_lp_view", entryParams());
-    fetch("/api/me", { credentials: "include", cache: "no-store" })
-      .then((r) => setLoggedIn(r.ok))
-      .catch(() => setLoggedIn(false));
     // 取り込みの途中（ログインでページを離れた等）なら、続きから再開する
     loadDraft().then((d) => {
       if (!d?.pptx) return;
@@ -113,7 +114,6 @@ export default function PowerpointStart() {
       setMessage(`ファイルは ${MAX_MB}MB までです`);
       return;
     }
-    if (loggedIn === null) setLoggedIn(await fetch("/api/me", { credentials: "include", cache: "no-store" }).then((r) => r.ok).catch(() => false));
     setState("idle");
     setMessage("");
     setDraft(null);
@@ -135,12 +135,40 @@ export default function PowerpointStart() {
           />
         </a>
         {loggedIn === false && (
-          <a href="/auth?next=/powerpoint" style={{ fontSize: 13, fontWeight: 700, color: TEAL, textDecoration: "none", border: `1.5px solid ${TEAL}`, borderRadius: 999, padding: "6px 16px" }}>ログイン</a>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <a href="/contact" style={{ fontSize: 13, fontWeight: 700, color: "#475569", textDecoration: "none", padding: "6px 8px" }}>お問い合わせ</a>
+            <a href="/auth?next=/powerpoint" style={{ fontSize: 13, fontWeight: 700, color: TEAL, textDecoration: "none", border: `1.5px solid ${TEAL}`, borderRadius: 999, padding: "6px 16px" }}>ログイン</a>
+            <a href="/auth?tab=register&next=/powerpoint" style={{ fontSize: 13, fontWeight: 700, color: "#fff", background: TEAL, textDecoration: "none", border: `1.5px solid ${TEAL}`, borderRadius: 999, padding: "6px 16px" }}>無料登録</a>
+          </div>
         )}
         {loggedIn && (
-          <a href="/" style={{ fontSize: 13, fontWeight: 700, color: "#fff", background: TEAL, textDecoration: "none", borderRadius: 999, padding: "7px 16px" }}>編集画面へ</a>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <a href="/contact" style={{ fontSize: 13, fontWeight: 700, color: "#475569", textDecoration: "none", padding: "6px 8px" }}>お問い合わせ</a>
+            <a href="/" style={{ fontSize: 13, fontWeight: 700, color: "#fff", background: TEAL, textDecoration: "none", borderRadius: 999, padding: "7px 16px" }}>編集画面へ</a>
+            <button
+              type="button"
+              onClick={() => setDashboardOpen(true)}
+              title="ダッシュボードを開く"
+              aria-label="ダッシュボードを開く"
+              style={{ width: 34, height: 34, padding: 0, borderRadius: "50%", background: `${TEAL}22`, border: `2px solid ${TEAL}`, display: "flex", alignItems: "center", justifyContent: "center", color: TEAL, fontSize: 16, overflow: "hidden", cursor: "pointer", flexShrink: 0 }}
+            >
+              {user?.iconUrl
+                ? <img src={user.iconUrl} alt={user.name ?? "User"} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                : "✦"}
+            </button>
+          </div>
         )}
       </header>
+
+      {dashboardOpen && (
+        <UserDashboardModal
+          onClose={() => setDashboardOpen(false)}
+          onLogout={async () => { setDashboardOpen(false); await logoutUser(); }}
+          userIconUrl={user?.iconUrl}
+          userName={user?.name}
+          onProfileUpdated={() => refreshUser()}
+        />
+      )}
 
       <main>
         <section style={{ background: "linear-gradient(180deg, #f0fdfa 0%, #ffffff 100%)", padding: "40px 20px 56px" }}>

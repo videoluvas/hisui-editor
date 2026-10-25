@@ -38,7 +38,7 @@ export async function POST(
 
   const workspaceId = sb.workspaceId ?? null;
   const credit = await consumeCredits(session.userId, "scene_regen", workspaceId);
-  if (!credit.ok) return NextResponse.json({ ok: false, message: credit.message }, { status: 402 });
+  if (!credit.ok) return NextResponse.json({ ok: false, code: credit.code, message: credit.message }, { status: 402 });
   const sourceText = (body.sourceText ?? "").trim();
   const model = (body.model ?? "claude-sonnet-4-6").trim();
   const commonRules = (body.commonRules ?? "").trim();

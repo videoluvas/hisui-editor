@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
 
   const model = (body.model ?? "lyria-3-pro-preview").trim();
   const credit = await consumeCredits(session.userId, bgmModelToAction(model), body.workspaceId ?? null);
-  if (!credit.ok) return NextResponse.json({ ok: false, message: credit.message }, { status: 402 });
+  if (!credit.ok) return NextResponse.json({ ok: false, code: credit.code, message: credit.message }, { status: 402 });
 
   const combinedPrompt = buildPrompt(body);
   if (!combinedPrompt.trim())

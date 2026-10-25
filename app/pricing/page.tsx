@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { FREE_NARRATION_IMPORTS } from "@/lib/credits";
+import { FREE_NARRATION_IMPORTS, PAID_PLANS, SPECIAL_CONTACT_URL, SPECIAL_ITEMS, planContactUrl, yen } from "@/lib/pricing";
 import PublicFooter from "@/components/PublicFooter";
 
 export const metadata: Metadata = {
@@ -14,21 +14,6 @@ export const metadata: Metadata = {
 const TEAL = "#169385";
 const INK = "#0f172a";
 const FONT = "'Noto Sans JP', sans-serif";
-const yen = (n: number) => `¥${n.toLocaleString("ja-JP")}`;
-
-// 仕様シート「料金設計 2. プラン案」の値。決済ができるまでは問い合わせ → メールで手続き
-const PAID_PLANS = [
-  {
-    id: "standard", label: "スタンダード", price: 2_980, yearly: 29_800, forWhom: "個人・講師・小さなチーム",
-    items: ["書き出し 月 60 分（1080p・透かしなし）", "ナレーション 月 18,000 字（約 60 分）", "AI クレジット 月 30,000（AI 画像 6 枚 または AI 動画 6 秒）", "ワークスペース 10 個まで"],
-  },
-  {
-    id: "pro", label: "プロ", price: 9_800, yearly: 98_000, forWhom: "研修・営業資料を毎月作る法人の担当者",
-    items: ["書き出し 月 180 分（1080p・透かしなし）", "ナレーション 月 45,000 字（約 150 分）", "AI クレジット 月 200,000（AI 画像 40 枚 または AI 動画 40 秒）", "ワークスペース 無制限"],
-  },
-];
-
-const SPECIAL = ["AI アバター", "多彩な学習モデル", "AI 絵コンテツール", "専門スタッフによる技術サポート", "チームでの共同編集"];
 
 const FAQ: [string, string][] = [
   ["無料プランでどこまで使えますか？", `パワーポイントの取り込みと動画の書き出しは、回数・長さの制限なく使えます（書き出した動画には透かしが入ります）。ノートからナレーションを作る取り込みは、アカウントごとに ${FREE_NARRATION_IMPORTS} 回まで無料です。`],
@@ -96,7 +81,7 @@ export default function PricingPage() {
                 {item(true, "無料プランのすべての機能")}
                 {p.items.map((t) => item(true, t))}
               </ul>
-              <a href={`/contact?topic=plan&plan=${encodeURIComponent(p.label)}`} style={button(false)}>このプランを申し込む</a>
+              <a href={planContactUrl(p.label)} style={button(false)}>このプランを申し込む</a>
             </div>
           ))}
 
@@ -105,13 +90,13 @@ export default function PricingPage() {
             <div style={{ fontSize: 22, fontWeight: 800 }}>お見積り</div>
             <div style={{ fontSize: 13, color: "#cbd5e1", lineHeight: 1.8 }}>企業・団体向けに、ご利用内容をうかがってプランをお作りします。</div>
             <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 4 }}>
-              {SPECIAL.map((s) => (
+              {SPECIAL_ITEMS.map((s) => (
                 <li key={s} style={{ display: "flex", gap: 8, fontSize: 13, lineHeight: 1.7 }}>
                   <span aria-hidden="true" style={{ color: "#5eead4", fontWeight: 800 }}>✓</span>{s}
                 </li>
               ))}
             </ul>
-            <a href="/contact?topic=enterprise" style={{ ...button(true), background: "#fff", color: INK, border: "none" }}>相談する</a>
+            <a href={SPECIAL_CONTACT_URL} style={{ ...button(true), background: "#fff", color: INK, border: "none" }}>相談する</a>
           </div>
         </section>
 

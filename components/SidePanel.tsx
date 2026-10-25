@@ -39,7 +39,7 @@ type SidePanelProps = {
   selectedProjectId?: string | null;
   selectedProject?: Project | null;
   onSelectProject?: (project: Project | null) => void;
-  onExportApi?: (cb: (info: ExportProgressInfo) => void) => Promise<void>;
+  onExportApi?: (cb: (info: ExportProgressInfo) => void) => Promise<string>;
   isProjectLoading?: boolean;
   appMode?: AppMode;
   onAppModeChange?: (mode: AppMode) => void;
@@ -348,7 +348,7 @@ export default function SidePanel({
           <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "10px" }}>
             <SidePanelExport
               selectedProject={selectedProject}
-              onExportApi={onExportApi ?? (async (_cb) => {})}
+              onExportApi={onExportApi ?? (async (_cb) => { throw new Error("書き出しを開始できません"); })}
               isProjectLoading={isProjectLoading}
               onOpenDashboard={() => setDashboardOpen(true)}
               isFreePlan={!user?.plan || user.plan === "Free"}

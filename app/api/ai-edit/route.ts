@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { getEditorSessionFromCookie } from "@/lib/auth.backend";
+import { FREE_PLAN_BODY, isFreePlan } from "@/lib/credits";
 
 const SYSTEM_PROMPT = `あなたはShotstack動画編集システムのアシスタントです。
 ユーザーの日本語指示を解析して、edit.jsonに適用する操作をJSON形式で返してください。
@@ -71,6 +72,7 @@ export async function POST(req: NextRequest) {
   const session = await getEditorSessionFromCookie();
   if (!session)
     return NextResponse.json({ ok: false, message: "未ログインです" }, { status: 401 });
+  if (isFreePlan(session.user.plan)) return NextResponse.json(FREE_PLAN_BODY, { status: 403 });
 
   const body = await req.json().catch(() => ({})) as { prompt?: string; category?: string };
   if (!body.prompt?.trim())

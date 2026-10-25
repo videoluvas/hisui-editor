@@ -200,10 +200,10 @@ export async function POST(
     return NextResponse.json({ ok: false, message: "このモデルは現在使用できません。設定から GPT Image を選んでください" }, { status: 403 });
 
   const access = await checkModelAccess(imageModel, session.user.plan ?? null);
-  if (!access.ok) return NextResponse.json({ ok: false, message: access.message }, { status: access.status ?? 403 });
+  if (!access.ok) return NextResponse.json({ ok: false, code: access.code, message: access.message }, { status: access.status ?? 403 });
 
   const credit = await consumeCredits(session.userId, imageModelToAction(imageModel), workspaceId);
-  if (!credit.ok) return NextResponse.json({ ok: false, message: credit.message }, { status: 402 });
+  if (!credit.ok) return NextResponse.json({ ok: false, code: credit.code, message: credit.message }, { status: 402 });
 
   // 生成開始フラグをセット（リロード後の状態復元用）
   await prisma.storyboardScene.update({

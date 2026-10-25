@@ -146,7 +146,7 @@ export async function POST(req: NextRequest) {
 
     // 書き出しの記録（「書き出した人」の集計に使う）。記録の失敗で書き出しは止めない
     await prisma.logOutput.create({
-      data: { userId: session.userId, projectId: project.id, renderId: data.response.id, status: "queued", durationSec },
+      data: { userId: session.userId, projectId: project.id, renderId: data.response.id, status: "queued", durationSec, sandbox: useSandbox },
     }).catch((e) => console.error("logs_output create failed:", e));
 
     return NextResponse.json({ ok: true, renderId: data.response.id, sandbox: useSandbox });

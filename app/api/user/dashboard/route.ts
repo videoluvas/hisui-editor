@@ -4,7 +4,6 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { getEditorSessionFromCookie } from "@/lib/auth.backend";
 import { prisma } from "@/lib/prisma";
-import { planDefaultCredits } from "@/lib/credits";
 
 export async function GET() {
   const session = await getEditorSessionFromCookie();
@@ -24,17 +23,7 @@ export async function GET() {
     });
     if (!dbUser) return NextResponse.json({ ok: false, message: "ユーザーが見つかりません" }, { status: 404 });
 
-    // credits が 0 かつ履歴なし → 未初期化ユーザーとしてプランデフォルトを自動付与
-    if (dbUser.credits === 0) {
-      const hasLog = await prisma.logCredit.findFirst({ where: { userId: dbUser.id } }).catch(() => null);
-      if (!hasLog) {
-        const defaultAmt = planDefaultCredits(dbUser.plan);
-        await prisma.user.update({ where: { id: dbUser.id }, data: { credits: defaultAmt } }).catch(() => {});
-        dbUser.credits = defaultAmt;
-      }
-    }
-
-    const [creditLogs, checkoutLogs, errorLogs, workspaceConsumption] = await Promise.all([
+    const [creditLogs, checkoutLogs, errorLogs, workspaceConsumption, importJobs, outputLogs] = await Promise.all([
       prisma.logCredit.findMany({
         where: { userId: session.userId },
         orderBy: { createdAt: "desc" },
@@ -59,7 +48,24 @@ export async function GET() {
         GROUP BY w.id, w.name
         ORDER BY consumed DESC
       `.catch(() => []),
+      prisma.importJob.findMany({
+        where: { userId: session.userId },
+        orderBy: { createdAt: "desc" },
+        take: 40,
+        select: { id: true, status: true, message: true, options: true, projectId: true, createdAt: true },
+      }).catch(() => []),
+      prisma.logOutput.findMany({
+        where: { userId: session.userId },
+        orderBy: { createdAt: "desc" },
+        take: 40,
+        select: { id: true, status: true, outputUrl: true, durationSec: true, sandbox: true, completedAt: true, createdAt: true, project: { select: { title: true } } },
+      }).catch(() => []),
     ]);
+
+    const projectIds = [...new Set(importJobs.map((j) => j.projectId).filter((id): id is string => !!id))];
+    const titles = projectIds.length > 0
+      ? Object.fromEntries((await prisma.project.findMany({ where: { id: { in: projectIds } }, select: { id: true, title: true } }).catch(() => [])).map((p) => [p.id, p.title]))
+      : {};
 
     return NextResponse.json({
       ok: true,
@@ -68,6 +74,18 @@ export async function GET() {
       checkoutLogs,
       errorLogs,
       workspaceConsumption,
+      importLogs: importJobs.map((j) => {
+        const o = (j.options ?? {}) as { title?: string; narration?: { voice?: string } };
+        return {
+          id: j.id,
+          status: j.status,
+          message: j.message,
+          title: (j.projectId && titles[j.projectId]) || o.title || null,
+          narration: !!o.narration,
+          createdAt: j.createdAt,
+        };
+      }),
+      outputLogs: outputLogs.map(({ project, ...o }) => ({ ...o, title: project?.title ?? null })),
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

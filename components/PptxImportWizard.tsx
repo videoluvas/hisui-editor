@@ -6,11 +6,11 @@ import { TEAL } from "@/components/icons";
 import type { Project } from "@/lib/project.api";
 import { confirmPptxNarration, createPptxImport, getPptxImport, startPptxImport, uploadToPresigned } from "@/lib/pptxImport.api";
 import type { ConvertProgress, ImportWarning, NarrationEstimate } from "@/lib/pptxImport.api";
-import { GEMINI_VOICE_META } from "@/lib/ttsSettings";
+import VoicePicker from "@/components/VoicePicker";
 import ImportProgress from "@/components/ImportProgress";
 import ErrorGuideBox from "@/components/ErrorGuideBox";
 import { importGuide } from "@/lib/errorGuide";
-import { PPTX_MIME } from "@/lib/pptx.import.shared";
+import { NARRATION_PAD_AFTER, NARRATION_PAD_BEFORE, PPTX_MIME, clampPad } from "@/lib/pptx.import.shared";
 import { ANIM_TARGETS, DEFAULT_EFFECTS, DEFAULT_IN_GROUPS, RECOMMENDED_ANIMATIONS, SPEEDS, SUPPORTED_ANIMATIONS, SUPPORTED_TRANSITIONS, sanitizeAnimSettings } from "@/lib/pptx.effects";
 import type { AnimSetting, AnimSettings, AnimTarget } from "@/lib/pptx.effects";
 import { listWorkspaces, createWorkspace } from "@/lib/workspace.api";
@@ -19,6 +19,7 @@ import { clearDraft, saveDraft } from "@/lib/pptxDraft";
 import Turnstile, { turnstileEnabled } from "@/components/Turnstile";
 import type { PptxDraft } from "@/lib/pptxDraft";
 import { flushSignup, track } from "@/lib/analytics";
+import { openPricing } from "@/lib/pricing";
 
 const FONT = "'Noto Sans JP', sans-serif";
 const POLL_MS = 2000;
@@ -57,8 +58,26 @@ const inputStyle: React.CSSProperties = { width: "100%", padding: "10px 12px", f
 const providerBtn: React.CSSProperties = { display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: "11px 0", borderRadius: 10, border: "1px solid #dadce0", background: "#fff", color: "#1f1f1f", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: FONT };
 const labelStyle: React.CSSProperties = { fontSize: 12, color: "#666", fontWeight: 600 };
 
-function DropBox({ accept, file, onPick, title, hint, check }: {
-  accept: string; file: File | null; onPick: (f: File) => void; title: string; hint: string; check: (f: File) => string | null;
+const PptxIcon = () => (
+  <svg width="40" height="40" viewBox="0 0 48 48" aria-hidden="true">
+    <circle cx="28" cy="24" r="18" fill="#D35230" />
+    <path d="M28 6a18 18 0 0 1 18 18H28Z" fill="#FF8F6B" />
+    <path d="M10 24A18 18 0 0 1 28 6v18Z" fill="#ED6C47" />
+    <rect x="2" y="13" width="22" height="22" rx="3" fill="#C43E1C" />
+    <path d="M9 18.5h5.2c3 0 4.8 1.6 4.8 4.2s-1.9 4.3-4.9 4.3h-1.9v3.5H9Zm3.2 2.6v3.4h1.6c1.2 0 1.9-.6 1.9-1.7s-.7-1.7-1.9-1.7Z" fill="#fff" />
+  </svg>
+);
+
+const PdfIcon = () => (
+  <svg width="40" height="40" viewBox="0 0 48 48" aria-hidden="true">
+    <path d="M11 3h19l11 11v29a2 2 0 0 1-2 2H11a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" fill="#E5252A" />
+    <path d="M30 3v9a2 2 0 0 0 2 2h9Z" fill="#F59A9C" />
+    <text x="25" y="35" textAnchor="middle" fontSize="11" fontWeight="800" fill="#fff" fontFamily="Arial, sans-serif">PDF</text>
+  </svg>
+);
+
+function DropBox({ accept, file, onPick, title, hint, check, icon }: {
+  accept: string; file: File | null; onPick: (f: File) => void; title: string; hint: string; check: (f: File) => string | null; icon: React.ReactNode;
 }) {
   const ref = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
@@ -79,6 +98,7 @@ function DropBox({ accept, file, onPick, title, hint, check }: {
       onDrop={(e) => { e.preventDefault(); setOver(false); take(e.dataTransfer.files?.[0]); }}
       style={{ borderRadius: 12, padding: "26px 16px", textAlign: "center", cursor: "pointer", border: `2px dashed ${over || file ? TEAL : "#cbd5e1"}`, background: over ? `${TEAL}14` : file ? `${TEAL}08` : "#f8fafc" }}
     >
+      <div style={{ display: "flex", justifyContent: "center", marginBottom: 8 }}>{icon}</div>
       <div style={{ fontSize: 14, fontWeight: 700, color: file ? TEAL : "#334155", wordBreak: "break-all" }}>
         {file ? `✓ ${file.name}（${(file.size / 1024 / 1024).toFixed(1)}MB）` : title}
       </div>
@@ -97,7 +117,7 @@ export default function PptxImportWizard({ isLoggedIn, workspaceId = null, initi
   const [loggedIn, setLoggedIn] = useState(isLoggedIn);
   const steps: StepId[] = ["pptx", "pdf", "animation", "narration", ...(isLoggedIn ? [] : ["account" as const]), "workspace"];
   const restoredStep = initialDraft?.step === "account" && isLoggedIn ? "workspace" : (initialDraft?.step as StepId | undefined);
-  const [step, setStep] = useState<StepId>(restoredStep && steps.includes(restoredStep) ? restoredStep : initialPptx ? "pdf" : "pptx");
+  const [step, setStep] = useState<StepId>(restoredStep && steps.includes(restoredStep) ? restoredStep : "pptx");
   const index = steps.indexOf(step);
 
   const [pptx, setPptx] = useState<File | null>(initialDraft?.pptx ?? initialPptx);
@@ -109,7 +129,10 @@ export default function PptxImportWizard({ isLoggedIn, workspaceId = null, initi
   const [secPerSlide, setSecPerSlide]           = useState<number>(d.secPerSlide ?? 5);
   const [narrationOn, setNarrationOn]           = useState<boolean>(d.narrationOn ?? false);
   const [voice, setVoice]                       = useState<string>(d.voice ?? "Kore");
-  const sampleRef = useRef<HTMLAudioElement | null>(null);
+  const [padMode, setPadMode]                   = useState<"recommended" | "custom">(d.padMode ?? "recommended");
+  const [padBefore, setPadBefore]               = useState<number>(d.padBefore ?? NARRATION_PAD_BEFORE);
+  const [padAfter, setPadAfter]                 = useState<number>(d.padAfter ?? NARRATION_PAD_AFTER);
+  const pad = padMode === "custom" ? { before: padBefore, after: padAfter } : { before: NARRATION_PAD_BEFORE, after: NARRATION_PAD_AFTER };
 
   const [authTab, setAuthTab]   = useState<"register" | "login">("register");
   const [email, setEmail]       = useState("");
@@ -156,18 +179,10 @@ export default function PptxImportWizard({ isLoggedIn, workspaceId = null, initi
   useEffect(() => {
     if (phase !== "form" || !pptx) return;
     const t = setTimeout(() => {
-      void saveDraft({ step, pptx, pdf, settings: { animationMode, animations, stagger, secPerSlide, narrationOn, voice, title, newWsName } });
+      void saveDraft({ step, pptx, pdf, settings: { animationMode, animations, stagger, secPerSlide, narrationOn, voice, padMode, padBefore, padAfter, title, newWsName } });
     }, 300);
     return () => clearTimeout(t);
-  }, [phase, step, pptx, pdf, animationMode, animations, stagger, secPerSlide, narrationOn, voice, title, newWsName]);
-
-  useEffect(() => () => sampleRef.current?.pause(), []);
-
-  function playSample(url: string) {
-    sampleRef.current?.pause();
-    sampleRef.current = new Audio(url);
-    void sampleRef.current.play().catch(() => {});
-  }
+  }, [phase, step, pptx, pdf, animationMode, animations, stagger, secPerSlide, narrationOn, voice, padMode, padBefore, padAfter, title, newWsName]);
 
   const close = () => { void clearDraft(); onClose(); };
 
@@ -307,7 +322,7 @@ export default function PptxImportWizard({ isLoggedIn, workspaceId = null, initi
       setWorkspaces((prev) => [created.workspace!, ...(prev ?? [])]);
       setWsChoice(wsId);
     }
-    const job = await createPptxImport({ workspaceId: wsId, title, secPerSlide, animationMode, animations, stagger, pptxSize: pptx.size, pdfSize: pdf.size, ...(narrationOn ? { narration: { voice } } : {}) });
+    const job = await createPptxImport({ workspaceId: wsId, title, secPerSlide, animationMode, animations, stagger, pptxSize: pptx.size, pdfSize: pdf.size, ...(narrationOn ? { narration: { voice, padBefore: pad.before, padAfter: pad.after } } : {}) });
     if (!job.ok || !job.jobId || !job.pptxUrl || !job.pdfUrl) {
       fail("START_FAILED", job.message ?? "取り込みを開始できませんでした");
       return;
@@ -384,7 +399,7 @@ export default function PptxImportWizard({ isLoggedIn, workspaceId = null, initi
         {phase === "form" && step === "pptx" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: "#1e293b" }}>パワーポイント（.pptx）を読み込む</div>
-            <DropBox accept=".pptx" file={pptx} onPick={setPptx} title="ここに .pptx をドラッグ" hint={`またはクリックしてファイルを選択（${MAX_MB}MB まで）`} check={sizeCheck(".pptx")} />
+            <DropBox accept=".pptx" file={pptx} onPick={setPptx} title="ここに .pptx をドラッグ" hint={`またはクリックしてファイルを選択（${MAX_MB}MB まで）`} check={sizeCheck(".pptx")} icon={<PptxIcon />} />
             <div style={{ fontSize: 11, color: "#94a3b8", lineHeight: 1.6 }}>ノート・オブジェクトの位置・アニメーション・埋め込み動画を読み取ります。</div>
           </div>
         )}
@@ -392,6 +407,8 @@ export default function PptxImportWizard({ isLoggedIn, workspaceId = null, initi
         {phase === "form" && step === "pdf" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: "#1e293b" }}>同じファイルの PDF を読み込む</div>
+            <DropBox accept=".pdf,application/pdf" file={pdf} onPick={setPdf} title="ここに PDF をドラッグ" hint={`またはクリックしてファイルを選択（${MAX_MB}MB まで）`} check={sizeCheck(".pdf")} icon={<PdfIcon />} />
+            {pptx && <div style={{ fontSize: 11, color: "#94a3b8" }}>パワーポイント：{pptx.name}</div>}
             <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 10, padding: "12px 14px", fontSize: 12, color: "#78350f", lineHeight: 1.8 }}>
               フォントやレイアウトをそのまま使うため、PowerPoint で書き出した PDF が必要です。<br />
               <b>Windows</b>：ファイル → エクスポート → PDF/XPS ドキュメントの作成 → 発行<br />
@@ -399,8 +416,6 @@ export default function PptxImportWizard({ isLoggedIn, workspaceId = null, initi
               「スライド」のみを書き出してください（ノート付き・配布資料の形式は不可）。<br />
               非表示スライドは含めないでください（.pptx と枚数が合わなくなります）。「印刷 → PDF として保存」は使えません。
             </div>
-            <DropBox accept=".pdf,application/pdf" file={pdf} onPick={setPdf} title="ここに PDF をドラッグ" hint={`またはクリックしてファイルを選択（${MAX_MB}MB まで）`} check={sizeCheck(".pdf")} />
-            {pptx && <div style={{ fontSize: 11, color: "#94a3b8" }}>パワーポイント：{pptx.name}</div>}
           </div>
         )}
 
@@ -513,21 +528,35 @@ export default function PptxImportWizard({ isLoggedIn, workspaceId = null, initi
             {narrationOn && (
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 <span style={labelStyle}>声</span>
-                <div style={{ display: "flex", gap: 6 }}>
-                  <select value={voice} onChange={(e) => setVoice(e.target.value)} style={{ ...inputStyle, flex: 1 }}>
-                    {(["女性", "男性"] as const).map((g) => (
-                      <optgroup key={g} label={g}>
-                        {GEMINI_VOICE_META.filter((v) => v.gender === g).map((v) => <option key={v.name} value={v.name}>{v.name}（{v.trait}）</option>)}
-                      </optgroup>
-                    ))}
-                  </select>
-                  <button type="button" onClick={() => { const m = GEMINI_VOICE_META.find((v) => v.name === voice); if (m) playSample(m.sampleUrl); }}
-                    style={{ padding: "0 14px", borderRadius: 8, border: `1px solid ${TEAL}`, background: "#fff", color: TEAL, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT, whiteSpace: "nowrap" }}>
-                    ▶ 試聴
-                  </button>
+                <VoicePicker value={voice} onChange={setVoice} maxHeight={260} />
+              </div>
+            )}
+            {narrationOn && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <span style={labelStyle}>スライドの長さ：ナレーション尺に合わせる</span>
+                <div style={{ display: "flex", gap: 4, background: "#f1f5f9", borderRadius: 8, padding: 3 }}>
+                  {([["recommended", "おすすめ設定"], ["custom", "カスタマイズ"]] as const).map(([v, label]) => (
+                    <button key={v} type="button" onClick={() => setPadMode(v)}
+                      style={{ flex: 1, padding: "7px 0", borderRadius: 6, border: "none", background: padMode === v ? "#fff" : "transparent", boxShadow: padMode === v ? "0 1px 3px rgba(0,0,0,0.1)" : "none", color: padMode === v ? TEAL : "#64748b", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                  {([["ナレーションの前に開ける", padBefore, setPadBefore, NARRATION_PAD_BEFORE], ["ナレーションの後に開ける", padAfter, setPadAfter, NARRATION_PAD_AFTER]] as const).map(([label, value, set, def]) => (
+                    <label key={label} style={{ flex: "1 1 180px", display: "flex", flexDirection: "column", gap: 4 }}>
+                      <span style={{ fontSize: 11, color: "#64748b" }}>{label}</span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <input type="number" min={0} max={10} step={0.1} disabled={padMode === "recommended"} value={padMode === "recommended" ? def : value}
+                          onChange={(e) => set(clampPad(e.target.value, def))}
+                          style={{ ...inputStyle, width: 100, ...(padMode === "recommended" ? { background: "#f8fafc", color: "#94a3b8" } : {}) }} />
+                        <span style={{ fontSize: 13, color: "#475569" }}>秒</span>
+                      </div>
+                    </label>
+                  ))}
                 </div>
                 <div style={{ fontSize: 11, color: "#64748b", lineHeight: 1.7, background: "#f8fafc", borderRadius: 8, padding: "8px 12px" }}>
-                  ノート（発表者メモ）を読み上げ、スライドの長さを「読み上げ＋前後 0.5 秒」に合わせます。<br />
+                  ノート（発表者メモ）を読み上げ、スライドの長さを「前 {pad.before} 秒＋読み上げ＋後 {pad.after} 秒」に合わせます。<br />
                   取り込み後、作る前にノートの文字数と消費クレジットを確認できます。<br />
                   無料プランはアカウントごとに 3 回まで無料です（作り直しは有料プラン）。
                 </div>
@@ -699,7 +728,9 @@ export default function PptxImportWizard({ isLoggedIn, workspaceId = null, initi
               {short && (
                 <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: "10px 12px", fontSize: 12, color: "#78350f", lineHeight: 1.7 }}>
                   {estimate.free ? `無料プランのナレーション生成は ${estimate.freeLimit} 回まで使いました。` : "クレジットが足りません。"}
-                  <a href="/pricing" target="_blank" rel="noreferrer" style={{ color: TEAL, fontWeight: 700, marginLeft: 4 }}>料金プランを見る</a>
+                  {estimate.free
+                    ? <button type="button" onClick={openPricing} style={{ border: "none", background: "none", padding: 0, color: TEAL, fontSize: 12, fontWeight: 700, marginLeft: 4, cursor: "pointer", fontFamily: FONT }}>料金プランを見る</button>
+                    : <a href="/pricing" target="_blank" rel="noreferrer" style={{ color: TEAL, fontWeight: 700, marginLeft: 4 }}>料金プランを見る</a>}
                   <br />ナレーションなしで続けることもできます。
                 </div>
               )}
@@ -709,8 +740,8 @@ export default function PptxImportWizard({ isLoggedIn, workspaceId = null, initi
                   style={{ padding: "11px 14px", borderRadius: 10, border: "1px solid #e2e8f0", background: "#fff", color: "#334155", fontSize: 13, fontWeight: 700, cursor: confirmBusy ? "wait" : "pointer", fontFamily: FONT }}>
                   ナレーションなしで続ける
                 </button>
-                <button type="button" onClick={() => handleConfirm(true)} disabled={confirmBusy || short}
-                  style={{ flex: 1, padding: "11px 0", borderRadius: 10, border: "none", background: confirmBusy || short ? "#cbd5e1" : TEAL, color: "#fff", fontSize: 14, fontWeight: 700, cursor: confirmBusy ? "wait" : short ? "not-allowed" : "pointer", fontFamily: FONT }}>
+                <button type="button" onClick={() => (estimate.free && short ? openPricing() : handleConfirm(true))} disabled={confirmBusy || (short && !estimate.free)}
+                  style={{ flex: 1, padding: "11px 0", borderRadius: 10, border: "none", background: confirmBusy || (short && !estimate.free) ? "#cbd5e1" : TEAL, color: "#fff", fontSize: 14, fontWeight: 700, cursor: confirmBusy ? "wait" : short && !estimate.free ? "not-allowed" : "pointer", fontFamily: FONT }}>
                   ナレーションを作って続ける
                 </button>
               </div>

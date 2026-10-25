@@ -118,13 +118,13 @@ export async function POST(request: NextRequest) {
   if (!isImageModelEnabled(imageModel)) return NextResponse.json({ ok: false, message: "このモデルは現在使用できません。設定から GPT Image を選んでください" }, { status: 403 });
 
   const access = await checkModelAccess(imageModel, session.user.plan ?? null);
-  if (!access.ok) return NextResponse.json({ ok: false, message: access.message }, { status: access.status ?? 403 });
+  if (!access.ok) return NextResponse.json({ ok: false, code: access.code, message: access.message }, { status: access.status ?? 403 });
 
   const ref = await fetchRefImage(body.imgUrl);
   if (body.imgUrl && !ref) return NextResponse.json({ ok: false, message: "参照画像を読み込めませんでした" }, { status: 400 });
 
   const credit = await consumeCredits(userId, imageModelToAction(imageModel), workspaceId);
-  if (!credit.ok) return NextResponse.json({ ok: false, message: credit.message }, { status: 402 });
+  if (!credit.ok) return NextResponse.json({ ok: false, code: credit.code, message: credit.message }, { status: 402 });
 
   // ── Seedream 5.0 Pro ─────────────────────────────────────────────────────────
   if (imageModel === "seedream-5-0-pro") {

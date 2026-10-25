@@ -1,6 +1,7 @@
 import "./globals.css";
 import type { Metadata } from "next";
 import Analytics from "@/components/Analytics";
+import PricingModal from "@/components/PricingModal";
 
 const FAVICON_BASE = "https://assets.hisui-ai.com/system/img/favicons";
 const SITE_URL     = "https://hisui-ai.com";
@@ -104,6 +105,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         {children}
         <Analytics />
+        <PricingModal />
       </body>
     </html>
   );

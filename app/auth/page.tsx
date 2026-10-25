@@ -18,6 +18,7 @@ export default function AuthPage() {
   const [tab, setTab] = useState<Tab>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [next, setNext] = useState("/");
@@ -29,6 +30,7 @@ export default function AuthPage() {
     const q = new URLSearchParams(window.location.search);
     setNext(safeNext(q.get("next")) ?? "/");
     if (q.get("error")) setError(q.get("error"));
+    if (q.get("tab") === "register") setTab("register");
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -36,11 +38,11 @@ export default function AuthPage() {
     setError(null);
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/login", {
+      const res = await fetch(tab === "register" ? "/api/auth/register" : "/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ email, password, turnstileToken: tsToken }),
+        body: JSON.stringify({ email, password, name, turnstileToken: tsToken }),
       });
       setTsReset((n) => n + 1);
       const data = await res.json();
@@ -76,7 +78,7 @@ export default function AuthPage() {
         <div style={{ display: "flex", borderBottom: "1px solid #f0f0f0" }}>
           {([
             { id: "login",    label: "ログイン" },
-            { id: "register", label: "アカウント発行" },
+            { id: "register", label: "無料アカウント作成" },
           ] as const).map((t) => (
             <button key={t.id} type="button" onClick={() => switchTab(t.id)} style={{
               flex: 1, height: 52, fontSize: 14, fontWeight: 700,
@@ -122,32 +124,62 @@ export default function AuthPage() {
 
             <p style={{ textAlign: "center", marginTop: 20, fontSize: 13, color: "#999" }}>
               アカウントをお持ちでない方は{" "}
-              <button type="button" onClick={() => switchTab("register")} style={linkStyle}>お問い合わせ</button>
+              <button type="button" onClick={() => switchTab("register")} style={linkStyle}>無料アカウント作成</button>
             </p>
           </form>
         )}
 
-        {/* ── アカウント発行 ── */}
+        {/* ── 無料アカウント作成 ── */}
         {tab === "register" && (
-          <div style={{ padding: isMobile ? "24px 16px 20px" : "28px 28px 24px" }}>
+          <form onSubmit={handleSubmit} style={{ padding: isMobile ? "24px 16px 20px" : "28px 28px 24px" }}>
             <div style={{ fontSize: 13, color: "#64748b", lineHeight: 1.75, marginBottom: 20 }}>
-              ヒスイAIは法人・チーム向けの動画編集ツールです。<br />
-              お問い合わせページからご連絡いただくと、担当者よりご案内いたします。
+              無料プランですぐにお使いいただけます。<br />
+              有料プランへの切り替えはログイン後にご案内します。
             </div>
 
-            <Link href="/contact?topic=enterprise" style={{
-              display: "flex", alignItems: "center", justifyContent: "center",
-              width: "100%", height: 48, background: TEAL, color: "#fff",
-              borderRadius: 10, fontSize: 15, fontWeight: 700, textDecoration: "none",
-            }}>
-              お問い合わせページへ
-            </Link>
+            <AuthQuickLogin next={next} color={TEAL} />
 
-            <p style={{ textAlign: "center", marginTop: 16, fontSize: 12, color: "#94a3b8" }}>
+            <Field label="お名前（任意）">
+              <input value={name} onChange={(e) => setName(e.target.value)}
+                placeholder="山田 太郎" autoComplete="name" style={inputStyle} />
+            </Field>
+
+            <Field label="メールアドレス">
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+                placeholder="example@email.com" required autoComplete="email" style={inputStyle} />
+            </Field>
+
+            <Field label="パスワード（8文字以上）">
+              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••" required minLength={8} autoComplete="new-password" style={inputStyle} />
+            </Field>
+
+            <div style={{ marginBottom: 12 }}><Turnstile onToken={setTsToken} resetKey={tsReset} /></div>
+
+            {error && (
+              <div style={{ background: "#fff0f0", border: "1px solid #ffcdd2", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "#c62828", marginBottom: 16 }}>
+                {error}
+              </div>
+            )}
+
+            <button type="submit" disabled={loading || (turnstileEnabled && !tsToken)} style={{
+              width: "100%", height: 48, background: loading || (turnstileEnabled && !tsToken) ? "#a8d5ca" : TEAL,
+              color: "#fff", border: "none", borderRadius: 10, fontSize: 15, fontWeight: 700,
+              cursor: loading ? "not-allowed" : "pointer", transition: "background 0.15s ease", marginTop: 4,
+            }}>
+              {loading ? "処理中..." : "無料で始める"}
+            </button>
+
+            <p style={{ textAlign: "center", marginTop: 12, fontSize: 11, color: "#94a3b8", lineHeight: 1.7 }}>
+              登録すると<Link href="/terms" style={{ color: TEAL }}>利用規約</Link>と
+              <Link href="/privacy" style={{ color: TEAL }}>プライバシーポリシー</Link>に同意したものとみなされます。
+            </p>
+
+            <p style={{ textAlign: "center", marginTop: 12, fontSize: 12, color: "#94a3b8" }}>
               すでにアカウントをお持ちの方は{" "}
               <button type="button" onClick={() => switchTab("login")} style={linkStyle}>ログイン</button>
             </p>
-          </div>
+          </form>
         )}
       </div>
     </div>

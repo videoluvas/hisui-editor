@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
 
   const mult = narrationMultiplier(transcript);
   const credit = await consumeCredits(session.userId, "narration", body.workspaceId ?? null, mult);
-  if (!credit.ok) return NextResponse.json({ ok: false, message: credit.message }, { status: 402 });
+  if (!credit.ok) return NextResponse.json({ ok: false, code: credit.code, message: credit.message }, { status: 402 });
 
   const provider = body.provider ?? "google-gemini";
   if (provider !== "google-gemini") return NextResponse.json({ ok: false, message: "未対応のプロバイダーです" }, { status: 400 });

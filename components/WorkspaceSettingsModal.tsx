@@ -12,7 +12,8 @@ import type { ImageStyleTemplate } from "@/lib/imageTemplates";
 import { getPresignedUrl } from "@/lib/fileupload.front";
 import { loadVideoSettings, saveVideoSettings, DEFAULT_VIDEO_SETTINGS } from "@/lib/videoSettings";
 import type { VideoSettings } from "@/lib/videoSettings";
-import { loadTtsSettings, saveTtsSettings, DEFAULT_TTS_SETTINGS, GEMINI_TTS_MODELS, GEMINI_VOICES, GEMINI_VOICE_META, TTS_PACING_OPTIONS, TTS_TONE_OPTIONS } from "@/lib/ttsSettings";
+import { loadTtsSettings, saveTtsSettings, DEFAULT_TTS_SETTINGS, GEMINI_TTS_MODELS, GEMINI_VOICES, TTS_PACING_OPTIONS, TTS_TONE_OPTIONS } from "@/lib/ttsSettings";
+import VoicePicker from "@/components/VoicePicker";
 import type { TtsSettings } from "@/lib/ttsSettings";
 import { loadScriptSettings, saveScriptSettings, DEFAULT_SCRIPT_SETTINGS } from "@/lib/scriptSettings";
 import type { ScriptSettings } from "@/lib/scriptSettings";
@@ -334,8 +335,6 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
   const [wsTemplatePickerOpen, setWsTemplatePickerOpen] = useState(false);
   const [uploadingRefImg, setUploadingRefImg] = useState(false);
   const wsRefUploadRef = useRef<HTMLInputElement>(null);
-  const [playingVoice, setPlayingVoice] = useState<string | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const { user } = useAuthUser();
   const isFree = !user?.plan || user.plan === "Free";
@@ -384,7 +383,6 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
         await updateWorkspace(workspaceId, wsName.trim());
         onNameChanged?.(wsName.trim());
       }
-      audioRef.current?.pause();
       setSaved(true);
       setTimeout(() => { setSaved(false); onClose(); }, 900);
     } finally {
@@ -421,7 +419,7 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
   return (
     <div
       style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.4)", zIndex: 3000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, fontFamily: FONT }}
-      onClick={(e) => { if (e.target === e.currentTarget) { audioRef.current?.pause(); onClose(); } }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div style={{ background: "#fff", borderRadius: 18, width: "100%", maxWidth: 580, maxHeight: "88vh", display: "flex", flexDirection: "column", boxShadow: "0 24px 64px rgba(0,0,0,0.22)" }}>
 
@@ -434,7 +432,7 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
             <div style={{ fontSize: 14, fontWeight: 700, color: "#1e293b" }}>ワークスペースの設定</div>
             {workspaceName && <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{workspaceName}</div>}
           </div>
-          <button onClick={() => { audioRef.current?.pause(); onClose(); }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "#94a3b8", lineHeight: 1, padding: "4px 6px", borderRadius: 6, flexShrink: 0 }}>×</button>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "#94a3b8", lineHeight: 1, padding: "4px 6px", borderRadius: 6, flexShrink: 0 }}>×</button>
         </div>
 
         {/* ボディ：サイドバー ＋ コンテンツ */}
@@ -1544,71 +1542,7 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                     <div style={SEC}>デフォルト音声（ボイスサンプル）</div>
                     <div style={FIELD}>
                       <label style={LBL}>音声キャラクター（30種類から選択）</label>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 5, maxHeight: 300, overflowY: "auto", paddingRight: 2 }}>
-                        {GEMINI_VOICE_META.map((v) => {
-                          const isSelected = tts.voice === v.name;
-                          const isPlaying  = playingVoice === v.name;
-                          return (
-                            <div
-                              key={v.name}
-                              onClick={() => setTts((s) => ({ ...s, voice: v.name }))}
-                              style={{
-                                display: "flex", alignItems: "center", gap: 8,
-                                padding: "7px 9px", borderRadius: 8, cursor: "pointer",
-                                border: `1.5px solid ${isSelected ? ttsColor : "#e2e8f0"}`,
-                                background: isSelected ? `${ttsColor}0e` : "#fff",
-                                transition: "border-color 0.12s, background 0.12s",
-                              }}
-                            >
-                              {/* Play button */}
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (isPlaying) {
-                                    audioRef.current?.pause();
-                                    setPlayingVoice(null);
-                                  } else {
-                                    if (audioRef.current) { audioRef.current.pause(); }
-                                    const audio = new Audio(v.sampleUrl);
-                                    audioRef.current = audio;
-                                    audio.play().catch(() => {});
-                                    setPlayingVoice(v.name);
-                                    audio.onended = () => setPlayingVoice(null);
-                                  }
-                                }}
-                                style={{
-                                  width: 24, height: 24, borderRadius: "50%", flexShrink: 0,
-                                  border: "none", cursor: "pointer",
-                                  background: isPlaying ? ttsColor : `${ttsColor}22`,
-                                  color: isPlaying ? "#fff" : ttsColor,
-                                  display: "flex", alignItems: "center", justifyContent: "center",
-                                  transition: "background 0.12s, color 0.12s",
-                                }}
-                              >
-                                {isPlaying
-                                  ? <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><rect x="1" y="1" width="3" height="8" rx="1"/><rect x="6" y="1" width="3" height="8" rx="1"/></svg>
-                                  : <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M2 1.5l7 3.5-7 3.5z"/></svg>
-                                }
-                              </button>
-                              {/* Info */}
-                              <div style={{ minWidth: 0, flex: 1 }}>
-                                <div style={{ fontSize: 12, fontWeight: 700, color: isSelected ? ttsColor : "#1e293b", fontFamily: FONT, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                  {v.name}
-                                </div>
-                                <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 2 }}>
-                                  <span style={{
-                                    fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 4, fontFamily: FONT, flexShrink: 0,
-                                    background: v.gender === "女性" ? "#fb71821a" : "#5184F01a",
-                                    color:      v.gender === "女性" ? "#e05170"   : "#5184F0",
-                                  }}>{v.gender}</span>
-                                  <span style={{ fontSize: 10, color: "#64748b", fontFamily: FONT, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{v.trait}</span>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
+                      <VoicePicker value={tts.voice} onChange={(name) => setTts((s) => ({ ...s, voice: name as typeof s.voice }))} />
                     </div>
 
                     <div style={SEC}>読み上げスタイル</div>

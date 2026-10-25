@@ -69,12 +69,12 @@ export async function POST(
 
   if (!isVideoModelEnabled(videoModel)) return NextResponse.json({ ok: false, message: "このモデルは現在使用できません。設定から Kling を選んでください" }, { status: 403 });
   const access = await checkModelAccess(videoModel, session.user.plan ?? null);
-  if (!access.ok) return NextResponse.json({ ok: false, message: access.message }, { status: access.status ?? 403 });
+  if (!access.ok) return NextResponse.json({ ok: false, code: access.code, message: access.message }, { status: access.status ?? 403 });
 
   const klingV3Duration = isKlingV3 ? Math.max(3, Math.min(15, Math.round(body.duration ?? 5))) : 1;
   const creditAction    = videoModelToAction(videoModel, (isVeoModel || (isKlingModel && !isKlingV3)) ? false : (body.generateAudio ?? false));
   const credit = await consumeCredits(session.userId, creditAction, workspaceId, klingV3Duration);
-  if (!credit.ok) return NextResponse.json({ ok: false, message: credit.message }, { status: 402 });
+  if (!credit.ok) return NextResponse.json({ ok: false, code: credit.code, message: credit.message }, { status: 402 });
 
   const {
     resolution     = "720p",

@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { loadTtsSettings, GEMINI_VOICE_META, TTS_PACING_OPTIONS, TTS_TONE_OPTIONS } from "@/lib/ttsSettings";
+import { loadTtsSettings, TTS_PACING_OPTIONS, TTS_TONE_OPTIONS } from "@/lib/ttsSettings";
+import VoicePicker from "@/components/VoicePicker";
 import { saveGenMeta } from "@/lib/gen.meta";
 import type { GenMetaNarration } from "@/lib/gen.meta";
 
@@ -98,9 +99,6 @@ export default function EditorAINarrationModal({ open, workspaceId, playbackTime
 
   const handleRetry = () => { setStatus("idle"); setErrorMsg(""); setAudioUrl(null); };
 
-  const femaleVoices = GEMINI_VOICE_META.filter((v) => v.gender === "女性");
-  const maleVoices   = GEMINI_VOICE_META.filter((v) => v.gender === "男性");
-
   return (
     <div
       style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.52)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT }}
@@ -152,18 +150,7 @@ export default function EditorAINarrationModal({ open, workspaceId, playbackTime
 
         {/* Voice */}
         <Section label="音声">
-          <select
-            value={voice}
-            onChange={(e) => setVoice(e.target.value)}
-            style={{ width: "100%", border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "8px 10px", fontSize: 13, fontFamily: FONT, outline: "none", color: "#334155", background: "#fff" }}
-          >
-            <optgroup label="女性">
-              {femaleVoices.map((v) => <option key={v.name} value={v.name}>{v.name}（{v.trait}）</option>)}
-            </optgroup>
-            <optgroup label="男性">
-              {maleVoices.map((v) => <option key={v.name} value={v.name}>{v.name}（{v.trait}）</option>)}
-            </optgroup>
-          </select>
+          <VoicePicker value={voice} onChange={setVoice} maxHeight={240} />
         </Section>
 
         {/* Pacing */}

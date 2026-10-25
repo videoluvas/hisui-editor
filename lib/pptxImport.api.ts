@@ -16,7 +16,7 @@ async function safeJson(res: Response) {
 
 export async function createPptxImport(p: {
   workspaceId: string; title: string; secPerSlide: number; pptxSize: number; pdfSize: number;
-  animationMode: "recommended" | "custom"; animations: AnimSettings; stagger: boolean; narration?: { voice: string };
+  animationMode: "recommended" | "custom"; animations: AnimSettings; stagger: boolean; narration?: { voice: string; padBefore: number; padAfter: number };
 }): Promise<{ ok: boolean; jobId?: string; pptxUrl?: string; pdfUrl?: string; message?: string }> {
   const res = await fetch("/api/projects/import-pptx", {
     method: "POST", credentials: "include",

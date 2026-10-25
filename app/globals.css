@@ -146,3 +146,11 @@ body {
 	flex-shrink: 0;
 }
 
+
+.ss-asset-toolbar-btn:is([data-button-id="bulkedit"], [data-button-id="aiimage"], [data-button-id="aivideo"], [data-button-id="ainarration"], [data-button-id="bgm"]) {
+	background: linear-gradient(45deg, rgba(81, 132, 240, 0.12), rgba(22, 147, 133, 0.12));
+}
+
+.ss-asset-toolbar-btn:is([data-button-id="bulkedit"], [data-button-id="aiimage"], [data-button-id="aivideo"], [data-button-id="ainarration"], [data-button-id="bgm"]):hover {
+	background: linear-gradient(45deg, rgba(81, 132, 240, 0.24), rgba(22, 147, 133, 0.24));
+}
