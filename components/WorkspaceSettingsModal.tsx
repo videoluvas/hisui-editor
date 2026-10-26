@@ -222,7 +222,7 @@ function ModelDropdown({ models, value, onChange, lockedIds }: {
                 </div>
                 {isLocked && (
                   <span style={{ fontSize: 9, fontWeight: 700, color: "#e67d30", background: "#fff3e8", padding: "2px 6px", borderRadius: 4, border: "1px solid #e67d3040", whiteSpace: "nowrap", flexShrink: 0 }}>
-                    有料プラン
+                    法人プラン
                   </span>
                 )}
                 {isSelected && !isLocked && (
@@ -1833,7 +1833,7 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                         </div>
                         {locked && (
                           <span style={{ fontSize: 9, fontWeight: 700, color: "#e67d30", background: "#fff3e8", border: "1px solid #e67d3040", padding: "2px 6px", borderRadius: 4, whiteSpace: "nowrap", flexShrink: 0 }}>
-                            有料プランのみ
+                            法人プランのみ
                           </span>
                         )}
                         {freeBadge && !locked && (

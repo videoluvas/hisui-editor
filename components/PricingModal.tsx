@@ -2,13 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { FREE_NARRATION_IMPORTS, FREE_PLAN_CODE, PAID_PLANS, SPECIAL_CONTACT_URL, SPECIAL_ITEMS, onOpenPricing, openPricing, planContactUrl, yen } from "@/lib/pricing";
+import { CORPORATE_CONTACT_URL, CORPORATE_ITEMS, FREE_ITEMS, FREE_PLAN_CODE, STANDARD_PLAN, onOpenPricing, openPricing, planContactUrl, yen } from "@/lib/pricing";
 
 const TEAL = "#169385";
 const INK = "#0f172a";
 const FONT = "'Noto Sans JP', sans-serif";
 
-// 無料プランで AI 生成を呼んだとき（API が code: FREE_PLAN を返したとき）に料金プランを出す
+// プランで使えない機能・上限に達した操作を呼んだとき（API が code: FREE_PLAN を返したとき）に料金プランを出す
 export default function PricingModal() {
   const [open, setOpen] = useState(false);
 
@@ -53,8 +53,8 @@ export default function PricingModal() {
         style={{ width: 960, maxWidth: "100%", maxHeight: "92vh", overflowY: "auto", background: "#fff", borderRadius: 18, padding: 22, boxShadow: "0 20px 50px rgba(0,0,0,0.25)", display: "flex", flexDirection: "column", gap: 16, boxSizing: "border-box", color: INK }}>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
           <div>
-            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>この機能は有料プランでご利用いただけます</h2>
-            <p style={{ margin: "6px 0 0", fontSize: 13, color: "#475569", lineHeight: 1.7 }}>AI で画像・動画・ナレーションなどを作るには、有料プランをお申し込みください。</p>
+            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>ご利用中のプランでは使えません</h2>
+            <p style={{ margin: "6px 0 0", fontSize: 13, color: "#475569", lineHeight: 1.7 }}>取り込み・ナレーション・書き出しの上限を広げるにはスタンダード、AI 生成を使うには法人プランをお申し込みください。</p>
           </div>
           <button type="button" onClick={() => setOpen(false)} aria-label="閉じる" style={{ border: "none", background: "transparent", color: "#999", cursor: "pointer", fontSize: 22, lineHeight: 1, padding: 4 }}>×</button>
         </div>
@@ -63,34 +63,26 @@ export default function PricingModal() {
           <div style={{ ...card, background: "#f8fafc" }}>
             <div style={{ fontSize: 14, fontWeight: 800 }}>無料プラン</div>
             <div style={{ fontSize: 24, fontWeight: 800 }}>¥0</div>
-            <ul style={list}>
-              {item(true, "パワーポイントの取り込み 無制限")}
-              {item(true, "動画の書き出し 無制限（透かし入り）")}
-              {item(true, `ノートからナレーション ${FREE_NARRATION_IMPORTS} 回まで（累計）`)}
-              {item(false, "AI 画像・動画・BGM の生成")}
-              {item(false, "透かしなしの書き出し")}
-            </ul>
-            <div style={{ marginTop: "auto", textAlign: "center", fontSize: 12, fontWeight: 700, color: "#94a3b8", padding: "10px 0" }}>ご利用中</div>
+            <ul style={list}>{FREE_ITEMS.map(([ok, t]) => item(ok, t))}</ul>
           </div>
 
-          {PAID_PLANS.map((p) => (
-            <div key={p.id} style={{ ...card, border: `1.5px solid ${TEAL}55` }}>
-              <div style={{ fontSize: 14, fontWeight: 800 }}>{p.label}</div>
-              <div>
-                <span style={{ fontSize: 24, fontWeight: 800 }}>{yen(p.price)}</span>
-                <span style={{ fontSize: 12, color: "#64748b", marginLeft: 4 }}>/ 月（税込）</span>
-              </div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: TEAL }}>{p.forWhom}</div>
-              <ul style={list}>{p.items.map((t) => item(true, t))}</ul>
-              <a href={planContactUrl(p.label)} target="_blank" rel="noreferrer" style={button(true)}>このプランを申し込む</a>
+          <div style={{ ...card, border: `1.5px solid ${TEAL}55` }}>
+            <div style={{ fontSize: 14, fontWeight: 800 }}>{STANDARD_PLAN.label}</div>
+            <div>
+              <span style={{ fontSize: 24, fontWeight: 800 }}>{yen(STANDARD_PLAN.price)}</span>
+              <span style={{ fontSize: 12, color: "#64748b", marginLeft: 4 }}>/ 月（税抜）</span>
+              <div style={{ fontSize: 11, color: "#64748b" }}>税込 {yen(STANDARD_PLAN.priceTaxIn)}</div>
             </div>
-          ))}
+            <div style={{ fontSize: 12, fontWeight: 700, color: TEAL }}>{STANDARD_PLAN.forWhom}</div>
+            <ul style={list}>{STANDARD_PLAN.items.map((t) => item(true, t))}</ul>
+            <a href={planContactUrl(STANDARD_PLAN.label)} target="_blank" rel="noreferrer" style={button(true)}>このプランを申し込む</a>
+          </div>
 
           <div style={{ ...card, background: INK, color: "#fff", border: "none" }}>
-            <div style={{ fontSize: 14, fontWeight: 800 }}>特別プラン</div>
+            <div style={{ fontSize: 14, fontWeight: 800 }}>法人プラン</div>
             <div style={{ fontSize: 20, fontWeight: 800 }}>お見積り</div>
-            <ul style={list}>{SPECIAL_ITEMS.map((s) => item(true, s, "#fff", "#5eead4"))}</ul>
-            <a href={SPECIAL_CONTACT_URL} target="_blank" rel="noreferrer" style={{ ...button(true), background: "#fff", color: INK, border: "none" }}>相談する</a>
+            <ul style={list}>{CORPORATE_ITEMS.map((s) => item(true, s, "#fff", "#5eead4"))}</ul>
+            <a href={CORPORATE_CONTACT_URL} target="_blank" rel="noreferrer" style={{ ...button(true), background: "#fff", color: INK, border: "none" }}>相談する</a>
           </div>
         </div>
 

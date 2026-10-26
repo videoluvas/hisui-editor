@@ -8,7 +8,7 @@ import { getEditorSessionFromCookie } from "@/lib/auth.backend";
 import { logError } from "@/lib/log.error";
 import { r2Client, R2_BUCKET_NAME, R2_PUBLIC_URL } from "@/lib/fileupload.r2";
 import { v4 as uuidv4 } from "uuid";
-import { consumeCredits, refundCredits, narrationMultiplier } from "@/lib/credits";
+import { chargeNarration, refundNarration } from "@/lib/plan-usage";
 import { GEMINI_TTS_MODELS, GEMINI_VOICES } from "@/lib/ttsSettings";
 import type { TtsProvider, GeminiTtsModelKey } from "@/lib/ttsSettings";
 import { buildStyle, callGeminiTts, chunkText, mergeWavs } from "@/lib/tts.gemini";
@@ -37,10 +37,6 @@ export async function POST(request: NextRequest) {
   const transcript = (body.transcript ?? "").trim();
   if (!transcript) return NextResponse.json({ ok: false, message: "台本テキストが空です" }, { status: 400 });
 
-  const mult = narrationMultiplier(transcript);
-  const credit = await consumeCredits(session.userId, "narration", body.workspaceId ?? null, mult);
-  if (!credit.ok) return NextResponse.json({ ok: false, code: credit.code, message: credit.message }, { status: 402 });
-
   const provider = body.provider ?? "google-gemini";
   if (provider !== "google-gemini") return NextResponse.json({ ok: false, message: "未対応のプロバイダーです" }, { status: 400 });
 
@@ -64,6 +60,10 @@ export async function POST(request: NextRequest) {
   if (!apiKey) return NextResponse.json({ ok: false, message: "GOOGLE_AI_API_KEY が設定されていません" }, { status: 500 });
 
   const userId = session.userId;
+
+  // スタンダードは今月のナレーション文字数、法人はクレジット（無料は使えない）
+  const charged = await chargeNarration(userId, transcript, workspaceId);
+  if (!charged.ok) return NextResponse.json({ ok: false, code: charged.code, message: charged.message }, { status: 402 });
 
   try {
     const chunks = autoChunk ? chunkText(transcript, maxChunkLen) : [transcript];
@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     await logError("editor-generate-narration", msg, { userId, detail: { provider, model: modelKey } });
-    await refundCredits(session.userId, "narration", body.workspaceId ?? null, mult);
+    await refundNarration(userId, charged.charge, workspaceId);
     if (msg.includes("401") || msg.includes("403")) return NextResponse.json({ ok: false, message: "Google APIキーが無効または権限がありません" }, { status: 500 });
     if (msg.includes("429")) return NextResponse.json({ ok: false, message: "Google APIの利用上限に達しました" }, { status: 429 });
     return NextResponse.json({ ok: false, message: "音声生成に失敗しました。しばらく後に再試行してください。" }, { status: 500 });

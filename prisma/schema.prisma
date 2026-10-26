@@ -55,6 +55,9 @@ model User {
   // 無料プランでナレーションありの取り込みを使った回数（累計・リセットしない）
   freeNarrationImports Int @default(0) @map("free_narration_imports")
 
+  // スタンダードプランで今月ノートのナレーションに使った文字数（月の更新で 0 に戻す）
+  narrationChars Int @default(0) @map("narration_chars")
+
   // 登録時の流入元（utm_source など）
   signupUtm Json? @map("signup_utm")
 

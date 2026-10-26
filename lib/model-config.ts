@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { FREE_PLAN_CODE, FREE_PLAN_MESSAGE, isFreePlan } from "@/lib/credits";
+import { FREE_PLAN_CODE, FREE_PLAN_MESSAGE, hasAiAccess } from "@/lib/credits";
 
 export type ModelAvailability = "free" | "paid" | "suspended";
 
@@ -28,7 +28,7 @@ export async function checkModelAccess(
   if (avail === "suspended") {
     return { ok: false, message: "このモデルは現在利用停止中です", status: 503 };
   }
-  if (isFreePlan(userPlan)) {
+  if (!hasAiAccess(userPlan)) {
     return { ok: false, code: FREE_PLAN_CODE, message: FREE_PLAN_MESSAGE, status: 403 };
   }
   return { ok: true };

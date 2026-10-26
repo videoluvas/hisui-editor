@@ -68,6 +68,7 @@ export async function PATCH(req: NextRequest) {
   if (planChanging) {
     updateData.plan = body.plan;
     // 有料プランに切り替わる場合はリセット日時を設定
+    updateData.narrationChars = 0;
     if (body.plan && PAID_PLANS.has(body.plan)) {
       updateData.creditsResetAt = new Date();
     } else {

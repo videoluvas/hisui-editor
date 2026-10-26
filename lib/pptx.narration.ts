@@ -3,7 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { r2Client, R2_BUCKET_NAME, R2_PUBLIC_URL } from "@/lib/fileupload.r2";
 import { getEditJsonFromR2, putEditJsonToR2 } from "@/lib/project.r2";
 import { logError } from "@/lib/log.error";
-import { CREDIT_COST, FREE_NARRATION_IMPORTS, consumeCredits, isFreePlan, narrationMultiplier, refundCredits } from "@/lib/credits";
+import { CREDIT_COST, consumeCredits, hasAiAccess, isFreePlan, narrationMultiplier, refundCredits } from "@/lib/credits";
+import { FREE_LIMITS, STANDARD_LIMITS } from "@/lib/pricing";
+import { returnNarrationChars, useNarrationChars } from "@/lib/plan-usage";
 import { GEMINI_TTS_MODELS, GEMINI_VOICES } from "@/lib/ttsSettings";
 import { callGeminiTts, chunkText, mergeWavs, wavSeconds } from "@/lib/tts.gemini";
 import { ImportError, finishImport, narrationFile } from "@/lib/pptx.import";
@@ -12,61 +14,106 @@ import type { ImportOptions, ImportWarning, PptxManifest, SlideNarration } from 
 const PARALLEL = 3;
 
 type Job = { id: string; userId: string; workspaceId: string; outPrefix: string; manifestKey: string | null; options: unknown };
-type Charge = { free: true } | { free: false; mult: number };
+// 無料：回数（累計・リセットなし）、スタンダード：今月の文字数、法人：クレジットで払う
+type ChargeKind = "free" | "chars" | "credits";
+type Charge = { kind: "free" } | { kind: "chars"; chars: number } | { kind: "credits"; mult: number };
 
 export type NarrationEstimate = {
   slides: number;
   withNotes: number;
   chars: number;
+  kind: ChargeKind;
   credits: number;
   balance: number;
-  free: boolean;
   freeLeft: number;
   freeLimit: number;
+  charsLeft: number;
+  charsLimit: number;
+  blocked: string | null;
 };
 
 const notedSlides = (m: PptxManifest) => m.slides.filter((s) => s.notes?.trim());
+const chargeKind = (plan: string | null): ChargeKind => isFreePlan(plan) ? "free" : hasAiAccess(plan) ? "credits" : "chars";
 
-export async function narrationEstimate(job: Job): Promise<NarrationEstimate | null> {
-  const manifest = job.manifestKey ? await getEditJsonFromR2<PptxManifest>(job.manifestKey) : null;
-  const user = await prisma.user.findUnique({ where: { id: job.userId }, select: { plan: true, credits: true, freeNarrationImports: true } });
-  if (!manifest || !user) return null;
+function measure(manifest: PptxManifest) {
   const noted = notedSlides(manifest);
-  const mult = noted.reduce((n, s) => n + narrationMultiplier(s.notes.trim()), 0);
   return {
-    slides: manifest.slides.length,
     withNotes: noted.length,
     chars: noted.reduce((n, s) => n + s.notes.trim().length, 0),
-    credits: CREDIT_COST.narration * mult,
-    balance: user.credits,
-    free: isFreePlan(user.plan),
-    freeLeft: Math.max(0, FREE_NARRATION_IMPORTS - user.freeNarrationImports),
-    freeLimit: FREE_NARRATION_IMPORTS,
+    mult: noted.reduce((n, s) => n + narrationMultiplier(s.notes.trim()), 0),
   };
 }
 
-// 無料プランは回数（アカウント累計・リセットなし）、有料プランはクレジットで払う
-async function charge(job: Job, manifest: PptxManifest): Promise<{ ok: true; charge: Charge } | { ok: false; message: string }> {
-  const user = await prisma.user.findUnique({ where: { id: job.userId }, select: { plan: true } });
-  if (isFreePlan(user?.plan)) {
-    const { count } = await prisma.user.updateMany({
-      where: { id: job.userId, freeNarrationImports: { lt: FREE_NARRATION_IMPORTS } },
-      data: { freeNarrationImports: { increment: 1 } },
-    });
-    if (count === 0) return { ok: false, message: `無料プランのナレーション生成は ${FREE_NARRATION_IMPORTS} 回までです。続けるには有料プランをご利用ください` };
-    return { ok: true, charge: { free: true } };
+// 作れないときの理由（作れるなら null）
+function blockReason(kind: ChargeKind, m: { withNotes: number; chars: number; mult: number }, u: { credits: number; freeNarrationImports: number; narrationChars: number }) {
+  if (kind === "free") {
+    if (u.freeNarrationImports >= FREE_LIMITS.narrationImports) return `無料プランのナレーション生成は ${FREE_LIMITS.narrationImports} 回まで使いました。`;
+    if (m.withNotes > FREE_LIMITS.narrationSlides) return `無料プランで 1 回に読み上げられるのは ${FREE_LIMITS.narrationSlides} 枚までです（ノートのあるスライドが ${m.withNotes} 枚）。`;
+    if (m.chars > FREE_LIMITS.narrationChars) return `無料プランで 1 回に読み上げられるのは ${FREE_LIMITS.narrationChars.toLocaleString()} 字までです（今回 ${m.chars.toLocaleString()} 字）。`;
+    return null;
   }
-  const mult = notedSlides(manifest).reduce((n, s) => n + narrationMultiplier(s.notes.trim()), 0);
-  const res = await consumeCredits(job.userId, "narration", job.workspaceId, mult);
-  if (!res.ok) return { ok: false, message: res.message ?? "クレジットが不足しています" };
-  return { ok: true, charge: { free: false, mult } };
+  if (kind === "chars") {
+    const left = STANDARD_LIMITS.narrationChars - u.narrationChars;
+    return m.chars > left ? `今月のナレーションの残りは ${Math.max(0, left).toLocaleString()} 字です（今回 ${m.chars.toLocaleString()} 字）。` : null;
+  }
+  return u.credits < CREDIT_COST.narration * m.mult ? "クレジットが足りません。" : null;
 }
 
-async function refund(job: Job, c: Charge, mult?: number) {
-  if (c.free) {
+const userSelect = { plan: true, credits: true, freeNarrationImports: true, narrationChars: true } as const;
+
+export async function narrationEstimate(job: Job): Promise<NarrationEstimate | null> {
+  const manifest = job.manifestKey ? await getEditJsonFromR2<PptxManifest>(job.manifestKey) : null;
+  const user = await prisma.user.findUnique({ where: { id: job.userId }, select: userSelect });
+  if (!manifest || !user) return null;
+  const m = measure(manifest);
+  const kind = chargeKind(user.plan);
+  return {
+    slides: manifest.slides.length,
+    withNotes: m.withNotes,
+    chars: m.chars,
+    kind,
+    credits: CREDIT_COST.narration * m.mult,
+    balance: user.credits,
+    freeLeft: Math.max(0, FREE_LIMITS.narrationImports - user.freeNarrationImports),
+    freeLimit: FREE_LIMITS.narrationImports,
+    charsLeft: Math.max(0, STANDARD_LIMITS.narrationChars - user.narrationChars),
+    charsLimit: STANDARD_LIMITS.narrationChars,
+    blocked: blockReason(kind, m, user),
+  };
+}
+
+async function charge(job: Job, manifest: PptxManifest): Promise<{ ok: true; charge: Charge } | { ok: false; message: string }> {
+  const user = await prisma.user.findUnique({ where: { id: job.userId }, select: userSelect });
+  if (!user) return { ok: false, message: "ユーザーが見つかりません" };
+  const m = measure(manifest);
+  const kind = chargeKind(user.plan);
+  const blocked = blockReason(kind, m, user);
+  if (blocked) return { ok: false, message: blocked };
+  if (kind === "free") {
+    const { count } = await prisma.user.updateMany({
+      where: { id: job.userId, freeNarrationImports: { lt: FREE_LIMITS.narrationImports } },
+      data: { freeNarrationImports: { increment: 1 } },
+    });
+    if (count === 0) return { ok: false, message: `無料プランのナレーション生成は ${FREE_LIMITS.narrationImports} 回まで使いました。` };
+    return { ok: true, charge: { kind } };
+  }
+  if (kind === "chars") {
+    if (!(await useNarrationChars(job.userId, m.chars))) return { ok: false, message: "今月のナレーションの文字数が足りません。" };
+    return { ok: true, charge: { kind, chars: m.chars } };
+  }
+  const res = await consumeCredits(job.userId, "narration", job.workspaceId, m.mult);
+  if (!res.ok) return { ok: false, message: res.message ?? "クレジットが不足しています" };
+  return { ok: true, charge: { kind, mult: m.mult } };
+}
+
+// 返す量（failed）を省くと全部返す
+async function refund(job: Job, c: Charge, failed?: { chars: number; mult: number }) {
+  if (c.kind === "free") {
     await prisma.user.updateMany({ where: { id: job.userId, freeNarrationImports: { gt: 0 } }, data: { freeNarrationImports: { decrement: 1 } } });
+  } else if (c.kind === "chars") {
+    await returnNarrationChars(job.userId, failed?.chars ?? c.chars);
   } else {
-    await refundCredits(job.userId, "narration", job.workspaceId, mult ?? c.mult);
+    await refundCredits(job.userId, "narration", job.workspaceId, failed?.mult ?? c.mult);
   }
 }
 
@@ -97,15 +144,17 @@ export async function confirmNarration(job: Job, generate: boolean): Promise<{ o
 
 async function build(job: Job, manifest: PptxManifest, c: Charge | null) {
   const opts = job.options as unknown as ImportOptions;
-  let refunded = 0;
+  let refunded = { chars: 0, mult: 0 };
   try {
-    const { narration, warnings, failedMult } = c ? await generateAll(job, manifest, opts.narration?.voice ?? "Kore") : { narration: undefined, warnings: [], failedMult: 0 };
+    const { narration, warnings, failed } = c ? await generateAll(job, manifest, opts.narration?.voice ?? "Kore") : { narration: undefined, warnings: [], failed: { chars: 0, mult: 0 } };
     if (c && narration && narration.size === 0) throw new ImportError("ナレーションを生成できませんでした。しばらくしてからもう一度お試しください");
-    if (c && !c.free && failedMult > 0) { await refund(job, c, failedMult); refunded = failedMult; }
+    // 一部のスライドだけ失敗したときは、その分の文字数・クレジットを返す（無料の回数は 1 回使ったまま）
+    if (c && c.kind !== "free" && failed.chars > 0) { await refund(job, c, failed); refunded = failed; }
     await finishImport(job, manifest, job.manifestKey!, opts, narration, warnings);
   } catch (e) {
-    if (c && c.free) await refund(job, c);
-    if (c && !c.free && c.mult > refunded) await refund(job, c, c.mult - refunded);
+    if (c?.kind === "free") await refund(job, c);
+    if (c?.kind === "chars" && c.chars > refunded.chars) await refund(job, c, { chars: c.chars - refunded.chars, mult: 0 });
+    if (c?.kind === "credits" && c.mult > refunded.mult) await refund(job, c, { chars: 0, mult: c.mult - refunded.mult });
     const message = e instanceof ImportError ? e.message : "ナレーションの生成中にエラーが発生しました";
     if (!(e instanceof ImportError)) await logError("import-pptx-narration", `${e}`, { userId: job.userId, detail: { jobId: job.id } });
     await prisma.importJob.update({ where: { id: job.id }, data: { status: "error", message, errorCode: "NARRATION_FAILED" } });
@@ -122,7 +171,7 @@ async function generateAll(job: Job, manifest: PptxManifest, voiceName: string) 
   const targets = notedSlides(manifest);
   const narration: SlideNarration = new Map();
   const warnings: ImportWarning[] = [];
-  let failedMult = 0;
+  const failed = { chars: 0, mult: 0 };
   let done = 0;
   const progress = () => putEditJsonToR2(`${job.outPrefix}/progress.json`, { stage: "narration", done, total: targets.length, at: Date.now() }).catch(() => {});
   await progress();
@@ -139,7 +188,8 @@ async function generateAll(job: Job, manifest: PptxManifest, voiceName: string) 
         await r2Client.send(new PutObjectCommand({ Bucket: R2_BUCKET_NAME, Key: key, Body: wav, ContentType: "audio/wav" }));
         narration.set(s.no, { src: `${R2_PUBLIC_URL}/${key}`, sec: Math.round(wavSeconds(wav) * 100) / 100 });
       } catch (e) {
-        failedMult += narrationMultiplier(text);
+        failed.chars += text.length;
+        failed.mult += narrationMultiplier(text);
         warnings.push({ slide: s.no, code: "NARRATION_FAILED", message: `${s.no} 枚目のナレーションを生成できなかったため、無音にしました` });
         await logError("import-pptx-narration", `${e}`, { userId: job.userId, detail: { jobId: job.id, slide: s.no } });
       }
@@ -147,5 +197,5 @@ async function generateAll(job: Job, manifest: PptxManifest, voiceName: string) 
       await progress();
     }
   }));
-  return { narration, warnings, failedMult };
+  return { narration, warnings, failed };
 }

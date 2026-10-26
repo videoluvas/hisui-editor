@@ -82,9 +82,17 @@ export const IMPORT_GUIDES: Record<string, ErrorGuide> = {
   },
   NARRATION_FAILED: {
     title: "ナレーションを生成できませんでした",
-    steps: ["少し時間をおいて、もう一度お試しください。", "ナレーションなしで取り込み、あとから動画編集画面でナレーションを付けることもできます。"],
+    steps: ["少し時間をおいて、もう一度お試しください。", "ナレーションなしで取り込むこともできます。"],
     action: "retry",
-    note: "このとき消費したクレジット（無料プランは回数）は自動で戻しています。",
+    note: "このとき使った回数・文字数・クレジットは自動で戻しています。",
+  },
+  FREE_SLIDE_LIMIT: {
+    title: "無料プランで取り込める枚数を超えています",
+    steps: [
+      "スライドを 30 枚以下のファイルに分けて、もう一度取り込んでください。",
+      "スタンダードプランなら、枚数の制限なく取り込めます。",
+    ],
+    action: "pptx",
   },
   CONVERT_FAILED: {
     title: "変換中にエラーが発生しました",
@@ -97,9 +105,14 @@ export const IMPORT_GUIDES: Record<string, ErrorGuide> = {
 };
 
 export const EXPORT_GUIDES: Record<string, ErrorGuide> = {
-  CREDIT_SHORT: {
-    title: "クレジットが足りません",
-    steps: ["クレジットの残高を確認してください。", "ウォーターマークありで書き出すと、クレジットを消費せずに書き出せます。"],
+  CLEAN_EXPORT_LIMIT: {
+    title: "今月の透かしなしの書き出し枠が足りません",
+    steps: ["ウォーターマークありにすると、枠を使わずに書き出せます。", "枠は毎月の更新日に戻ります。残りはダッシュボードで確認できます。"],
+    action: "credits",
+  },
+  FREE_PLAN: {
+    title: "無料プランの書き出し回数を使い切りました",
+    steps: ["続けて書き出すには、有料プランをお申し込みください。"],
     action: "credits",
   },
   NOT_READY: {
@@ -114,7 +127,7 @@ export const EXPORT_GUIDES: Record<string, ErrorGuide> = {
       "少し時間をおいて、もう一度お試しください。",
     ],
     action: "retry",
-    note: "クレジットは消費されていません。",
+    note: "書き出しの回数・分数には数えていません。",
   },
   RENDER_FAILED: {
     title: "動画の作成に失敗しました",
@@ -124,7 +137,7 @@ export const EXPORT_GUIDES: Record<string, ErrorGuide> = {
       "もう一度「書き出す」を押してください。",
     ],
     action: "retry",
-    note: "ウォーターマークなしで書き出してクレジットが消費された場合は、受付番号を添えてお問い合わせください。",
+    note: "失敗した書き出しは、回数・分数に数えません。",
   },
   EXPORT_TIMEOUT: {
     title: "書き出しに時間がかかっています",
@@ -133,7 +146,7 @@ export const EXPORT_GUIDES: Record<string, ErrorGuide> = {
       "少し時間をおいて、もう一度「書き出す」を押してください。",
     ],
     action: "retry",
-    note: "ウォーターマークなしで書き出し直すと、クレジットをもう一度消費します。気になる場合は先にお問い合わせください。",
+    note: "書き出し直すと、回数・分数にもう一度数えます。気になる場合は先にお問い合わせください。",
   },
   EXPORT_FAILED: {
     title: "書き出しに失敗しました",

@@ -5,6 +5,8 @@ import { TEAL } from "@/components/icons";
 import ProfileSettingsModal from "@/components/ProfileSettingsModal";
 import { CREDIT_ACTION_LABEL } from "@/lib/credits";
 import type { CreditAction } from "@/lib/credits";
+import { openPricing, planLabel } from "@/lib/pricing";
+import type { PlanUsage } from "@/lib/plan-usage";
 
 const FONT = "'Noto Sans JP', sans-serif";
 const GRAD = "linear-gradient(90deg, #5184F0, #169385)";
@@ -81,6 +83,7 @@ type DashboardData = {
   workspaceConsumption: WorkspaceConsumption[];
   importLogs?: ImportLog[];
   outputLogs?: OutputLog[];
+  usage?: PlanUsage | null;
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -145,11 +148,15 @@ const CHECKOUT_STATUS_LABEL: Record<string, { label: string; color: string }> = 
   canceled:  { label: "キャンセル", color: "#94a3b8" },
 };
 
-function planLabel(plan: string | null): string {
-  if (!plan || plan === "Free") return "無料プラン";
-  if (plan === "Business") return "スタンダード";
-  if (plan === "Pro") return "プロ";
-  return plan;
+// プランの残り（無料：累計の回数、スタンダード：今月の量）
+function usageRows(u: PlanUsage): [string, string][] {
+  const left = (limit: number, used: number) => Math.max(0, limit - used);
+  return [
+    ...(u.exportsLimit != null ? [["書き出し（透かし入り・累計）", `残り ${left(u.exportsLimit, u.exports)} / ${u.exportsLimit} 回`]] : []),
+    ...(u.narrationImportsLimit != null ? [["ノートからナレーション（累計）", `残り ${left(u.narrationImportsLimit, u.narrationImports)} / ${u.narrationImportsLimit} 回`]] : []),
+    ...(u.narrationCharsLimit != null ? [["ナレーション（今月）", `残り ${left(u.narrationCharsLimit, u.narrationChars).toLocaleString()} / ${u.narrationCharsLimit.toLocaleString()} 字`]] : []),
+    ...(u.cleanExportLimitSec != null ? [["透かしなしの書き出し（今月）", `残り ${Math.floor(left(u.cleanExportLimitSec, u.cleanExportSec) / 60)} / ${u.cleanExportLimitSec / 60} 分`]] : []),
+  ] as [string, string][];
 }
 
 function planColors(plan: string | null): { bg: string; color: string } {
@@ -400,7 +407,23 @@ export default function UserDashboardModal({
                 </svg>
               </button>
 
-              {/* ── クレジット残高 ── */}
+              {/* ── プランの残り ── */}
+              {data?.usage && usageRows(data.usage).length > 0 && (
+                <Section title="ご利用状況">
+                  <div style={{ borderRadius: 12, border: "1px solid #e8edf4", padding: "6px 16px", background: "#f8fafc" }}>
+                    {usageRows(data.usage).map(([k, v]) => (
+                      <div key={k} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "7px 0", fontSize: 12, borderBottom: "1px solid #f1f5f9" }}>
+                        <span style={{ color: "#64748b" }}>{k}</span>
+                        <span style={{ fontWeight: 700, color: "#334155" }}>{v}</span>
+                      </div>
+                    ))}
+                    <button type="button" onClick={openPricing} style={{ border: "none", background: "none", padding: "8px 0", color: TEAL, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>料金プランを見る</button>
+                  </div>
+                </Section>
+              )}
+
+              {/* ── クレジット残高（AI 生成は法人プランだけ） ── */}
+              {user?.plan === "Pro" && (
               <Section title="クレジット残高">
                 <div style={{ borderRadius: 12, border: "1px solid #e8edf4", padding: "14px 16px", background: "#f8fafc" }}>
                   <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
@@ -417,6 +440,7 @@ export default function UserDashboardModal({
                   </div>
                 </div>
               </Section>
+              )}
 
               {/* ── ワークスペース別消費 ── */}
               {wsConsumption.length > 0 && (

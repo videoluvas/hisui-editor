@@ -3,10 +3,11 @@ import type { Project } from "@/lib/project.api";
 
 export type ImportStatus = "uploading" | "converting" | "confirm" | "narrating" | "done" | "error";
 
-// ナレーションを作る前に見せる、ノートの文字数と消費クレジット（無料プランは残り回数）
+// ナレーションを作る前に見せる、ノートの文字数と使う量（無料：回数、スタンダード：今月の文字数、法人：クレジット）
 export type NarrationEstimate = {
-  slides: number; withNotes: number; chars: number; credits: number; balance: number;
-  free: boolean; freeLeft: number; freeLimit: number;
+  slides: number; withNotes: number; chars: number; kind: "free" | "chars" | "credits";
+  credits: number; balance: number; freeLeft: number; freeLimit: number; charsLeft: number; charsLimit: number;
+  blocked: string | null;
 };
 export type ImportWarning = { slide: number; code: string; message: string };
 

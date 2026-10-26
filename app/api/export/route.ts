@@ -7,7 +7,8 @@ import { prisma } from "@/lib/prisma";
 import { getEditJsonFromR2 } from "@/lib/project.r2";
 import type { VideoExportSettings } from "@/lib/videoExportSettings";
 import { RESOLUTION_MAP, resolutionSize } from "@/lib/exportSettings";
-import { consumeCredits, refundCredits, exportAction, exportMultiplier } from "@/lib/credits";
+import { getPlanUsage } from "@/lib/plan-usage";
+import { FREE_LIMITS, FREE_PLAN_CODE } from "@/lib/pricing";
 
 type ProjectWithKey = { id: string; userId: string; workspaceId: string | null; editJsonKey: string | null; durationSec: number | null; width: number | null; height: number | null };
 
@@ -22,12 +23,12 @@ export async function POST(req: NextRequest) {
 
     if (!projectId) return NextResponse.json({ ok: false, message: "projectIdが必要です" }, { status: 400 });
 
-    const [project, dbUser] = await Promise.all([
+    const [project, usage] = await Promise.all([
       prisma.project.findUnique({
         where: { id: projectId },
         select: { id: true, userId: true, workspaceId: true, editJsonKey: true, durationSec: true, width: true, height: true },
       }) as Promise<ProjectWithKey | null>,
-      prisma.user.findUnique({ where: { id: session.userId }, select: { plan: true } }),
+      getPlanUsage(session.userId),
     ]);
     if (!project || project.userId !== session.userId)
       return NextResponse.json({ ok: false, message: "プロジェクトが見つかりません" }, { status: 404 });
@@ -35,8 +36,18 @@ export async function POST(req: NextRequest) {
     if (!project.editJsonKey)
       return NextResponse.json({ ok: false, code: "RENDER_START_FAILED", message: "プロジェクトがまだ保存されていません" }, { status: 400 });
 
-    const isFreeUser = !dbUser?.plan || dbUser.plan === "Free";
+    if (!usage) return NextResponse.json({ ok: false, message: "ユーザーが見つかりません" }, { status: 404 });
+    const isFreeUser = usage.plan === "Free";
     const useSandbox = isFreeUser || (renderSettings.sandboxMode ?? false);
+    const durationSec = project.durationSec ?? 60;
+
+    // 無料プランは累計の回数、スタンダードは透かしなしの分数（月）で止める。法人プランは制限なし
+    if (usage.exportsLimit != null && usage.exports >= usage.exportsLimit)
+      return NextResponse.json({ ok: false, code: FREE_PLAN_CODE, message: `無料プランの書き出しは累計 ${FREE_LIMITS.exports} 回までです。続けるには有料プランをご利用ください` }, { status: 403 });
+    if (!useSandbox && usage.cleanExportLimitSec != null && usage.cleanExportSec + durationSec > usage.cleanExportLimitSec) {
+      const left = Math.max(0, Math.floor((usage.cleanExportLimitSec - usage.cleanExportSec) / 60));
+      return NextResponse.json({ ok: false, code: "CLEAN_EXPORT_LIMIT", message: `今月の透かしなしの書き出しは残り ${left} 分です（この動画は ${Math.ceil(durationSec / 60)} 分）` }, { status: 402 });
+    }
     // SHOTSTACK_API_KEY / SHOTSTACK_API_URL は現在サンドボックス環境
     // 本番（透かしなし）は SHOTSTACK_PROD_API_KEY / SHOTSTACK_PROD_API_URL を使用
     const shotstackKey = process.env.SHOTSTACK_API_KEY;
@@ -57,19 +68,8 @@ export async function POST(req: NextRequest) {
       : null;
     if (ws?.toolType === "pptx") renderSettings.resolution = "1080p";
 
-    const resolution = renderSettings.resolution ?? "1080p";
-    const durationSec = project.durationSec ?? 60;
-    const action = exportAction(resolution);
-    const mult = exportMultiplier(durationSec);
-
-    if (!useSandbox) {
-      const credit = await consumeCredits(session.userId, action, project.workspaceId, mult);
-      if (!credit.ok) return NextResponse.json({ ok: false, code: "CREDIT_SHORT", message: credit.message }, { status: 402 });
-    }
-
     const editJson = await getEditJsonFromR2(project.editJsonKey) as Record<string, unknown>;
     if (!editJson) {
-      if (!useSandbox) await refundCredits(session.userId, action, project.workspaceId, mult);
       return NextResponse.json({ ok: false, code: "RENDER_START_FAILED", message: "編集内容を読み込めませんでした" }, { status: 500 });
     }
 
@@ -140,7 +140,6 @@ export async function POST(req: NextRequest) {
 
     const data = await res.json();
     if (!res.ok) {
-      if (!useSandbox) await refundCredits(session.userId, action, project.workspaceId, mult);
       return NextResponse.json({ ok: false, code: "RENDER_START_FAILED", message: data?.response?.message ?? "書き出しサーバーがエラーを返しました" }, { status: 500 });
     }
 

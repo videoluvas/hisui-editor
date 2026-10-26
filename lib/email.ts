@@ -142,46 +142,34 @@ export type QuotePlan = {
   estimates: QuoteEstimate[];
 };
 
-// 仕様シート「料金設計 2. プラン案」の値（税込）
+// 仕様シート「価格案」の値（税抜）。法人プランはお問い合わせのあとに個別で提案するため、ここには載せない
 export const QUOTE_PLANS: Record<string, QuotePlan> = {
   Business: {
     id:       "Business",
     name:     "スタンダード",
-    priceJpy: 2_980,
-    summary:  "年払い 29,800円（2か月分おトク）",
-    estimates: [
-      { label: "書き出し",       condition: "1080p・透かしなし",       count: "月60分"      },
-      { label: "ナレーション",   condition: "ノート読み上げ・作り直し", count: "月18,000字（約60分）" },
-      { label: "AIクレジット",   condition: "AI画像・AI動画",           count: "月30,000（画像6枚 または 動画6秒）" },
-      { label: "ワークスペース", condition: "",                         count: "10個"        },
-    ],
-  },
-  Pro: {
-    id:       "Pro",
-    name:     "プロ",
     priceJpy: 9_800,
-    summary:  "年払い 98,000円（2か月分おトク）",
+    summary:  "月ごとの更新（年払いはありません）",
     estimates: [
-      { label: "書き出し",       condition: "1080p・透かしなし",       count: "月180分"     },
-      { label: "ナレーション",   condition: "ノート読み上げ・作り直し", count: "月45,000字（約150分）" },
-      { label: "AIクレジット",   condition: "AI画像・AI動画",           count: "月200,000（画像40枚 または 動画40秒）" },
-      { label: "ワークスペース", condition: "",                         count: "無制限"      },
+      { label: "パワーポイント動画変換", condition: "200MB・枚数無制限・動画の読み込みあり", count: "無制限" },
+      { label: "ナレーション",           condition: "ノート読み上げ・作り直し",             count: "月45,000字（約150分）" },
+      { label: "書き出し",               condition: "透かし入り",                           count: "無制限" },
+      { label: "書き出し",               condition: "1080p・透かしなし",                    count: "月60分" },
+      { label: "ワークスペース",         condition: "",                                     count: "無制限" },
     ],
   },
 };
 
 const QUOTE_SERVICE_FEATURES = [
-  "利用できるAIモデルにプランごとの制限はありません",
-  "専任担当者によるサポート（チャット・メール対応）",
+  "作った動画は商用利用できます",
+  "AI生成（画像・動画・ナレーション・BGM）は法人プランでご提供しています",
   "契約期間の縛りなし・初期費用なし",
   "1か月単位のご契約（解約は次回更新日前にご連絡いただくだけ）",
 ];
 
 const QUOTE_NOTES = [
-  "書き出しの分数・ナレーションの文字数・AIクレジットは、毎月の更新日に戻ります。",
-  "AIクレジットの目安は、AI画像かAI動画のどちらか一方だけに使った場合です。",
+  "透かしなしの書き出しの分数・ナレーションの文字数は、毎月の更新日に戻ります。",
+  "ナレーションの作り直しも、月の文字数から数えます。",
   "ナレーションは1分300文字として計算しています。",
-  "掲載されていないAIモデルについても、ご希望があれば担当者までお申し付けください。",
 ];
 
 export async function sendQuoteEmail(opts: {
@@ -194,6 +182,8 @@ export async function sendQuoteEmail(opts: {
   const { toEmail, toName, plan, validUntil, customNote } = opts;
   const name  = toName ?? "お客様";
   const price = plan.priceJpy.toLocaleString("ja-JP");
+  const tax   = Math.floor(plan.priceJpy * 0.1);
+  const total = (plan.priceJpy + tax).toLocaleString("ja-JP");
 
   const estimateRows = plan.estimates.map((e) => `
     <tr>
@@ -240,7 +230,7 @@ export async function sendQuoteEmail(opts: {
       <table style="width:100%;border-collapse:collapse">
         <thead><tr style="background:#f1f5f9">
           <th style="padding:10px 16px;text-align:left;font-size:11px;font-weight:700;color:#64748b">品目</th>
-          <th style="padding:10px 16px;text-align:right;font-size:11px;font-weight:700;color:#64748b;white-space:nowrap">単価（税込）</th>
+          <th style="padding:10px 16px;text-align:right;font-size:11px;font-weight:700;color:#64748b;white-space:nowrap">単価（税抜）</th>
           <th style="padding:10px 16px;text-align:right;font-size:11px;font-weight:700;color:#64748b">数量</th>
           <th style="padding:10px 16px;text-align:right;font-size:11px;font-weight:700;color:#64748b">金額</th>
         </tr></thead>
@@ -254,9 +244,13 @@ export async function sendQuoteEmail(opts: {
             <td style="padding:14px 16px;text-align:right;color:#334155;font-size:14px;border-bottom:1px solid #f1f5f9;white-space:nowrap">1ヶ月</td>
             <td style="padding:14px 16px;text-align:right;color:#1e293b;font-weight:700;font-size:14px;border-bottom:1px solid #f1f5f9;white-space:nowrap">¥${price}</td>
           </tr>
+          <tr>
+            <td colspan="3" style="padding:10px 16px;text-align:right;font-size:12px;color:#64748b;border-bottom:1px solid #f1f5f9">消費税（10%）</td>
+            <td style="padding:10px 16px;text-align:right;color:#334155;font-size:14px;border-bottom:1px solid #f1f5f9;white-space:nowrap">¥${tax.toLocaleString("ja-JP")}</td>
+          </tr>
           <tr style="background:#f8fafc">
             <td colspan="3" style="padding:12px 16px;text-align:right;font-size:12px;color:#64748b">合計（税込）</td>
-            <td style="padding:12px 16px;text-align:right;color:#169385;font-weight:800;font-size:22px;white-space:nowrap">¥${price}</td>
+            <td style="padding:12px 16px;text-align:right;color:#169385;font-weight:800;font-size:22px;white-space:nowrap">¥${total}</td>
           </tr>
         </tbody>
       </table>

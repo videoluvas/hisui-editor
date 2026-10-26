@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { TEAL } from "@/components/icons";
+import { openPricing, planLabel } from "@/lib/pricing";
 
 const FONT = "'Noto Sans JP', sans-serif";
 
@@ -345,16 +346,16 @@ export default function ProfileSettingsModal({
           }}>
             <div>
               <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b", fontFamily: FONT }}>
-                {(!profile?.plan || profile.plan === "Free") ? "無料プラン" : profile.plan}
+                {planLabel(profile?.plan)}
               </div>
               {(!profile?.plan || profile.plan === "Free") && (
                 <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2, fontFamily: FONT }}>
-                  有料プランでクレジット上限・モデル制限が解放されます
+                  スタンダードで取り込み・ナレーション・書き出しの上限が広がります
                 </div>
               )}
             </div>
             {(!profile?.plan || profile.plan === "Free") && (
-              <span style={{
+              <span onClick={openPricing} style={{ cursor: "pointer",
                 fontSize: 10, fontWeight: 700, padding: "3px 10px", borderRadius: 99,
                 background: `${TEAL}18`, color: TEAL, flexShrink: 0, fontFamily: FONT,
               }}>

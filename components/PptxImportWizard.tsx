@@ -19,7 +19,7 @@ import { clearDraft, saveDraft } from "@/lib/pptxDraft";
 import Turnstile, { turnstileEnabled } from "@/components/Turnstile";
 import type { PptxDraft } from "@/lib/pptxDraft";
 import { flushSignup, track } from "@/lib/analytics";
-import { openPricing } from "@/lib/pricing";
+import { FREE_LIMITS, STANDARD_LIMITS, openPricing } from "@/lib/pricing";
 
 const FONT = "'Noto Sans JP', sans-serif";
 const POLL_MS = 2000;
@@ -399,7 +399,7 @@ export default function PptxImportWizard({ isLoggedIn, workspaceId = null, initi
         {phase === "form" && step === "pptx" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: "#1e293b" }}>パワーポイント（.pptx）を読み込む</div>
-            <DropBox accept=".pptx" file={pptx} onPick={setPptx} title="ここに .pptx をドラッグ" hint={`またはクリックしてファイルを選択（${MAX_MB}MB まで）`} check={sizeCheck(".pptx")} icon={<PptxIcon />} />
+            <DropBox accept=".pptx" file={pptx} onPick={setPptx} title="ここに .pptx をドラッグ" hint={`またはクリックしてファイルを選択（${MAX_MB}MB まで。無料プランは ${FREE_LIMITS.pptxMB}MB・${FREE_LIMITS.slides} 枚まで）`} check={sizeCheck(".pptx")} icon={<PptxIcon />} />
             <div style={{ fontSize: 11, color: "#94a3b8", lineHeight: 1.6 }}>ノート・オブジェクトの位置・アニメーション・埋め込み動画を読み取ります。</div>
           </div>
         )}
@@ -557,8 +557,8 @@ export default function PptxImportWizard({ isLoggedIn, workspaceId = null, initi
                 </div>
                 <div style={{ fontSize: 11, color: "#64748b", lineHeight: 1.7, background: "#f8fafc", borderRadius: 8, padding: "8px 12px" }}>
                   ノート（発表者メモ）を読み上げ、スライドの長さを「前 {pad.before} 秒＋読み上げ＋後 {pad.after} 秒」に合わせます。<br />
-                  取り込み後、作る前にノートの文字数と消費クレジットを確認できます。<br />
-                  無料プランはアカウントごとに 3 回まで無料です（作り直しは有料プラン）。
+                  取り込み後、作る前にノートの文字数と残りの量を確認できます。<br />
+                  無料プランはアカウントごとに累計 {FREE_LIMITS.narrationImports} 回（1 回 {FREE_LIMITS.narrationSlides} 枚・{FREE_LIMITS.narrationChars.toLocaleString()} 字まで）、スタンダードは月 {STANDARD_LIMITS.narrationChars.toLocaleString()} 字まで作れます。
                 </div>
               </div>
             )}
@@ -704,12 +704,13 @@ export default function PptxImportWizard({ isLoggedIn, workspaceId = null, initi
         )}
 
         {phase === "confirm" && estimate && (() => {
-          const short = estimate.free ? estimate.freeLeft <= 0 : estimate.balance < estimate.credits;
+          const short = !!estimate.blocked;
+          const upgrade = estimate.kind !== "credits";
           const rows: [string, string][] = [
             ["ノートのあるスライド", `${estimate.withNotes} / ${estimate.slides} 枚`],
             ["読み上げる文字数", `${estimate.chars.toLocaleString()} 文字`],
-            estimate.free
-              ? ["無料のナレーション生成", `残り ${estimate.freeLeft} / ${estimate.freeLimit} 回（今回 1 回使います）`]
+            estimate.kind === "free" ? ["無料のナレーション生成", `残り ${estimate.freeLeft} / ${estimate.freeLimit} 回（今回 1 回使います）`]
+              : estimate.kind === "chars" ? ["今月のナレーション", `残り ${estimate.charsLeft.toLocaleString()} / ${estimate.charsLimit.toLocaleString()} 字`]
               : ["消費クレジット", `${estimate.credits.toLocaleString()}（残り ${estimate.balance.toLocaleString()}）`],
           ];
           return (
@@ -727,8 +728,8 @@ export default function PptxImportWizard({ isLoggedIn, workspaceId = null, initi
               </table>
               {short && (
                 <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: "10px 12px", fontSize: 12, color: "#78350f", lineHeight: 1.7 }}>
-                  {estimate.free ? `無料プランのナレーション生成は ${estimate.freeLimit} 回まで使いました。` : "クレジットが足りません。"}
-                  {estimate.free
+                  {estimate.blocked}
+                  {upgrade
                     ? <button type="button" onClick={openPricing} style={{ border: "none", background: "none", padding: 0, color: TEAL, fontSize: 12, fontWeight: 700, marginLeft: 4, cursor: "pointer", fontFamily: FONT }}>料金プランを見る</button>
                     : <a href="/pricing" target="_blank" rel="noreferrer" style={{ color: TEAL, fontWeight: 700, marginLeft: 4 }}>料金プランを見る</a>}
                   <br />ナレーションなしで続けることもできます。
@@ -740,8 +741,8 @@ export default function PptxImportWizard({ isLoggedIn, workspaceId = null, initi
                   style={{ padding: "11px 14px", borderRadius: 10, border: "1px solid #e2e8f0", background: "#fff", color: "#334155", fontSize: 13, fontWeight: 700, cursor: confirmBusy ? "wait" : "pointer", fontFamily: FONT }}>
                   ナレーションなしで続ける
                 </button>
-                <button type="button" onClick={() => (estimate.free && short ? openPricing() : handleConfirm(true))} disabled={confirmBusy || (short && !estimate.free)}
-                  style={{ flex: 1, padding: "11px 0", borderRadius: 10, border: "none", background: confirmBusy || (short && !estimate.free) ? "#cbd5e1" : TEAL, color: "#fff", fontSize: 14, fontWeight: 700, cursor: confirmBusy ? "wait" : short && !estimate.free ? "not-allowed" : "pointer", fontFamily: FONT }}>
+                <button type="button" onClick={() => (upgrade && short ? openPricing() : handleConfirm(true))} disabled={confirmBusy || (short && !upgrade)}
+                  style={{ flex: 1, padding: "11px 0", borderRadius: 10, border: "none", background: confirmBusy || (short && !upgrade) ? "#cbd5e1" : TEAL, color: "#fff", fontSize: 14, fontWeight: 700, cursor: confirmBusy ? "wait" : short && !upgrade ? "not-allowed" : "pointer", fontFamily: FONT }}>
                   ナレーションを作って続ける
                 </button>
               </div>

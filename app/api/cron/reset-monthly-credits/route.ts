@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
     const defaultAmt = await getPlanCreditsDefault(u.plan ?? "Free");
     await prisma.user.update({
       where: { id: u.id },
-      data: { credits: defaultAmt, creditsResetAt: now },
+      data: { credits: defaultAmt, creditsResetAt: now, narrationChars: 0 },
     });
     prisma.logCredit.create({
       data: { userId: u.id, creditType: "grant", delta: defaultAmt, balanceAfter: defaultAmt, reason: "monthly_reset_cron" },

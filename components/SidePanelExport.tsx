@@ -6,6 +6,8 @@ import { track } from "@/lib/analytics";
 import { loadVideoExportSettings, saveVideoExportSettings } from "@/lib/videoExportSettings";
 import { GuidedError, exportGuide } from "@/lib/errorGuide";
 import ErrorGuideBox from "@/components/ErrorGuideBox";
+import { FREE_PLAN_CODE, openPricing } from "@/lib/pricing";
+import type { PlanUsage } from "@/lib/plan-usage";
 
 const FONT   = "'Noto Sans JP', sans-serif";
 const ACCENT = "#5184F0";
@@ -258,6 +260,7 @@ export default function SidePanelExport({
   const [errorRef,    setErrorRef]    = useState<string | null>(null);
   const [doneLogId,   setDoneLogId]   = useState<string | null>(null);
   const [history,     setHistory]     = useState<HistoryItem[]>([]);
+  const [usage,       setUsage]       = useState<PlanUsage | null>(null);
 
   const startRef = useRef<number>(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -267,6 +270,7 @@ export default function SidePanelExport({
   const projectId = selectedProject?.id ?? null;
 
   const loadHistory = async (): Promise<HistoryItem[]> => {
+    fetch("/api/user/usage").then((r) => r.json()).then((d) => { if (d?.ok) setUsage(d.usage); }).catch(() => {});
     if (!projectId) { setHistory([]); return []; }
     const res = await fetch(`/api/export/history?projectId=${encodeURIComponent(projectId)}`).catch(() => null);
     const data = (await res?.json().catch(() => null)) as { ok?: boolean; items?: HistoryItem[] } | null;
@@ -516,8 +520,9 @@ export default function SidePanelExport({
               <ErrorGuideBox
                 guide={exportGuide(errorCode)} code={errorCode} detail={errorMsg} refId={errorRef} where="動画の書き出し" accent={ACCENT} compact
                 actions={[
-                  ...(errorCode === "CREDIT_SHORT" && onOpenDashboard ? [{ label: "クレジット残高を確認", onClick: onOpenDashboard, primary: true }] : []),
-                  { label: "もう一度書き出す", onClick: resetApi, primary: errorCode !== "CREDIT_SHORT" },
+                  ...(errorCode === FREE_PLAN_CODE ? [{ label: "料金プランを見る", onClick: openPricing, primary: true }] : []),
+                  ...(errorCode === "CLEAN_EXPORT_LIMIT" && onOpenDashboard ? [{ label: "今月の残りを確認", onClick: onOpenDashboard, primary: true }] : []),
+                  { label: "もう一度書き出す", onClick: resetApi, primary: errorCode !== FREE_PLAN_CODE && errorCode !== "CLEAN_EXPORT_LIMIT" },
                 ]}
               />
             )}
@@ -565,7 +570,10 @@ export default function SidePanelExport({
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: "#333" }}>ウォーターマーク</div>
             <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2, lineHeight: 1.5 }}>
-              {isFreePlan ? "無料プランは透かし入りで何度でも書き出せます" : watermark ? "ロゴ入り・クレジット消費なし" : "ロゴなし・クレジットを消費します"}
+              {isFreePlan
+                ? `無料プランは透かし入りで書き出せます${usage?.exportsLimit != null ? `（残り ${Math.max(0, usage.exportsLimit - usage.exports)} / ${usage.exportsLimit} 回）` : ""}`
+                : watermark ? "ロゴ入り・回数の制限なし"
+                : usage?.cleanExportLimitSec != null ? `ロゴなし・今月の残り ${Math.max(0, Math.floor((usage.cleanExportLimitSec - usage.cleanExportSec) / 60))} 分` : "ロゴなし"}
             </div>
           </div>
           {isFreePlan && (

@@ -7,6 +7,7 @@ import { buildEditJson, createProjectFromEditJson } from "@/lib/timeline.build";
 import type { TimelineClip, TimelineSegment } from "@/lib/timeline.build";
 import { logError } from "@/lib/log.error";
 import { IMPORT_GUIDES } from "@/lib/errorGuide";
+import { FREE_LIMITS } from "@/lib/pricing";
 import { NARRATION_PAD_AFTER, NARRATION_PAD_BEFORE, PPTX_MIME } from "@/lib/pptx.import.shared";
 import { RECOMMENDED_ANIMATIONS, STAGGER_SEC, animationToTransition, slideTransitionToTransition, withSpeed } from "@/lib/pptx.effects";
 import type { AnimSetting, AnimSettings, PptxAnimation, PptxTransition } from "@/lib/pptx.effects";
@@ -21,6 +22,7 @@ export type ImportOptions = {
   animations?: AnimSettings;   // カスタマイズ時の対象ごとの設定
   stagger?: boolean;
   narration?: { voice: string; padBefore?: number; padAfter?: number };   // ノートからナレーションを作る（変換後に確認画面を挟む）
+  free?: boolean;   // 無料プラン：スライドは FREE_LIMITS.slides 枚まで、埋め込み動画は読み込まない
 };
 
 export type SlideNarration = Map<number, { src: string; sec: number }>;
@@ -203,6 +205,8 @@ export async function runImport(jobId: string) {
 
     const manifest = await getEditJsonFromR2<PptxManifest>(result.manifestKey);
     if (!manifest) throw new ImportError("変換結果を読み込めませんでした");
+    if (opts.free && manifest.slides.length > FREE_LIMITS.slides)
+      throw new ImportError(`無料プランで取り込めるのは ${FREE_LIMITS.slides} 枚までです（このファイルは ${manifest.slides.length} 枚）`, "FREE_SLIDE_LIMIT");
 
     // ナレーションを作る場合は、ノートの文字数と消費クレジットを画面で確認してから続ける（lib/pptx.narration.ts）
     if (opts.narration && manifest.slides.some((s) => s.notes?.trim())) {
@@ -229,6 +233,7 @@ export async function finishImport(
   narration?: SlideNarration,
   extraWarnings: ImportWarning[] = [],
 ) {
+  if (opts.free) ({ manifest, extraWarnings } = withoutVideo(manifest, extraWarnings));
   const size = { width: manifest.width, height: manifest.height, fps: 30, backgroundColor: "#000000" };
   const { segments, warnings } = manifestToSegments(manifest, job.outPrefix, opts, narration);
   const { editJson, duration } = buildEditJson(segments, size);
@@ -247,6 +252,17 @@ export async function finishImport(
     where: { id: job.id },
     data: { status: "done", manifestKey, projectId: project.id, warnings: [...manifest.warnings, ...warnings, ...extraWarnings].sort((a, b) => a.slide - b.slide), inputPrefix: null },
   });
+}
+
+function withoutVideo(m: PptxManifest, warnings: ImportWarning[]) {
+  const dropped: ImportWarning[] = [];
+  const slides = m.slides.map((s) => {
+    const objects = s.objects.filter((o) => o.media?.type !== "video");
+    if (objects.length < s.objects.length)
+      dropped.push({ slide: s.no, code: "VIDEO_SKIPPED", message: `無料プランでは動画を読み込まないため、${s.no} 枚目の動画は入れていません` });
+    return { ...s, objects };
+  });
+  return { manifest: { ...m, slides }, extraWarnings: [...warnings, ...dropped] };
 }
 
 export class ImportError extends Error {

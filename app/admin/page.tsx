@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { planLabel } from "@/lib/pricing";
 
 const FONT = "'Noto Sans JP', sans-serif";
 const CYAN = "#5184F0";
@@ -270,7 +271,7 @@ function UserRow({ user, onUpdate, onDelete }: {
       <td style={{ padding: "10px 14px", whiteSpace: "nowrap" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 99, background: pc.bg, color: pc.fg, width: "fit-content" }}>
-            {user.plan ?? "Free"}
+            {planLabel(user.plan)}
           </span>
           <div style={{ display: "flex", gap: 3 }}>
             {PLANS.filter((p) => p !== (user.plan ?? "Free")).map((p) => {
@@ -286,7 +287,7 @@ function UserRow({ user, onUpdate, onDelete }: {
                     background: c.bg, color: c.fg,
                     opacity: busy ? 0.5 : 1,
                   }}
-                >→{p}</button>
+                >→{planLabel(p)}</button>
               );
             })}
           </div>

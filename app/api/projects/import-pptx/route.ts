@@ -8,6 +8,8 @@ import { IMPORT_MAX_BYTES, importPrefix, presignInputs } from "@/lib/pptx.import
 import { sanitizeAnimSettings } from "@/lib/pptx.effects";
 import { NARRATION_PAD_AFTER, NARRATION_PAD_BEFORE, clampPad } from "@/lib/pptx.import.shared";
 import { GEMINI_VOICES } from "@/lib/ttsSettings";
+import { isFreePlan } from "@/lib/credits";
+import { FREE_LIMITS } from "@/lib/pricing";
 
 // 取り込みジョブを作り、.pptx / .pdf のアップロード先を返す
 export async function POST(req: NextRequest) {
@@ -34,6 +36,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, message: ".pptx と PDF の両方を選んでください" }, { status: 400 });
   if (pptxSize > IMPORT_MAX_BYTES || pdfSize > IMPORT_MAX_BYTES)
     return NextResponse.json({ ok: false, message: `ファイルは 1 つ ${IMPORT_MAX_BYTES / 1024 / 1024}MB までです` }, { status: 400 });
+  // 無料プランは 50MB・30 枚まで、埋め込み動画は読み込まない（枚数は変換後に lib/pptx.import.ts で確認）
+  const user = await prisma.user.findUnique({ where: { id: session.userId }, select: { plan: true } });
+  const free = isFreePlan(user?.plan);
+  if (free && pptxSize > FREE_LIMITS.pptxMB * 1024 * 1024)
+    return NextResponse.json({ ok: false, message: `無料プランで取り込めるパワーポイントは ${FREE_LIMITS.pptxMB}MB までです。スタンダードプランなら ${IMPORT_MAX_BYTES / 1024 / 1024}MB まで取り込めます` }, { status: 400 });
 
   const jobId = crypto.randomUUID();
   const prefix = importPrefix(session.userId, workspaceId, jobId);
@@ -42,7 +49,7 @@ export async function POST(req: NextRequest) {
       id: jobId,
       userId: session.userId,
       workspaceId,
-      options: { title: title ?? "", secPerSlide, animationMode, animations, stagger, ...(narration ? { narration } : {}) },
+      options: { title: title ?? "", secPerSlide, animationMode, animations, stagger, ...(narration ? { narration } : {}), ...(free ? { free } : {}) },
       inputPrefix: `${prefix}/in`,
       outPrefix: `${prefix}/out`,
     },

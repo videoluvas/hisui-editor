@@ -10,6 +10,7 @@ import { entryParams, track } from "@/lib/analytics";
 import PublicFooter from "@/components/PublicFooter";
 import UserDashboardModal from "@/components/UserDashboardModal";
 import { useAuthUser } from "@/lib/auth.user";
+import { FREE_LIMITS } from "@/lib/pricing";
 
 const FONT   = "'Noto Sans JP', sans-serif";
 const TEAL   = "#169385";
@@ -211,7 +212,7 @@ export default function PowerpointStart() {
                 <path d="M7.5 8.5 12 4l4.5 4.5" />
               </svg>
               <div style={{ fontSize: "clamp(18px, 2.6vw, 24px)", fontWeight: 800, color: INK }}>{dropText}</div>
-              <div style={{ fontSize: 13, color: SUB, marginTop: 8 }}>またはクリックしてファイルを選択（{MAX_MB}MB まで）</div>
+              <div style={{ fontSize: 13, color: SUB, marginTop: 8 }}>またはクリックしてファイルを選択（{MAX_MB}MB まで。無料プランは {FREE_LIMITS.pptxMB}MB・{FREE_LIMITS.slides} 枚まで）</div>
               {state === "error" && <div role="alert" style={{ fontSize: 13, color: "#b91c1c", marginTop: 14, lineHeight: 1.7 }}>{message}</div>}
               {loggedIn === false && state !== "error" && (
                 <div style={{ fontSize: 12, color: SUB, marginTop: 14 }}>読み込んだあとに PDF の追加・アニメーション・アカウント登録（無料）を順に進めます</div>
@@ -252,7 +253,7 @@ export default function PowerpointStart() {
             <div>・PDF は「スライドのみ」で書き出してください。ノート付きや配布資料の形式では読み込めません。</div>
             <div>・Google スライドや Keynote から書き出した .pptx と PDF も使えますが、位置やアニメーションがずれることがあります。</div>
             <div>・強調や軌跡のアニメーションは反映されず、そのまま表示されます。</div>
-            <div>・無料プランでも取り込みと書き出しは無制限です（書き出した動画には透かしが入ります）。ノートからのナレーション生成は 3 回まで無料です。<a href="/pricing" style={{ color: TEAL, fontWeight: 700 }}>料金プラン</a></div>
+            <div>・無料プランは {FREE_LIMITS.pptxMB}MB・{FREE_LIMITS.slides} 枚までのパワーポイントを取り込み、透かし入りで累計 {FREE_LIMITS.exports} 回書き出せます。ノートからのナレーション生成は累計 {FREE_LIMITS.narrationImports} 回まで無料です。<a href="/pricing" style={{ color: TEAL, fontWeight: 700 }}>料金プラン</a></div>
           </div>
         </section>
       </main>

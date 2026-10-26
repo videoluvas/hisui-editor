@@ -4,10 +4,10 @@ import PublicFooter, { LUVAS_CONTACT_URL } from "@/components/PublicFooter";
 
 export const metadata: Metadata = {
   title: "お問い合わせ | ヒスイAI",
-  description: "ヒスイAIのお問い合わせ窓口。法人向けオプションのご相談、有料プランのお申し込み、使い方や不具合のご連絡はこちらから。",
+  description: "ヒスイAIのお問い合わせ窓口。法人プランのご相談、スタンダードプランのお申し込み、使い方や不具合のご連絡はこちらから。",
   openGraph: {
     title: "お問い合わせ | ヒスイAI",
-    description: "法人向けオプションのご相談、有料プランのお申し込み、使い方や不具合のご連絡はこちらから。",
+    description: "法人プランのご相談、スタンダードプランのお申し込み、使い方や不具合のご連絡はこちらから。",
   },
 };
 
@@ -16,7 +16,7 @@ const INK = "#0f172a";
 
 const SIDE: { title: string; body: string; href: string; link: string; external?: boolean }[] = [
   { title: "使い方を調べる", body: "画面ごとの操作はマニュアルにまとめています。", href: "/manual", link: "マニュアルを見る" },
-  { title: "料金を確認する", body: "無料プランでできること、有料プランのクレジットの目安。", href: "/pricing", link: "料金プランを見る" },
+  { title: "料金を確認する", body: "無料プランでできること、スタンダード・法人プランの内容。", href: "/pricing", link: "料金プランを見る" },
   { title: "動画の制作をまるごと任せたい", body: "ツールを使わず、運営会社の LUVAS が企画から制作まで行います。", href: LUVAS_CONTACT_URL, link: "LUVAS に制作を相談する", external: true },
 ];
 
@@ -34,7 +34,7 @@ export default function ContactPage() {
         <div style={{ maxWidth: 1080, margin: "0 auto" }}>
           <h1 style={{ fontSize: 28, fontWeight: 800, margin: "0 0 10px" }}>お問い合わせ</h1>
           <p style={{ fontSize: 14, color: "#475569", lineHeight: 1.9, margin: 0 }}>
-            法人向けオプションのご相談、有料プランのお申し込み、使い方や不具合のご連絡はこちらから。<br />
+            法人プランのご相談、スタンダードプランのお申し込み、使い方や不具合のご連絡はこちらから。<br />
             担当者より 1〜2 営業日以内にメールでご連絡します。
           </p>
         </div>

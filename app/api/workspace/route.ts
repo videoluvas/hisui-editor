@@ -8,6 +8,8 @@ import { getEditorSessionFromCookie } from "@/lib/auth.backend";
 import { isAdminUser } from "@/lib/admin";
 import { r2Client, R2_BUCKET_NAME } from "@/lib/fileupload.r2";
 import { buildEditJsonKey } from "@/lib/project.r2";
+import { isFreePlan } from "@/lib/credits";
+import { FREE_LIMITS, FREE_PLAN_CODE } from "@/lib/pricing";
 
 export async function GET() {
   const session = await getEditorSessionFromCookie();
@@ -45,6 +47,10 @@ export async function POST(request: NextRequest) {
     const toolType = body.toolType === "pptx" ? "pptx" : "conte";
     if (toolType === "conte" && !(await isAdminUser(session.userId)))
       return NextResponse.json({ ok: false, message: "このツールのワークスペースは作成できません" }, { status: 403 });
+
+    const user = await prisma.user.findUnique({ where: { id: session.userId }, select: { plan: true } });
+    if (isFreePlan(user?.plan) && (await prisma.workspace.count({ where: { userId: session.userId } })) >= FREE_LIMITS.workspaces)
+      return NextResponse.json({ ok: false, code: FREE_PLAN_CODE, message: `無料プランのワークスペースは ${FREE_LIMITS.workspaces} 個までです。有料プランなら無制限に作れます` }, { status: 403 });
 
     const workspace = await prisma.workspace.create({
       data: { userId: session.userId, name, toolType },

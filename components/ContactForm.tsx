@@ -9,22 +9,22 @@ const FONT = "'Noto Sans JP', sans-serif";
 export type ContactTopicId = "enterprise" | "plan" | "usage" | "bug" | "account" | "other";
 
 export const CONTACT_TOPICS: { id: ContactTopicId; label: string; desc: string }[] = [
-  { id: "enterprise", label: "法人向けオプションの相談", desc: "AI コンテツール・AI アバター・チーム編集・専用の学習モデルなど" },
-  { id: "plan",       label: "有料プランの申し込み",     desc: "スタンダード / プロ プランのお申し込み" },
+  { id: "enterprise", label: "法人プランの相談",         desc: "AI 生成・AI 絵コンテ・AI アバター・チーム編集・導入サポートなど" },
+  { id: "plan",       label: "スタンダードプランの申し込み", desc: "月 9,800 円（税抜）のスタンダードプランのお申し込み" },
   { id: "usage",      label: "使い方・機能について",     desc: "パワーポイントの取り込み・ナレーション・書き出しなど" },
   { id: "bug",        label: "不具合の報告",             desc: "エラーが出る・取り込みが終わらない など" },
   { id: "account",    label: "アカウント・請求",         desc: "プラン変更・解約・アカウント削除・請求書" },
   { id: "other",      label: "その他",                   desc: "取材・提携など" },
 ];
 
-const ENTERPRISE_FEATURES = ["AI コンテツール", "AI アバター", "多彩な学習モデル", "チームでの共同編集", "専門スタッフによる技術サポート", "研修・社内向けの大量制作"];
+const ENTERPRISE_FEATURES = ["AI 画像・動画・ナレーション・BGM の生成", "自動字幕・テロップ生成", "AI 絵コンテツール", "AI アバターツール", "チームでの共同編集", "専門スタッフの導入・定期サポート", "独自チューニング"];
 const SEATS = ["1〜5 名", "6〜20 名", "21〜100 名", "101 名以上", "未定"];
 const TIMING = ["すぐにでも", "1〜3 か月以内", "半年以内", "情報収集中"];
-const PLANS = ["スタンダード", "プロ", "まだ決めていない"];
+const PLANS = ["スタンダード", "まだ決めていない"];
 
 const PLACEHOLDER: Record<ContactTopicId, string> = {
   enterprise: "使いたい用途（例：新人研修の動画を毎月 20 本作りたい）や、気になっている点をご記入ください。",
-  plan:       "月払い / 年払い、お支払い方法（カード / 請求書払い）のご希望などがあればご記入ください。担当者からメールでお手続きをご案内します。",
+  plan:       "お支払い方法（カード / 請求書払い）のご希望などがあればご記入ください。担当者からメールでお手続きをご案内します。",
   usage:      "どの画面で、何をしようとしているかをご記入ください。",
   bug:        "起きたこと・操作の手順・表示されたエラーメッセージ・起きた日時をご記入ください。ご登録のメールアドレスで送っていただくと調査が早くなります。",
   account:    "ご登録のメールアドレスと、ご希望の手続きをご記入ください。",
@@ -38,7 +38,7 @@ function initialTopic(q: URLSearchParams): { topic: ContactTopicId; plan?: strin
   const plan = q.get("plan");
   if (plan === "special") return { topic: "enterprise" };
   if (plan === "Business") return { topic: "plan", plan: "スタンダード" };
-  if (plan === "Pro") return { topic: "plan", plan: "プロ" };
+  if (plan === "Pro" || plan === "法人") return { topic: "enterprise" };
   return { topic: "usage" };
 }
 

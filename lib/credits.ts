@@ -102,25 +102,19 @@ export function narrationMultiplier(text: string): number {
   return Math.max(1, Math.ceil(text.length / 200));
 }
 
-export function exportAction(resolution: string): CreditAction {
-  if (resolution === "720p") return "export_720p";
-  return "export_1080p";
-}
-
-export function exportMultiplier(durationSec: number): number {
-  return Math.max(1, Math.ceil(durationSec / 60));
-}
-
-// ─── 無料プラン ───────────────────────────────────────────────────────────────
-// 無料プランは .pptx の取り込みと透かし入りの書き出しだけ。AI 生成はすべて有料
-// 例外：ナレーションありの取り込みをアカウント累計 FREE_NARRATION_IMPORTS 回まで（lib/pptx.narration.ts）
+// ─── プラン ───────────────────────────────────────────────────────────────────
+// AI 生成（クレジット消費）は法人プラン（Pro）だけ。無料・スタンダードはノートからのナレーションだけ使える（lib/pptx.narration.ts）
 
 export { FREE_NARRATION_IMPORTS, FREE_PLAN_CODE };
-export const FREE_PLAN_MESSAGE = "AI 生成は有料プランでご利用いただけます。料金プランをご確認ください。";
+export const FREE_PLAN_MESSAGE = "AI 機能は法人プランでご利用いただけます。料金プランをご確認ください。";
 export const FREE_PLAN_BODY = { ok: false, code: FREE_PLAN_CODE, message: FREE_PLAN_MESSAGE };
 
 export function isFreePlan(plan: string | null | undefined): boolean {
   return !plan || plan === "Free";
+}
+
+export function hasAiAccess(plan: string | null | undefined): boolean {
+  return plan === "Pro";
 }
 
 // ─── Core functions ───────────────────────────────────────────────────────────
@@ -140,7 +134,7 @@ export async function consumeCredits(
         SELECT credits, plan FROM users WHERE id = ${userId} FOR UPDATE
       `;
       if (!rows[0]) throw new Error("USER_NOT_FOUND");
-      if (isFreePlan(rows[0].plan)) throw new Error("FREE_PLAN");
+      if (!hasAiAccess(rows[0].plan)) throw new Error("FREE_PLAN");
 
       const current = rows[0].credits;
       if (current < cost) throw new Error(`INSUFFICIENT:${current}:${cost}`);
@@ -228,7 +222,7 @@ export async function grantCredits(
 const PLAN_DEFAULT_CREDITS: Record<string, number> = {
   Free:     1_000,
   Pro:    500_000,
-  Business: 150_000,
+  Business:       0,
 };
 
 export function planDefaultCredits(plan: string | null): number {

@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { getEditorSessionFromCookie } from "@/lib/auth.backend";
 import { prisma } from "@/lib/prisma";
+import { getPlanUsage } from "@/lib/plan-usage";
 
 export async function GET() {
   const session = await getEditorSessionFromCookie();
@@ -23,7 +24,8 @@ export async function GET() {
     });
     if (!dbUser) return NextResponse.json({ ok: false, message: "ユーザーが見つかりません" }, { status: 404 });
 
-    const [creditLogs, checkoutLogs, errorLogs, workspaceConsumption, importJobs, outputLogs] = await Promise.all([
+    const [usage, creditLogs, checkoutLogs, errorLogs, workspaceConsumption, importJobs, outputLogs] = await Promise.all([
+      getPlanUsage(session.userId),
       prisma.logCredit.findMany({
         where: { userId: session.userId },
         orderBy: { createdAt: "desc" },
@@ -70,6 +72,7 @@ export async function GET() {
     return NextResponse.json({
       ok: true,
       user: dbUser,
+      usage,
       creditLogs,
       checkoutLogs,
       errorLogs,

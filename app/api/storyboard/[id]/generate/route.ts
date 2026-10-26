@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getEditorSessionFromCookie } from "@/lib/auth.backend";
-import { FREE_PLAN_BODY, isFreePlan } from "@/lib/credits";
+import { FREE_PLAN_BODY, hasAiAccess } from "@/lib/credits";
 
 // ── 速度ラベル → 秒/文字 ────────────────────────────────────────────────────
 
@@ -86,7 +86,7 @@ function parseAiJson(raw: string): AiScene[] | null {
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   const session = await getEditorSessionFromCookie();
   if (!session) return NextResponse.json({ ok: false, message: "未ログインです" }, { status: 401 });
-  if (isFreePlan(session.user.plan)) return NextResponse.json(FREE_PLAN_BODY, { status: 403 });
+  if (!hasAiAccess(session.user.plan)) return NextResponse.json(FREE_PLAN_BODY, { status: 403 });
 
   const sb = await prisma.storyboardMain.findUnique({ where: { id: params.id } });
   if (!sb || sb.userId !== session.userId)

@@ -17,6 +17,7 @@ import WorkspaceBar      from "@/components/WorkspaceBar";
 import UserDashboardModal from "@/components/UserDashboardModal";
 import type { Project } from "@/lib/project.api";
 import type { ToolType } from "@/lib/workspace.api";
+import { planLabel } from "@/lib/pricing";
 
 export type AppMode = "video" | "conte";
 
@@ -200,7 +201,7 @@ export default function SidePanel({
                 {user?.name ?? "ユーザー"}
               </span>
               <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 99, background: "#e6f4ea", color: "#2e7d32", fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0 }}>
-                {user?.plan === "Free" || !user?.plan ? "無料" : (user.plan.replace("プラン", "").trim())}
+                {planLabel(user?.plan).replace("プラン", "")}
               </span>
             </>
           ) : (
@@ -213,8 +214,8 @@ export default function SidePanel({
           )}
         </div>
 
-        {/* クレジット残数ミニ表示 */}
-        {isLoggedIn && credits !== null && (
+        {/* クレジット残数ミニ表示（AI 生成は法人プランだけ） */}
+        {isLoggedIn && credits !== null && user?.plan === "Pro" && (
           <div
             onClick={() => setDashboardOpen(true)}
             style={{
@@ -236,7 +237,7 @@ export default function SidePanel({
             </span>
           </div>
         )}
-        {isLoggedIn && credits !== null && credits < 500 && credits >= 200 && (
+        {isLoggedIn && credits !== null && user?.plan === "Pro" && credits < 500 && credits >= 200 && (
           <div style={{ margin: "-6px 10px 10px", fontSize: 10, color: "#f59e0b", textAlign: "right", paddingRight: 2 }}>
             残りわずかです
           </div>

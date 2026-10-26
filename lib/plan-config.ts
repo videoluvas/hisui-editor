@@ -3,8 +3,8 @@ import type { PlanConfigRow } from "@/lib/email";
 
 const DEFAULTS = [
   { id: "Free",     label: "無料プラン",     price_jpy: 0,     credits_default: 1_000,   credit_img_max: 15,  credit_script_max: 5,   credit_video_max: 10, credit_audio_max: 20,  credit_bgm_max: 5,  free_model_img: "google-image-lite", free_model_video: "veo-3-lite", max_workspaces: 3  },
-  { id: "Business", label: "スタンダードプラン", price_jpy: 2980,  credits_default: 150_000, credit_img_max: 100, credit_script_max: 50,  credit_video_max: 30, credit_audio_max: 50,  credit_bgm_max: 10, free_model_img: "google-image-pro",  free_model_video: "veo-3",      max_workspaces: 10 },
-  { id: "Pro",      label: "プロプラン",      price_jpy: 9800,  credits_default: 500_000, credit_img_max: 200, credit_script_max: 100, credit_video_max: 50, credit_audio_max: 100, credit_bgm_max: 20, free_model_img: "google-image-pro",  free_model_video: "veo-3",      max_workspaces: 20 },
+  { id: "Business", label: "スタンダードプラン", price_jpy: 9800,  credits_default: 0,       credit_img_max: 100, credit_script_max: 50,  credit_video_max: 30, credit_audio_max: 50,  credit_bgm_max: 10, free_model_img: "google-image-pro",  free_model_video: "veo-3",      max_workspaces: 10 },
+  { id: "Pro",      label: "法人プラン",      price_jpy: 0,     credits_default: 500_000, credit_img_max: 200, credit_script_max: 100, credit_video_max: 50, credit_audio_max: 100, credit_bgm_max: 20, free_model_img: "google-image-pro",  free_model_video: "veo-3",      max_workspaces: 20 },
 ];
 
 export async function ensurePlanConfigsTable(): Promise<void> {
@@ -52,7 +52,7 @@ export async function getPlanConfig(planId: string): Promise<PlanConfigRow | nul
 }
 
 export async function getPlanCreditsDefault(planId: string): Promise<number> {
-  const FALLBACK: Record<string, number> = { Free: 1_000, Business: 150_000, Pro: 500_000 };
+  const FALLBACK: Record<string, number> = { Free: 1_000, Business: 0, Pro: 500_000 };
   try {
     const rows = await prisma.$queryRaw<{ credits_default: number }[]>`
       SELECT credits_default FROM plan_configs WHERE id = ${planId} LIMIT 1
