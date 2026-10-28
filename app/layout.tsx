@@ -11,6 +11,8 @@ export const metadata: Metadata = {
   title: "ヒスイAI",
   description: "AIを活用した動画・画像・ナレーション編集ツール",
   metadataBase: new URL(SITE_URL),
+  // Search Console の所有権確認（URL プレフィックスの「HTML タグ」の content の値）
+  ...(process.env.GOOGLE_SITE_VERIFICATION ? { verification: { google: process.env.GOOGLE_SITE_VERIFICATION } } : {}),
   openGraph: {
     type:        "website",
     url:         SITE_URL,
