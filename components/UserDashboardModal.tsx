@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { TEAL } from "@/components/icons";
+import { TEAL, UserGlyph } from "@/components/icons";
 import ProfileSettingsModal from "@/components/ProfileSettingsModal";
 import { CREDIT_ACTION_LABEL } from "@/lib/credits";
 import type { CreditAction } from "@/lib/credits";
@@ -9,7 +9,6 @@ import { openPricing, planLabel } from "@/lib/pricing";
 import type { PlanUsage } from "@/lib/plan-usage";
 
 const FONT = "'Noto Sans JP', sans-serif";
-const GRAD = "linear-gradient(90deg, #5184F0, #169385)";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -370,7 +369,7 @@ export default function UserDashboardModal({
                 <div style={{ width: 48, height: 48, borderRadius: "50%", background: `${TEAL}22`, border: `2px solid ${TEAL}`, display: "flex", alignItems: "center", justifyContent: "center", color: TEAL, fontSize: 22, overflow: "hidden", flexShrink: 0 }}>
                   {(user?.iconUrl ?? userIconUrl)
                     ? <img src={user?.iconUrl ?? userIconUrl ?? ""} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-                    : "✦"}
+                    : <UserGlyph size={26} />}
                 </div>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 15, fontWeight: 700, color: "#1e293b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -429,7 +428,7 @@ export default function UserDashboardModal({
                   <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
                     <span style={{
                       fontSize: 32, fontWeight: 800, letterSpacing: "-0.03em",
-                      backgroundImage: GRAD, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
+                      color: "#0f172a",
                     }}>
                       {(user?.credits ?? 0).toLocaleString()}
                     </span>

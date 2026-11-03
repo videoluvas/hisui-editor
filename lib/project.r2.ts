@@ -60,7 +60,8 @@ export async function putEditJsonToR2(key: string, data: unknown): Promise<void>
   await r2Client.send(command);
 }
 
-export async function getEditJsonFromR2<T = unknown>(key: string): Promise<T | null> {
+// strict: ファイルが無いときだけ null を返し、通信エラーなどは投げる
+export async function getEditJsonFromR2<T = unknown>(key: string, opts?: { strict?: boolean }): Promise<T | null> {
   try {
     const command = new GetObjectCommand({
       Bucket: R2_BUCKET_NAME,
@@ -70,7 +71,8 @@ export async function getEditJsonFromR2<T = unknown>(key: string): Promise<T | n
     const body = await res.Body?.transformToString();
     if (!body) return null;
     return JSON.parse(body) as T;
-  } catch {
+  } catch (e) {
+    if (opts?.strict && (e as { name?: string })?.name !== "NoSuchKey") throw e;
     return null;
   }
 }

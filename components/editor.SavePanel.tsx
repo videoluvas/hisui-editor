@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { TEAL } from "@/components/icons";
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
@@ -40,6 +40,23 @@ export default function EditorSavePanel({
   const [showLogs, setShowLogs] = useState(false);
   const dragging = useRef(false);
   const offset = useRef({ x: 0, y: 0 });
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // パネル全体が画面内に収まるように位置を制限する
+  const clamp = (x: number, y: number) => {
+    const w = panelRef.current?.offsetWidth ?? 0;
+    const h = panelRef.current?.offsetHeight ?? 0;
+    return {
+      x: Math.max(0, Math.min(x, window.innerWidth - w)),
+      y: Math.max(0, Math.min(y, window.innerHeight - h)),
+    };
+  };
+
+  useEffect(() => {
+    const onResize = () => setPos((p) => clamp(p.x, p.y));
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   const onMouseDown = (e: React.MouseEvent) => {
     dragging.current = true;
@@ -50,7 +67,7 @@ export default function EditorSavePanel({
 
   const onMouseMove = (e: MouseEvent) => {
     if (!dragging.current) return;
-    setPos({ x: e.clientX - offset.current.x, y: e.clientY - offset.current.y });
+    setPos(clamp(e.clientX - offset.current.x, e.clientY - offset.current.y));
   };
 
   const onMouseUp = () => {
@@ -82,6 +99,7 @@ const statusText = () => {
   return (
     <>
       <div
+        ref={panelRef}
         style={{
           position: "fixed",
           left: pos.x,

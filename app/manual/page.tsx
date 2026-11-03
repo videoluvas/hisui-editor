@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 
-const GRAD  = "linear-gradient(45deg, #5184F0, #169385)";
 const TEAL  = "#169385";
 const BLUE  = "#5184F0";
 const FONT  = "'Noto Sans JP', sans-serif";
+const LOGO  = "https://assets.hisui-ai.com/system/img/hisui_video_%E3%83%AD%E3%82%B4_01.png";
 
 // ─── TOC ─────────────────────────────────────────────────────────────────────
 
@@ -48,7 +48,7 @@ function Section({ id, title, children }: { id: string; title: string; children:
   return (
     <section id={id} style={{ marginBottom: 64, scrollMarginTop: 80 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
-        <div style={{ width: 4, height: 28, borderRadius: 2, background: GRAD, flexShrink: 0 }} />
+        <div style={{ width: 4, height: 28, borderRadius: 2, background: TEAL, flexShrink: 0 }} />
         <h2 className="manual-section-title" style={{ margin: 0, fontSize: 22, fontWeight: 800, color: "#1e293b", fontFamily: FONT }}>{title}</h2>
       </div>
       {children}
@@ -78,12 +78,13 @@ function Card({ children, style }: { children: React.ReactNode; style?: React.CS
 }
 
 function Callout({ color = BLUE, icon, children }: { color?: string; icon: string; children: React.ReactNode }) {
-  const bg     = color === TEAL ? "#f0fdf9" : "#eff6ff";
-  const border = color === TEAL ? "#a7f3d0" : "#bfdbfe";
+  const warn   = icon === "⚠️";
+  const accent = warn ? "#b45309" : color;
+  const bg     = warn ? "#fffbeb" : color === TEAL ? "#f0fdf9" : "#f5f8ff";
+  const label  = warn ? "注意" : icon === "💡" ? "ヒント" : "補足";
   return (
-    <div style={{ background: bg, border: `1px solid ${border}`, borderRadius: 10, padding: "12px 16px",
-      display: "flex", gap: 10, marginBottom: 14, alignItems: "flex-start" }}>
-      <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>{icon}</span>
+    <div style={{ background: bg, borderLeft: `3px solid ${accent}`, borderRadius: "0 8px 8px 0", padding: "12px 16px", marginBottom: 14 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: accent, letterSpacing: "0.08em", marginBottom: 4, fontFamily: FONT }}>{label}</div>
       <div style={{ fontSize: 13, color: "#334155", lineHeight: 1.7, fontFamily: FONT }}>{children}</div>
     </div>
   );
@@ -127,7 +128,7 @@ function StepList({ steps }: { steps: { n: string | number; title: string; desc:
     <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
       {steps.map((s, i) => (
         <div key={i} style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
-          <div style={{ width: 28, height: 28, borderRadius: "50%", background: GRAD, color: "#fff",
+          <div style={{ width: 28, height: 28, borderRadius: "50%", background: TEAL, color: "#fff",
             fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center",
             flexShrink: 0, marginTop: 1, fontFamily: FONT }}>{s.n}</div>
           <div>
@@ -191,7 +192,6 @@ function GridCards({ items }: { items: { icon: string; title: string; desc: stri
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12, marginBottom: 16 }}>
       {items.map((it, i) => (
         <div key={i} style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, padding: "14px 16px" }}>
-          <div style={{ fontSize: 22, marginBottom: 8 }}>{it.icon}</div>
           <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b", fontFamily: FONT, marginBottom: 4 }}>{it.title}</div>
           <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.6, fontFamily: FONT }}>{it.desc}</div>
         </div>
@@ -256,11 +256,8 @@ export default function ManualPage() {
       <header className="manual-header" style={{ background: "#fff", borderBottom: "1px solid #e2e8f0", position: "sticky", top: 0, zIndex: 100,
         padding: "0 32px", height: 56, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-          <div style={{ width: 26, height: 26, borderRadius: 7, background: GRAD, display: "flex", alignItems: "center",
-            justifyContent: "center", fontSize: 13, flexShrink: 0 }}>✦</div>
-          <span style={{ fontSize: 15, fontWeight: 800, backgroundImage: GRAD,
-            WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", whiteSpace: "nowrap" }}>ヒスイAI</span>
-          <span style={{ fontSize: 12, color: "#94a3b8", marginLeft: 2, whiteSpace: "nowrap" }}>マニュアル</span>
+          <img src={LOGO} alt="ヒスイAI" style={{ height: 22, width: "auto", objectFit: "contain", display: "block" }} />
+          <span style={{ fontSize: 12, color: "#64748b", paddingLeft: 10, borderLeft: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>マニュアル</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
           <a className="manual-back-link" href="/" style={{ fontSize: 13, color: BLUE, textDecoration: "none", fontWeight: 600, whiteSpace: "nowrap" }}>← エディタに戻る</a>
@@ -317,10 +314,10 @@ export default function ManualPage() {
         <main className="manual-content" style={{ flex: 1, minWidth: 0, paddingTop: 32, paddingBottom: 80, paddingLeft: 8 }}>
 
           {/* Hero */}
-          <div className="manual-hero" style={{ background: GRAD, borderRadius: 16, padding: "36px 40px", marginBottom: 48, color: "#fff" }}>
-            <h1 className="manual-hero-title" style={{ margin: "0 0 10px", fontSize: 28, fontWeight: 900, fontFamily: FONT }}>ヒスイAI マニュアル</h1>
-            <p className="manual-hero-desc" style={{ margin: 0, fontSize: 15, opacity: 0.9, lineHeight: 1.7 }}>
-              動画制作のプロが本気で設計した、AI動画制作自動化ツールの完全ガイドです。
+          <div className="manual-hero" style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 16, padding: "36px 40px", marginBottom: 48, color: "#1e293b" }}>
+            <h1 className="manual-hero-title" style={{ margin: "0 0 10px", fontSize: 28, fontWeight: 800, fontFamily: FONT }}>ヒスイAI マニュアル</h1>
+            <p className="manual-hero-desc" style={{ margin: 0, fontSize: 15, color: "#475569", lineHeight: 1.7 }}>
+              画面ごとの操作方法と、各機能の使い方をまとめています。
             </p>
           </div>
 
@@ -338,7 +335,7 @@ export default function ManualPage() {
             <div style={{ marginBottom: 28 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b", fontFamily: FONT,
                 marginBottom: 14, textAlign: "center", letterSpacing: "0.05em" }}>
-                ── ヒスイAIは「2つのパネル」で動画制作を完結する ──
+                ヒスイAIは「2つのパネル」で動画制作を完結します
               </div>
 
               <div className="manual-panel-flow" style={{ display: "flex", gap: 12, alignItems: "stretch", flexWrap: "wrap" }}>
@@ -368,7 +365,7 @@ export default function ManualPage() {
                         <div key={i} style={{ display: "flex", alignItems: "center", gap: 8,
                           background: "#fff", borderRadius: 8, padding: "7px 12px",
                           fontSize: 12, color: "#334155", fontFamily: FONT, fontWeight: 500 }}>
-                          <span>{row.icon}</span>{row.label}
+                          {row.label}
                         </div>
                       )
                     )}
@@ -409,7 +406,7 @@ export default function ManualPage() {
                         <div key={i} style={{ display: "flex", alignItems: "center", gap: 8,
                           background: "#fff", borderRadius: 8, padding: "7px 12px",
                           fontSize: 12, color: "#334155", fontFamily: FONT, fontWeight: 500 }}>
-                          <span>{row.icon}</span>{row.label}
+                          {row.label}
                         </div>
                       )
                     )}
@@ -1424,10 +1421,7 @@ export default function ManualPage() {
           {/* ─── Footer ─── */}
           <div style={{ borderTop: "1px solid #e2e8f0", paddingTop: 32, marginTop: 16 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-              <div style={{ width: 24, height: 24, borderRadius: 6, background: GRAD, display: "flex",
-                alignItems: "center", justifyContent: "center", fontSize: 12 }}>✦</div>
-              <span style={{ fontSize: 14, fontWeight: 700, backgroundImage: GRAD,
-                WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>ヒスイAI</span>
+              <img src={LOGO} alt="ヒスイAI" style={{ height: 20, width: "auto", objectFit: "contain", display: "block" }} />
             </div>
             <p style={{ fontSize: 12, color: "#94a3b8", margin: 0, fontFamily: FONT }}>
               ご不明な点はサポートまでお問い合わせください。
@@ -1461,8 +1455,7 @@ export default function ManualPage() {
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
           padding: "16px 16px 12px", borderBottom: "1px solid #f0f0f0" }}>
-          <span style={{ fontSize: 14, fontWeight: 800, backgroundImage: GRAD,
-            WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", fontFamily: FONT }}>
+          <span style={{ fontSize: 14, fontWeight: 800, color: "#1e293b", fontFamily: FONT }}>
             目次
           </span>
           <button

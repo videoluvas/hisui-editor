@@ -11,6 +11,7 @@ import PublicFooter from "@/components/PublicFooter";
 import UserDashboardModal from "@/components/UserDashboardModal";
 import { useAuthUser } from "@/lib/auth.user";
 import { FREE_LIMITS } from "@/lib/pricing";
+import { UserGlyph } from "@/components/icons";
 
 const FONT   = "'Noto Sans JP', sans-serif";
 const TEAL   = "#169385";
@@ -155,7 +156,7 @@ export default function PowerpointStart() {
             >
               {user?.iconUrl
                 ? <img src={user.iconUrl} alt={user.name ?? "User"} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-                : "✦"}
+                : <UserGlyph size={18} />}
             </button>
           </div>
         )}
@@ -172,7 +173,7 @@ export default function PowerpointStart() {
       )}
 
       <main>
-        <section style={{ background: "linear-gradient(180deg, #f0fdfa 0%, #ffffff 100%)", padding: "40px 20px 56px" }}>
+        <section style={{ background: "#f8fafc", borderBottom: "1px solid #eef2f6", padding: "40px 20px 56px" }}>
           <div style={{ maxWidth: 1080, margin: "0 auto", display: "flex", flexWrap: "wrap", gap: 40, alignItems: "center" }}>
             <div style={{ flex: "1 1 420px", minWidth: 0 }}>
               <span style={{ display: "inline-block", fontSize: 12, fontWeight: 700, color: ORANGE, background: "#fff1e6", borderRadius: 999, padding: "4px 12px" }}>パワーポイント → 動画化</span>

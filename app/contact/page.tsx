@@ -30,7 +30,7 @@ export default function ContactPage() {
         <a href="/powerpoint" style={{ fontSize: 13, fontWeight: 700, color: "#fff", background: TEAL, textDecoration: "none", borderRadius: 999, padding: "7px 16px" }}>無料で試す</a>
       </header>
 
-      <section style={{ background: "linear-gradient(180deg, #f0fdfa 0%, #ffffff 100%)", padding: "32px 20px 24px" }}>
+      <section style={{ background: "#f8fafc", borderBottom: "1px solid #eef2f6", padding: "32px 20px 24px" }}>
         <div style={{ maxWidth: 1080, margin: "0 auto" }}>
           <h1 style={{ fontSize: 28, fontWeight: 800, margin: "0 0 10px" }}>お問い合わせ</h1>
           <p style={{ fontSize: 14, color: "#475569", lineHeight: 1.9, margin: 0 }}>

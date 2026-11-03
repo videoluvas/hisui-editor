@@ -122,12 +122,11 @@ export async function PATCH(req: NextRequest) {
     );
     await putEditJsonToR2(editJsonKey, editJson);
 
-    if (!existingKey) {
-      await prisma.project.update({
-        where: { id: projectId },
-        data: { editJsonKey },
-      });
-    }
+    // 一覧の「更新日」順に反映させるため、保存のたびに updatedAt を進める
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { editJsonKey },
+    });
 
     return NextResponse.json({ ok: true });
   } catch (error) {

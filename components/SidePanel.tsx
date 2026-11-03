@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { goToHisuiLogin } from "@/lib/auth.front";
 import { useAuthUser } from "@/lib/auth.user";
-import { TEAL } from "@/components/icons";
+import { TEAL, UserGlyph } from "@/components/icons";
 import { useIsMobile } from "@/lib/useIsMobile";
 import SidePanelFiles    from "@/components/SidePanelFiles";
 import SidePanelExport   from "@/components/SidePanelExport";
@@ -20,6 +20,10 @@ import type { ToolType } from "@/lib/workspace.api";
 import { planLabel } from "@/lib/pricing";
 
 export type AppMode = "video" | "conte";
+
+// 残クレジットがこれ未満で赤（残量注意）、FEW 未満で黄色
+const CREDITS_LOW = 500;
+const CREDITS_FEW = 2000;
 
 type VideoTab  = "project" | "files" | "export";
 type ConteTab  = "conte"   | "files" | "convert";
@@ -190,7 +194,7 @@ export default function SidePanel({
           <div style={{ width: 32, height: 32, borderRadius: "50%", background: `${TEAL}22`, border: `2px solid ${TEAL}`, display: "flex", alignItems: "center", justifyContent: "center", color: TEAL, fontSize: 16, overflow: "hidden", flexShrink: 0 }}>
             {user?.iconUrl
               ? <img src={user.iconUrl} alt={user.name ?? "User"} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-              : "✦"}
+              : <UserGlyph size={18} />}
           </div>
 
           {loading ? (
@@ -220,26 +224,20 @@ export default function SidePanel({
             onClick={() => setDashboardOpen(true)}
             style={{
               margin: "0 10px 10px", padding: "6px 10px", cursor: "pointer",
-              background: credits < 200 ? "#fef2f2" : "#f8fafc",
-              border: `1px solid ${credits < 200 ? "#fecaca" : "#f1f5f9"}`,
+              background: credits < CREDITS_LOW ? "#fef2f2" : "#f8fafc",
+              border: `1px solid ${credits < CREDITS_LOW ? "#fecaca" : "#f1f5f9"}`,
               borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "space-between",
             }}
-            title={credits < 500 ? "クレジットが少なくなっています。クリックして確認" : "クリックしてダッシュボードを開く"}
+            title={credits < CREDITS_LOW ? "クレジットが少なくなっています。クリックして確認" : "クリックしてダッシュボードを開く"}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              {credits < 200 && <span style={{ fontSize: 10 }}>⚠️</span>}
-              <span style={{ fontSize: 10, color: credits < 200 ? "#b91c1c" : "#94a3b8", fontWeight: 600 }}>
-                {credits < 200 ? "残量注意" : "残クレジット"}
+              <span style={{ fontSize: 10, color: credits < CREDITS_LOW ? "#b91c1c" : "#94a3b8", fontWeight: 600 }}>
+                {credits < CREDITS_LOW ? "残量注意" : "残クレジット"}
               </span>
             </div>
-            <span style={{ fontSize: 12, fontWeight: 700, color: credits < 500 ? "#ef4444" : credits < 2000 ? "#f59e0b" : "#169385" }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: credits < CREDITS_LOW ? "#ef4444" : credits < CREDITS_FEW ? "#f59e0b" : "#169385" }}>
               {credits.toLocaleString()} cr
             </span>
-          </div>
-        )}
-        {isLoggedIn && credits !== null && user?.plan === "Pro" && credits < 500 && credits >= 200 && (
-          <div style={{ margin: "-6px 10px 10px", fontSize: 10, color: "#f59e0b", textAlign: "right", paddingRight: 2 }}>
-            残りわずかです
           </div>
         )}
       </div>

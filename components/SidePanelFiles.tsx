@@ -5,6 +5,7 @@ import { getPresignedUrl, getMyFiles } from "@/lib/fileupload.front";
 import { TEAL } from "@/components/icons";
 import { loadGenMeta } from "@/lib/gen.meta";
 import type { GenMeta } from "@/lib/gen.meta";
+import { toast } from "@/lib/toast";
 
 type FileItem = {
   id: string;
@@ -173,7 +174,7 @@ export default function SidePanelFiles({ selectedProjectId, workspaceId, onFileD
     setUploading(true); setUploadProgress(0);
     try {
       const data = await getPresignedUrl(file, selectedProjectId ?? undefined, workspaceId);
-      if (!data.ok || !data.presignedUrl) { alert(data.message ?? "アップロードURLの取得に失敗しました"); return; }
+      if (!data.ok || !data.presignedUrl) { toast(data.message ?? "アップロードURLの取得に失敗しました"); return; }
       await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.upload.onprogress = (ev) => { if (ev.lengthComputable) setUploadProgress(Math.round((ev.loaded / ev.total) * 100)); };
@@ -184,7 +185,7 @@ export default function SidePanelFiles({ selectedProjectId, workspaceId, onFileD
         xhr.send(file);
       });
       await fetchFiles();
-    } catch { alert("アップロードに失敗しました"); }
+    } catch { toast("アップロードに失敗しました"); }
     finally { setUploading(false); setUploadProgress(null); }
   };
 

@@ -6,6 +6,7 @@ import { getStoryboard, convertStoryboardToProject } from "@/lib/storyboard.api"
 import type { StoryboardMainData } from "@/lib/storyboard.api";
 import type { Project } from "@/lib/project.api";
 import { loadExportSettings } from "@/lib/exportSettings";
+import { toast } from "@/lib/toast";
 
 const FONT = "'Noto Sans JP', sans-serif";
 
@@ -65,7 +66,7 @@ function esc(s: string) {
 
 function exportToPdf(sb: StoryboardMainData) {
   const w = window.open("", "_blank");
-  if (!w) { alert("ポップアップがブロックされています。ブラウザのポップアップ許可を確認してください。"); return; }
+  if (!w) { toast("ポップアップがブロックされています。ブラウザのポップアップ許可を確認してください。"); return; }
 
   const rows = sb.scenes.map((scene, i) => `
     <tr>
@@ -154,7 +155,7 @@ export default function SidePanelConvert({ selectedStoryboardId, onProjectCreate
   const [projectCreated, setProjectCreated] = useState(false);
 
   const run = async (type: "pdf" | "csv") => {
-    if (!selectedStoryboardId) { alert("コンテを選択してください"); return; }
+    if (!selectedStoryboardId) { toast("コンテを選択してください"); return; }
     setBusy(type);
     try {
       const res = await getStoryboard(selectedStoryboardId);
@@ -162,14 +163,14 @@ export default function SidePanelConvert({ selectedStoryboardId, onProjectCreate
       if (type === "pdf") exportToPdf(res.storyboard);
       else                exportToCsv(res.storyboard);
     } catch (e) {
-      alert(`出力に失敗しました: ${e}`);
+      toast(`出力に失敗しました: ${e}`);
     } finally {
       setBusy(null);
     }
   };
 
   const runProject = async () => {
-    if (!selectedStoryboardId) { alert("コンテを選択してください"); return; }
+    if (!selectedStoryboardId) { toast("コンテを選択してください"); return; }
     setBusy("project");
     setProjectCreated(false);
     try {
@@ -178,7 +179,7 @@ export default function SidePanelConvert({ selectedStoryboardId, onProjectCreate
       setProjectCreated(true);
       onProjectCreated?.(res.project as unknown as Project);
     } catch (e) {
-      alert(`変換に失敗しました: ${e}`);
+      toast(`変換に失敗しました: ${e}`);
     } finally {
       setBusy(null);
     }

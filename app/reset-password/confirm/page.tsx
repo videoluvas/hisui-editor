@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Suspense } from "react";
 
-const TEAL = "#2aab8e";
+const TEAL = "#169385";
 
 const inputStyle: React.CSSProperties = {
   width: "100%", height: 44, padding: "0 14px", fontSize: 14,
@@ -131,7 +131,7 @@ function ConfirmForm() {
           disabled={loading}
           style={{
             width: "100%", height: 48,
-            background: loading ? "#a8d5ca" : TEAL,
+            background: loading ? "#96cec8" : TEAL,
             color: "#fff", border: "none", borderRadius: 10,
             fontSize: 15, fontWeight: 700,
             cursor: loading ? "not-allowed" : "pointer",

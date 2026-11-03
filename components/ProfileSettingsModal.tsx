@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { TEAL } from "@/components/icons";
+import { TEAL, UserGlyph } from "@/components/icons";
 import { openPricing, planLabel } from "@/lib/pricing";
 
 const FONT = "'Noto Sans JP', sans-serif";
@@ -198,7 +198,7 @@ export default function ProfileSettingsModal({
   };
 
   const displayIcon = iconUrl || null;
-  const initials = [name, surname].filter(Boolean).map((s) => s[0]).join("") || "✦";
+  const initials = [name, surname].filter(Boolean).map((s) => s[0]).join("");
 
   return (
     <>
@@ -249,7 +249,7 @@ export default function ProfileSettingsModal({
             >
               {displayIcon
                 ? <img src={displayIcon} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-                : initials}
+                : (initials || <UserGlyph size={26} />)}
               <div style={{
                 position: "absolute", inset: 0, background: "rgba(0,0,0,0.35)",
                 display: "flex", alignItems: "center", justifyContent: "center",
@@ -467,9 +467,9 @@ export default function ProfileSettingsModal({
             style={{
               width: "100%", padding: "10px 0", fontSize: 13, fontWeight: 700,
               border: "none", borderRadius: 10,
-              background: saving ? "#94a3b8" : `linear-gradient(135deg, ${TEAL}, #0d7a6e)`,
+              background: saving ? "#94a3b8" : TEAL,
               color: "#fff", cursor: saving ? "not-allowed" : "pointer",
-              fontFamily: FONT, boxShadow: saving ? "none" : `0 4px 14px ${TEAL}44`,
+              fontFamily: FONT,
               transition: "background 0.15s",
             }}
           >

@@ -8,7 +8,7 @@ import AuthQuickLogin from "@/components/AuthQuickLogin";
 import Turnstile, { turnstileEnabled } from "@/components/Turnstile";
 import { safeNext } from "@/lib/auth.next";
 
-const TEAL = "#2aab8e";
+const TEAL = "#169385";
 
 type Tab = "login" | "register";
 
@@ -104,6 +104,9 @@ export default function AuthPage() {
             <Field label="パスワード">
               <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••" required autoComplete="current-password" style={inputStyle} />
+              <div style={{ textAlign: "right", marginTop: 6 }}>
+                <Link href="/reset-password" style={{ fontSize: 12, color: TEAL, fontWeight: 600 }}>パスワードを忘れた方</Link>
+              </div>
             </Field>
 
             <div style={{ marginBottom: 12 }}><Turnstile onToken={setTsToken} resetKey={tsReset} /></div>
@@ -115,7 +118,7 @@ export default function AuthPage() {
             )}
 
             <button type="submit" disabled={loading || (turnstileEnabled && !tsToken)} style={{
-              width: "100%", height: 48, background: loading || (turnstileEnabled && !tsToken) ? "#a8d5ca" : TEAL,
+              width: "100%", height: 48, background: loading || (turnstileEnabled && !tsToken) ? "#96cec8" : TEAL,
               color: "#fff", border: "none", borderRadius: 10, fontSize: 15, fontWeight: 700,
               cursor: loading ? "not-allowed" : "pointer", transition: "background 0.15s ease", marginTop: 4,
             }}>
@@ -163,7 +166,7 @@ export default function AuthPage() {
             )}
 
             <button type="submit" disabled={loading || (turnstileEnabled && !tsToken)} style={{
-              width: "100%", height: 48, background: loading || (turnstileEnabled && !tsToken) ? "#a8d5ca" : TEAL,
+              width: "100%", height: 48, background: loading || (turnstileEnabled && !tsToken) ? "#96cec8" : TEAL,
               color: "#fff", border: "none", borderRadius: 10, fontSize: 15, fontWeight: 700,
               cursor: loading ? "not-allowed" : "pointer", transition: "background 0.15s ease", marginTop: 4,
             }}>

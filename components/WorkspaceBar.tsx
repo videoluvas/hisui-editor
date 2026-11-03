@@ -198,9 +198,8 @@ function CreateWorkspaceModal({ first, submitting, onCreate, onClose, toolTypes 
           style={{
             width: "100%", padding: "12px", fontSize: 14, fontWeight: 700,
             borderRadius: 10, border: "none",
-            background: submitting ? "#94a3b8" : `linear-gradient(135deg, ${TEAL}, #0d7a6e)`,
+            background: submitting ? "#94a3b8" : TEAL,
             color: "#fff", cursor: submitting ? "not-allowed" : "pointer", fontFamily: FONT,
-            boxShadow: submitting ? "none" : `0 4px 14px ${TEAL}44`,
           }}
         >
           {submitting ? "作成中..." : first ? "作成してはじめる" : "作成する"}

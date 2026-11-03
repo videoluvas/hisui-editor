@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { planLabel } from "@/lib/pricing";
+import { toast } from "@/lib/toast";
 
 const FONT = "'Noto Sans JP', sans-serif";
 const CYAN = "#5184F0";
@@ -215,7 +216,7 @@ function UserRow({ user, onUpdate, onDelete }: {
       if (data.ok) {
         window.open("/", "_blank");
       } else {
-        alert(data.message ?? "エラーが発生しました");
+        toast(data.message ?? "エラーが発生しました");
       }
     } finally {
       setEntering(false);
@@ -235,7 +236,7 @@ function UserRow({ user, onUpdate, onDelete }: {
       if (data.ok) {
         onDelete(user.id);
       } else {
-        alert(data.message ?? "削除に失敗しました");
+        toast(data.message ?? "削除に失敗しました");
         setConfirmDelete(false);
       }
     } finally {

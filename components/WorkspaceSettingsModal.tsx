@@ -26,6 +26,7 @@ import type { BgmSettings, BgmVocal, BgmModel } from "@/lib/bgmSettings";
 import { loadVideoExportSettings, saveVideoExportSettings, resetVideoExportToSequence } from "@/lib/videoExportSettings";
 import type { VideoExportSettings } from "@/lib/videoExportSettings";
 import { TransferOwnerSection } from "@/components/TransferOwnerSection";
+import { toast } from "@/lib/toast";
 
 export type WsSettingsTab = "general" | "script" | "telop" | "image" | "video" | "narration" | "bgm" | "render" | "export";
 
@@ -396,7 +397,7 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
     setUploadingRefImg(true);
     try {
       const data = await getPresignedUrl(file, undefined, workspaceId);
-      if (!data.ok || !data.presignedUrl) { alert(data.message ?? "アップロードに失敗しました"); return; }
+      if (!data.ok || !data.presignedUrl) { toast(data.message ?? "アップロードに失敗しました"); return; }
       await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.onload = () => (xhr.status < 400 ? resolve() : reject(new Error("upload failed")));
@@ -407,7 +408,7 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
       });
       if (data.fileUrl) setImg((s) => ({ ...s, refImageUrl: data.fileUrl! }));
     } catch {
-      alert("アップロードに失敗しました");
+      toast("アップロードに失敗しました");
     } finally {
       setUploadingRefImg(false);
       e.target.value = "";
@@ -904,8 +905,8 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                           { value: "1024x1024", label: "正方形 (1024×1024)" },
                           { value: "2560x1440", label: "横長 QHD (2560×1440)" },
                           { value: "1440x2560", label: "縦長 QHD (1440×2560)" },
-                          { value: "3840x2160", label: "横長 4K (3840×2160)🧪" },
-                          { value: "2160x3840", label: "縦長 4K (2160×3840)🧪" },
+                          { value: "3840x2160", label: "横長 4K (3840×2160)・試験運用" },
+                          { value: "2160x3840", label: "縦長 4K (2160×3840)・試験運用" },
                         ]).map((s) => (
                           <button key={s.value} onClick={() => setImg((p) => ({ ...p, gptSize: s.value }))}
                             style={{
@@ -1694,7 +1695,7 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
                 border: active ? "none" : "1.5px solid #e2e8f0",
                 borderRadius: 20, padding: "4px 12px", fontSize: 12,
                 fontWeight: active ? 700 : 400, fontFamily: FONT, cursor: "pointer",
-                background: active ? "linear-gradient(45deg,#5184F0,#169385)" : "#f8fafc",
+                background: active ? TEAL : "#f8fafc",
                 color: active ? "#fff" : "#475569", transition: "all 0.15s",
               });
               return (
@@ -2396,7 +2397,7 @@ export default function WorkspaceSettingsModal({ defaultTab = "image", workspace
               キャンセル
             </button>
             <button onClick={handleSave} disabled={saving || saved}
-              style={{ flex: 2, padding: "9px", fontSize: 13, fontWeight: 700, borderRadius: 10, border: "none", background: saved ? "#169385" : saving ? "#94a3b8" : `linear-gradient(135deg, ${TEAL}, #0d7a6e)`, color: "#fff", cursor: (saving || saved) ? "default" : "pointer", fontFamily: FONT, boxShadow: (saving || saved) ? "none" : `0 4px 14px ${TEAL}44` }}
+              style={{ flex: 2, padding: "9px", fontSize: 13, fontWeight: 700, borderRadius: 10, border: "none", background: saved ? "#169385" : saving ? "#94a3b8" : TEAL, color: "#fff", cursor: (saving || saved) ? "default" : "pointer", fontFamily: FONT }}
             >
               {saved ? "✓ 保存しました" : saving ? "保存中..." : "保存"}
             </button>

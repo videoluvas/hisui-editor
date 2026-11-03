@@ -106,7 +106,7 @@ export default function ImportProgress({ phase, uploadRatio, progress, withNarra
           <span style={{ color: TEAL }}>{Math.floor(percent)}%</span>
         </div>
         <div role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.floor(percent)} style={{ height: 10, borderRadius: 999, background: "#e2e8f0", overflow: "hidden" }}>
-          <div style={{ width: `${percent}%`, height: "100%", borderRadius: 999, background: `linear-gradient(90deg, ${TEAL}, #34d3b9)`, transition: "width 0.3s ease" }} />
+          <div style={{ width: `${percent}%`, height: "100%", borderRadius: 999, background: TEAL, transition: "width 0.3s ease" }} />
         </div>
       </div>
       <ol style={{ listStyle: "none", margin: 0, padding: 0, width: "100%", display: "flex", flexDirection: "column", gap: 4 }}>

@@ -34,7 +34,7 @@ export async function GET(
       return NextResponse.json({ ok: false, message: "editJsonKeyが存在しません" }, { status: 400 });
     }
 
-    const editJson = await getEditJsonFromR2(project.editJsonKey);
+    const editJson = await getEditJsonFromR2(project.editJsonKey, { strict: true });
 
     return NextResponse.json({ ok: true, editJson });
   } catch (error) {

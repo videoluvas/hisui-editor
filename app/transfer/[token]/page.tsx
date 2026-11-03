@@ -95,9 +95,9 @@ export default function TransferPage() {
       <div style={{ background: "#fff", borderRadius: 20, boxShadow: "0 8px 40px rgba(0,0,0,0.10)", width: "100%", maxWidth: 480, overflow: "hidden" }}>
 
         {/* ヘッダー */}
-        <div style={{ background: `linear-gradient(135deg, ${TEAL}, #0d5c54)`, padding: "24px 28px" }}>
-          <div style={{ color: "#fff", fontSize: 18, fontWeight: 800, letterSpacing: "-0.3px" }}>✦ Hisui AI</div>
-          <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 12, marginTop: 2 }}>管理ユーザーの移譲</div>
+        <div style={{ padding: "22px 28px 18px", borderBottom: "1px solid #f1f5f9" }}>
+          <img src="https://assets.hisui-ai.com/system/img/hisui_video_%E3%83%AD%E3%82%B4_01.png" alt="ヒスイAI" style={{ height: 24, width: "auto", objectFit: "contain", display: "block" }} />
+          <div style={{ color: "#64748b", fontSize: 12, marginTop: 8 }}>管理ユーザーの移譲</div>
         </div>
 
         <div style={{ padding: "28px 28px 32px" }}>
@@ -110,7 +110,6 @@ export default function TransferPage() {
           {/* ── 無効なリンク ── */}
           {pageState === "invalid" && (
             <>
-              <div style={{ fontSize: 20, marginBottom: 8 }}>⚠️</div>
               <div style={{ fontSize: 15, fontWeight: 700, color: "#1e293b", marginBottom: 8 }}>リンクが無効または期限切れです</div>
               <div style={{ fontSize: 13, color: "#64748b" }}>{errorMsg}</div>
             </>

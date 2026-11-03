@@ -4,32 +4,11 @@ import { buildEmptyEditConfig } from "@/lib/editor.utils";
 import { getTimelineFonts } from "@/lib/fonts";
 import type { Project } from "@/lib/project.api";
 import type { EditConfig } from "@shotstack/shotstack-studio";
+import { toast } from "@/lib/toast";
 
 type EditorHandle = {
   loadEdit: (edit: EditConfig) => Promise<void>;
 };
-
-function stripHtmlClips(editJson: EditConfig): EditConfig {
-  if (!editJson?.timeline?.tracks) return editJson;
-
-  return {
-    ...editJson,
-    timeline: {
-      ...editJson.timeline,
-      tracks: editJson.timeline.tracks
-        .map((track) => ({
-          ...track,
-          clips: Array.isArray(track.clips)
-            ? track.clips.filter((clip) => {
-                const asset = clip?.asset as { type?: string } | undefined;
-                return asset?.type !== "html";
-              })
-            : [],
-        }))
-        .filter((track) => track.clips.length > 0),
-    },
-  };
-}
 
 export function useProjectLoader(
   editRef: MutableRefObject<EditorHandle | null>,
@@ -38,6 +17,7 @@ export function useProjectLoader(
   isLoadingRef: MutableRefObject<boolean>,
 ) {
   const [isProjectLoading, setIsProjectLoading] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
   const isProjectLoadingRef = useRef(false);
 
   useEffect(() => {
@@ -46,44 +26,46 @@ export function useProjectLoader(
     const load = async () => {
       isProjectLoadingRef.current = true;
       setIsProjectLoading(true);
+      setLoadFailed(false);
 
       let config: EditConfig;
 
       if (selectedProject.editJsonKey) {
-        try {
-          const res = await getProjectEditJson(selectedProject.id);
-          console.log("R2から取得したeditJson:", JSON.stringify(res.editJson).slice(0, 200));
-
-          if (res.ok && res.editJson) {
-  const loaded = res.editJson as any;
-  // htmlアセットをrich-textに変換
-  const tracks = loaded.timeline?.tracks?.map((track: any) => ({
-    ...track,
-    clips: track.clips?.map((clip: any) => {
-      if (clip.asset?.type === "html") {
-        return {
-          ...clip,
-          asset: {
-            type: "rich-text",
-            text: clip.asset.html?.replace(/<[^>]*>/g, "") || " ",
-          },
-        };
-      }
-      return clip;
-    }),
-  }));
-  config = {
-    ...loaded,
-    timeline: {
-      ...loaded.timeline,
-      tracks,
-      fonts: getTimelineFonts(),
-    },
-  } as EditConfig;
-} else {
-            config = buildEmptyEditConfig(selectedProject);
-          }
-        } catch {
+        const res = await getProjectEditJson(selectedProject.id).catch(() => null);
+        if (!res?.ok) {
+          // 読み込めないまま空のタイムラインを出すと、保存で保存済みの内容を上書きしてしまうので編集させない（isProjectLoadingRef は true のまま）
+          setLoadFailed(true);
+          setIsProjectLoading(false);
+          toast(`プロジェクトを読み込めませんでした${res?.message ? `（${res.message}）` : ""}。通信状況を確認して、ページを再読み込みしてください。`);
+          return;
+        }
+        if (res.editJson) {
+          const loaded = res.editJson as any;
+          // htmlアセットをrich-textに変換
+          const tracks = loaded.timeline?.tracks?.map((track: any) => ({
+            ...track,
+            clips: track.clips?.map((clip: any) => {
+              if (clip.asset?.type === "html") {
+                return {
+                  ...clip,
+                  asset: {
+                    type: "rich-text",
+                    text: clip.asset.html?.replace(/<[^>]*>/g, "") || " ",
+                  },
+                };
+              }
+              return clip;
+            }),
+          }));
+          config = {
+            ...loaded,
+            timeline: {
+              ...loaded.timeline,
+              tracks,
+              fonts: getTimelineFonts(),
+            },
+          } as EditConfig;
+        } else {
           config = buildEmptyEditConfig(selectedProject);
         }
       } else {
@@ -107,5 +89,5 @@ export function useProjectLoader(
     void load();
   }, [editorReady, selectedProject, editRef, isLoadingRef]);
 
-  return { isProjectLoading, isProjectLoadingRef };
+  return { isProjectLoading, isProjectLoadingRef, loadFailed };
 }

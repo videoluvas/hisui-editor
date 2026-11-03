@@ -49,7 +49,7 @@ export default function PricingPage() {
       </header>
 
       <main>
-        <section style={{ background: "linear-gradient(180deg, #f0fdfa 0%, #ffffff 100%)", padding: "40px 20px 24px", textAlign: "center" }}>
+        <section style={{ background: "#f8fafc", borderBottom: "1px solid #eef2f6", padding: "40px 20px 24px", textAlign: "center" }}>
           <h1 style={{ fontSize: 30, fontWeight: 800, margin: "0 0 12px" }}>料金プラン</h1>
           <p style={{ fontSize: 15, color: "#475569", margin: 0, lineHeight: 1.8 }}>
             パワーポイントの動画変換は、無料で試せます。<br />

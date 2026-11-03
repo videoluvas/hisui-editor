@@ -13,7 +13,6 @@ const FONT   = "'Noto Sans JP', sans-serif";
 const ACCENT = "#5184F0";
 const GREEN  = "#059669";
 const RED    = "#dc2626";
-const GRAD   = "linear-gradient(90deg, #5184F0, #169385)";
 
 // ─── Progress types (exported – used in page.tsx) ─────────────────────────────
 
@@ -152,7 +151,7 @@ function XCircleIcon() {
 function StepDot({ state }: { state: "done" | "active" | "pending" }) {
   if (state === "done") {
     return (
-      <div style={{ width: 22, height: 22, borderRadius: "50%", background: GRAD, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+      <div style={{ width: 22, height: 22, borderRadius: "50%", background: ACCENT, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
         <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M2 5.5l2.5 2.5 4.5-4.5" />
         </svg>
@@ -194,7 +193,7 @@ function StepIndicator({ currentStep, failed }: { currentStep: number; failed: b
                 marginTop: 10,
                 marginLeft: 2,
                 marginRight: 2,
-                background: !failed && currentStep > i ? GRAD : "#e5e7eb",
+                background: !failed && currentStep > i ? ACCENT : "#e5e7eb",
                 transition: "background 0.4s",
                 borderRadius: 1,
               }} />
@@ -213,7 +212,7 @@ function ProgressBar({ percent }: { percent: number }) {
         <div style={{
           width: `${percent}%`,
           height: "100%",
-          background: GRAD,
+          background: ACCENT,
           borderRadius: 4,
           transition: "width 1.2s cubic-bezier(0.4,0,0.2,1)",
         }} />

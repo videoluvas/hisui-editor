@@ -120,6 +120,17 @@ export const EXPORT_GUIDES: Record<string, ErrorGuide> = {
     steps: ["読み込みが終わってから、もう一度「書き出す」を押してください。"],
     action: "retry",
   },
+  LOAD_FAILED: {
+    title: "プロジェクトを読み込めていません",
+    steps: ["ページを再読み込みして、プロジェクトを開き直してください。", "直らない場合は、通信状況を確認してください。"],
+    action: "retry",
+  },
+  SAVE_FAILED: {
+    title: "編集内容を保存できませんでした",
+    steps: ["通信状況を確認して、もう一度「書き出す」を押してください。", "ログインが切れている場合は、ログインし直してください。"],
+    action: "retry",
+    note: "書き出しの回数・分数には数えていません。",
+  },
   RENDER_START_FAILED: {
     title: "書き出しを開始できませんでした",
     steps: [

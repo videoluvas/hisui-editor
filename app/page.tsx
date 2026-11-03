@@ -35,6 +35,7 @@ import type { AppMode } from "@/components/SidePanel";
 import type { ToolType } from "@/lib/workspace.api";
 import type { ExportProgressInfo } from "@/components/SidePanelExport";
 import { GuidedError } from "@/lib/errorGuide";
+import { toast } from "@/lib/toast";
 
 type FileItem = {
   id: string;
@@ -80,8 +81,12 @@ export default function Home() {
   const [editorReady, setEditorReady] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
-  const [autoSaveMode, setAutoSaveMode] = useState<AutoSaveMode>("onChange");
-  const [autoSaveInterval, setAutoSaveInterval] = useState<AutoSaveInterval>(10);
+  const [autoSaveMode, setAutoSaveMode] = useState<AutoSaveMode>(() => {
+    try { return localStorage.getItem("hisui_autosave_mode") === "interval" ? "interval" : "onChange"; } catch { return "onChange"; }
+  });
+  const [autoSaveInterval, setAutoSaveInterval] = useState<AutoSaveInterval>(() => {
+    try { const v = Number(localStorage.getItem("hisui_autosave_interval")); return ([5, 10, 30, 60] as const).find((n) => n === v) ?? 10; } catch { return 10; }
+  });
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [saveLogs, setSaveLogs] = useState<SaveLog[]>([]);
   const [appMode, setAppMode] = useState<AppMode>("video");
@@ -121,12 +126,22 @@ export default function Home() {
   const selectedClipRef = useRef<ClipTarget | null>(null);
   const replaceTargetRef = useRef<ClipTarget | null>(null);
 
-  const { isProjectLoading, isProjectLoadingRef } = useProjectLoader(editRef, editorReady, selectedProject, isLoadingRef);
+  const { isProjectLoading, isProjectLoadingRef, loadFailed } = useProjectLoader(editRef, editorReady, selectedProject, isLoadingRef);
 
-  useEditorAutosave(editRef, selectedProjectRef, isLoadingRef, isProjectLoadingRef, editorReady, () => {
+  const { markSaved, flush: flushAutosave } = useEditorAutosave(editRef, selectedProjectRef, isLoadingRef, isProjectLoadingRef, editorReady, autoSaveMode, autoSaveInterval, () => {
     setLastSavedAt(new Date());
     setSaveLogs((prev) => [...prev, { type: "auto", savedAt: new Date() }]);
+  }, () => {
+    setSaveStatus("error");
+    setTimeout(() => setSaveStatus("idle"), 5000);
   });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("hisui_autosave_mode", autoSaveMode);
+      localStorage.setItem("hisui_autosave_interval", String(autoSaveInterval));
+    } catch {}
+  }, [autoSaveMode, autoSaveInterval]);
 
   const captureCurrentFrame = async (): Promise<string | null> => {
     const studioEl = document.querySelector(".c-shotstack-studio");
@@ -193,6 +208,7 @@ export default function Home() {
   };
 
   const selectProject = (project: Project | null) => {
+    if (project?.id !== selectedProjectRef.current?.id) flushAutosave();
     selectedProjectRef.current = project;
     setSelectedProject(project);
     if (project) {
@@ -202,22 +218,28 @@ export default function Home() {
     }
   };
 
-  const handleSave = async () => {
+  const handleSave = async (): Promise<boolean> => {
     const project = selectedProjectRef.current;
-    if (!project) return;
+    const rawEditJson = editRef.current?.getEdit();
+    if (!project || !rawEditJson || isProjectLoadingRef.current) {
+      if (loadFailed) { setSaveStatus("error"); setTimeout(() => setSaveStatus("idle"), 5000); }
+      return false;
+    }
     setSaveStatus("saving");
     try {
-      const rawEditJson = editRef.current?.getEdit();
-      if (!rawEditJson) return;
-      await saveProjectEditJson(project.id, structuredClone(rawEditJson));
+      const res = await saveProjectEditJson(project.id, structuredClone(rawEditJson));
+      if (!res.ok) throw new Error(res.message);
+      markSaved();
       setSaveStatus("saved");
       setLastSavedAt(new Date());
       setSaveLogs((prev) => [...prev, { type: "manual", savedAt: new Date() }]);
       setTimeout(() => setSaveStatus("idle"), 3000);
+      return true;
     } catch (e) {
       console.error("保存エラー=", e);
       setSaveStatus("error");
-      setTimeout(() => setSaveStatus("idle"), 3000);
+      setTimeout(() => setSaveStatus("idle"), 5000);
+      return false;
     }
   };
 
@@ -231,7 +253,9 @@ export default function Home() {
     setSaveStatus("saving");
     try {
       await editRef.current.loadEdit(snapshot as Parameters<typeof editRef.current.loadEdit>[0]);
-      await saveProjectEditJson(project.id, snapshot);
+      const res = await saveProjectEditJson(project.id, snapshot);
+      if (!res.ok) throw new Error(res.message);
+      markSaved();
       setSaveStatus("saved");
       setSaveLogs((prev) => [...prev, { type: "manual", savedAt: new Date() }]);
       setTimeout(() => setSaveStatus("idle"), 3000);
@@ -245,10 +269,11 @@ export default function Home() {
   const handleExportApi = async (onProgress: (info: ExportProgressInfo) => void): Promise<string> => {
     const project = selectedProjectRef.current;
     if (!project)                         throw new GuidedError("NOT_READY", "プロジェクトを選択してください");
+    if (loadFailed)                       throw new GuidedError("LOAD_FAILED", "プロジェクトを読み込めていません。ページを再読み込みしてください");
     if (isProjectLoading || !editorReady) throw new GuidedError("NOT_READY", "プロジェクトの読み込み完了後に書き出してください");
 
     onProgress({ phase: "saving" });
-    await handleSave();
+    if (!(await handleSave())) throw new GuidedError("SAVE_FAILED", "編集内容を保存できなかったため、書き出しを中止しました。通信状況を確認してもう一度お試しください");
 
     onProgress({ phase: "submitting" });
     const renderSettings = loadVideoExportSettings();
@@ -299,7 +324,7 @@ export default function Home() {
     if (!editRef.current) return;
     const updated = structuredClone(editRef.current.getEdit() as any);
     const clip = locateClip(updated, t);
-    if (!clip) { alert("差し替えるクリップが見つかりませんでした"); return; }
+    if (!clip) { toast("差し替えるクリップが見つかりませんでした"); return; }
     const wasText = clip.asset?.type === "rich-text" || clip.asset?.type === "text" || clip.asset?.type === "svg";
     clip.asset = asset;
     if (wasText && asset.type !== "audio") clip.fit = "contain";
@@ -342,7 +367,7 @@ export default function Home() {
 
   const withBusy = async (fn: () => Promise<void>) => {
     setClipBusy(true);
-    try { await fn(); } catch (e) { alert(e instanceof Error ? e.message : "処理に失敗しました"); } finally { setClipBusy(false); }
+    try { await fn(); } catch (e) { toast(e instanceof Error ? e.message : "処理に失敗しました"); } finally { setClipBusy(false); }
   };
 
   const handleDecorate = () => withBusy(async () => {
@@ -412,7 +437,7 @@ export default function Home() {
     setFileModal((m) => ({ ...m, uploading: true, uploadProgress: 0 }));
     try {
        const data = await getPresignedUrl(file, selectedProjectRef.current?.id);
-      if (!data.ok || !data.presignedUrl) { alert(data.message ?? "アップロードURLの取得に失敗しました"); return; }
+      if (!data.ok || !data.presignedUrl) { toast(data.message ?? "アップロードURLの取得に失敗しました"); return; }
       await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.upload.onprogress = (ev) => {
@@ -431,7 +456,7 @@ export default function Home() {
         insertFileToTimeline(uploadedFile, fileModal.position);
       }
     } catch {
-      alert("アップロードに失敗しました");
+      toast("アップロードに失敗しました");
     } finally {
       setFileModal((m) => ({ ...m, uploading: false, uploadProgress: null }));
       e.target.value = "";
@@ -442,7 +467,7 @@ export default function Home() {
     const initPage = async () => {
       try {
         const authResult = await handleEditorAuthFromUrl();
-        if (authResult && !authResult.ok) alert(authResult.message || "認証に失敗しました");
+        if (authResult && !authResult.ok) toast(authResult.message || "認証に失敗しました");
       } catch (error) {
         console.error("認証エラー:", error);
       }
@@ -569,7 +594,6 @@ export default function Home() {
           src="https://assets.hisui-ai.com/system/img/hisui_video_%E3%83%AD%E3%82%B4_01.png"
           alt="ヒスイAI" style={{ height: 36, objectFit: "contain" }}
         />
-        <div style={{ fontSize: 32 }}>💻</div>
         <div>
           <div style={{ fontSize: 17, fontWeight: 800, color: "#1e293b", marginBottom: 8 }}>
             PCブラウザでご利用ください
@@ -594,22 +618,6 @@ export default function Home() {
 
   return (
     <>
-      {isMobile && (
-        <button
-          onClick={() => setSidePanelOpen(true)}
-          style={{
-            position: "fixed", top: 12, left: 12, zIndex: 200,
-            width: 40, height: 40, border: "none", borderRadius: 10,
-            background: "#fff", boxShadow: "0 2px 10px rgba(0,0,0,0.15)",
-            cursor: "pointer", display: "flex", flexDirection: "column",
-            alignItems: "center", justifyContent: "center", gap: 4,
-          }}
-        >
-          {[0,1,2].map((i) => (
-            <span key={i} style={{ display: "block", width: 16, height: 2, borderRadius: 1, background: "#334155" }} />
-          ))}
-        </button>
-      )}
       <div className="editor-shell">
         <div className="editor-top">
           {authReady && (
@@ -717,7 +725,7 @@ export default function Home() {
           autoSaveMode={autoSaveMode}
           autoSaveInterval={autoSaveInterval}
           saveLogs={saveLogs}
-          onSave={handleSave}
+          onSave={() => void handleSave()}
           onAutoSaveModeChange={setAutoSaveMode}
           onAutoSaveIntervalChange={setAutoSaveInterval}
           onRestore={handleRestoreFromLog}

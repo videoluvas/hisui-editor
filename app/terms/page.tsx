@@ -5,12 +5,11 @@ export const metadata: Metadata = { title: "利用規約 | ヒスイAI" };
 
 const TEAL  = "#169385";
 const FONT  = "'Noto Sans JP', sans-serif";
-const GRAD  = "linear-gradient(45deg, #5184F0, #169385)";
 
 function H2({ children }: { children: React.ReactNode }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "40px 0 14px" }}>
-      <div style={{ width: 4, height: 22, borderRadius: 2, background: GRAD, flexShrink: 0 }} />
+      <div style={{ width: 4, height: 22, borderRadius: 2, background: TEAL, flexShrink: 0 }} />
       <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: "#1e293b", fontFamily: FONT }}>{children}</h2>
     </div>
   );

@@ -16,6 +16,7 @@ import { saveGenMeta } from "@/lib/gen.meta";
 import type { GenMetaVideo } from "@/lib/gen.meta";
 import WorkspaceSettingsModal from "@/components/WorkspaceSettingsModal";
 import type { WsSettingsTab } from "@/components/WorkspaceSettingsModal";
+import { toast } from "@/lib/toast";
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const CYAN    = "#5184F0";
@@ -1203,11 +1204,11 @@ function SceneCol({ scene, index, allScenes, stepOpen, promptOpen, onToggleStep,
     const file = e.target.files?.[0];
     if (!file) return;
     const err = checkUploadLimit(file, "image");
-    if (err) { alert(err); e.target.value = ""; return; }
+    if (err) { toast(err); e.target.value = ""; return; }
     setUploadingImg(true);
     try {
       const data = await getPresignedUrl(file, undefined, workspaceId);
-      if (!data.ok || !data.presignedUrl) { alert(data.message ?? "アップロードに失敗しました"); return; }
+      if (!data.ok || !data.presignedUrl) { toast(data.message ?? "アップロードに失敗しました"); return; }
       await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.onload = () => (xhr.status < 400 ? resolve() : reject(new Error("upload failed")));
@@ -1218,7 +1219,7 @@ function SceneCol({ scene, index, allScenes, stepOpen, promptOpen, onToggleStep,
       });
       if (data.fileUrl) onUpdate({ imageUrl: data.fileUrl });
     } catch {
-      alert("アップロードに失敗しました");
+      toast("アップロードに失敗しました");
     } finally {
       setUploadingImg(false);
       e.target.value = "";
@@ -1229,11 +1230,11 @@ function SceneCol({ scene, index, allScenes, stepOpen, promptOpen, onToggleStep,
     const file = e.target.files?.[0];
     if (!file) return;
     const err = checkUploadLimit(file, "image");
-    if (err) { alert(err); e.target.value = ""; return; }
+    if (err) { toast(err); e.target.value = ""; return; }
     setUploadingRefImg(true);
     try {
       const data = await getPresignedUrl(file, undefined, workspaceId);
-      if (!data.ok || !data.presignedUrl) { alert(data.message ?? "アップロードに失敗しました"); return; }
+      if (!data.ok || !data.presignedUrl) { toast(data.message ?? "アップロードに失敗しました"); return; }
       await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.onload = () => (xhr.status < 400 ? resolve() : reject(new Error("upload failed")));
@@ -1244,7 +1245,7 @@ function SceneCol({ scene, index, allScenes, stepOpen, promptOpen, onToggleStep,
       });
       if (data.fileUrl) onUpdate({ imagePrompt: { ...scene.imagePrompt, mode: "ref-upload", refUploadUrl: data.fileUrl } });
     } catch {
-      alert("アップロードに失敗しました");
+      toast("アップロードに失敗しました");
     } finally {
       setUploadingRefImg(false);
       e.target.value = "";
@@ -1255,11 +1256,11 @@ function SceneCol({ scene, index, allScenes, stepOpen, promptOpen, onToggleStep,
     const file = e.target.files?.[0];
     if (!file) return;
     const err = checkUploadLimit(file, "image");
-    if (err) { alert(err); e.target.value = ""; return; }
+    if (err) { toast(err); e.target.value = ""; return; }
     setUploadingVidRefImg(true);
     try {
       const data = await getPresignedUrl(file, undefined, workspaceId);
-      if (!data.ok || !data.presignedUrl) { alert(data.message ?? "アップロードに失敗しました"); return; }
+      if (!data.ok || !data.presignedUrl) { toast(data.message ?? "アップロードに失敗しました"); return; }
       await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.onload = () => (xhr.status < 400 ? resolve() : reject(new Error("upload failed")));
@@ -1270,7 +1271,7 @@ function SceneCol({ scene, index, allScenes, stepOpen, promptOpen, onToggleStep,
       });
       if (data.fileUrl) onUpdate({ videoPrompt: { ...scene.videoPrompt, firstFrameMode: "upload", firstFrameUploadUrl: data.fileUrl } });
     } catch {
-      alert("アップロードに失敗しました");
+      toast("アップロードに失敗しました");
     } finally {
       setUploadingVidRefImg(false);
       e.target.value = "";
@@ -1281,11 +1282,11 @@ function SceneCol({ scene, index, allScenes, stepOpen, promptOpen, onToggleStep,
     const file = e.target.files?.[0];
     if (!file) return;
     const err = checkUploadLimit(file, "image");
-    if (err) { alert(err); e.target.value = ""; return; }
+    if (err) { toast(err); e.target.value = ""; return; }
     setUploadingVidLastFrame(true);
     try {
       const data = await getPresignedUrl(file, undefined, workspaceId);
-      if (!data.ok || !data.presignedUrl) { alert(data.message ?? "アップロードに失敗しました"); return; }
+      if (!data.ok || !data.presignedUrl) { toast(data.message ?? "アップロードに失敗しました"); return; }
       await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.onload = () => (xhr.status < 400 ? resolve() : reject(new Error("upload failed")));
@@ -1296,7 +1297,7 @@ function SceneCol({ scene, index, allScenes, stepOpen, promptOpen, onToggleStep,
       });
       if (data.fileUrl) onUpdate({ videoPrompt: { ...scene.videoPrompt, lastFrameMode: "upload", lastFrameUploadUrl: data.fileUrl } });
     } catch {
-      alert("アップロードに失敗しました");
+      toast("アップロードに失敗しました");
     } finally {
       setUploadingVidLastFrame(false);
       e.target.value = "";
@@ -1307,11 +1308,11 @@ function SceneCol({ scene, index, allScenes, stepOpen, promptOpen, onToggleStep,
     const file = e.target.files?.[0];
     if (!file) return;
     const err = checkUploadLimit(file, "video");
-    if (err) { alert(err); e.target.value = ""; return; }
+    if (err) { toast(err); e.target.value = ""; return; }
     setUploadingVideo(true);
     try {
       const data = await getPresignedUrl(file, undefined, workspaceId);
-      if (!data.ok || !data.presignedUrl) { alert(data.message ?? "アップロードに失敗しました"); return; }
+      if (!data.ok || !data.presignedUrl) { toast(data.message ?? "アップロードに失敗しました"); return; }
       await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.onload = () => (xhr.status < 400 ? resolve() : reject(new Error("upload failed")));
@@ -1325,7 +1326,7 @@ function SceneCol({ scene, index, allScenes, stepOpen, promptOpen, onToggleStep,
         onUpdate({ videoUrl: data.fileUrl, videoDuration: dur });
       }
     } catch {
-      alert("アップロードに失敗しました");
+      toast("アップロードに失敗しました");
     } finally {
       setUploadingVideo(false);
       e.target.value = "";
@@ -1336,11 +1337,11 @@ function SceneCol({ scene, index, allScenes, stepOpen, promptOpen, onToggleStep,
     const file = e.target.files?.[0];
     if (!file) return;
     const err = checkUploadLimit(file, "audio");
-    if (err) { alert(err); e.target.value = ""; return; }
+    if (err) { toast(err); e.target.value = ""; return; }
     setUploadingAudio(true);
     try {
       const data = await getPresignedUrl(file, undefined, workspaceId);
-      if (!data.ok || !data.presignedUrl) { alert(data.message ?? "アップロードに失敗しました"); return; }
+      if (!data.ok || !data.presignedUrl) { toast(data.message ?? "アップロードに失敗しました"); return; }
       await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.onload = () => (xhr.status < 400 ? resolve() : reject(new Error("upload failed")));
@@ -1355,7 +1356,7 @@ function SceneCol({ scene, index, allScenes, stepOpen, promptOpen, onToggleStep,
         onUpdate({ narrationUrl: data.fileUrl, narrationName: name, narrationDuration: dur });
       }
     } catch {
-      alert("アップロードに失敗しました");
+      toast("アップロードに失敗しました");
     } finally {
       setUploadingAudio(false);
       e.target.value = "";
