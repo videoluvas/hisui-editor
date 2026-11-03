@@ -12,6 +12,7 @@ const PAGES: [string, number][] = [
   ["/privacy", 0.2],
 ];
 
+// lastModified は付けない（毎回現在時刻にすると全ページが常に更新扱いになり、Google が sitemap の更新日を信用しなくなる）
 export default function sitemap(): MetadataRoute.Sitemap {
-  return PAGES.map(([path, priority]) => ({ url: `${SITE_URL}${path}`, lastModified: new Date(), priority }));
+  return PAGES.map(([path, priority]) => ({ url: `${SITE_URL}${path}`, priority }));
 }
